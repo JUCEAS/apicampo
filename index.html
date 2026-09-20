@@ -1,0 +1,2582 @@
+<title>ApiCampo</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#D98C12">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ApiCampo">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBF7EE;
+    --surface:#FFFFFF;
+    --surface-2:#F5EEDD;
+    --ink:#2A2014;
+    --muted:#7A6A4E;
+    --line:#E6DCC3;
+    --accent:#D98C12;
+    --accent-ink:#5C3B00;
+    --accent-soft:#F6DFA6;
+    --good:#3F7A34;
+    --good-soft:#DCEBD2;
+    --warn:#B4700A;
+    --warn-soft:#F5E3C0;
+    --critical:#AE3A2C;
+    --critical-soft:#F4D9D3;
+    --shadow:rgba(42,32,20,0.14);
+    --f-vacio:#E6DCC3;
+    --f-vacio-ink:#7A6A4E;
+    --f-cria:#B85C38;
+    --f-cria-ink:#FFFFFF;
+    --f-miel:#D98C12;
+    --f-miel-ink:#5C3B00;
+    --f-polen:#8C8A2E;
+    --f-polen-ink:#FFFFFF;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#15110A;
+      --surface:#211A10;
+      --surface-2:#2A2115;
+      --ink:#F3E9D2;
+      --muted:#BBA57D;
+      --line:#3A2E1C;
+      --accent:#E8A33D;
+      --accent-ink:#2A1900;
+      --accent-soft:#4A3313;
+      --good:#7FBB6A;
+      --good-soft:#23361E;
+      --warn:#E0A33F;
+      --warn-soft:#3B2C11;
+      --critical:#E17662;
+      --f-vacio:#3A2E1C;
+      --f-vacio-ink:#BBA57D;
+      --f-cria:#E08A63;
+      --f-cria-ink:#2A1400;
+      --f-miel:#E8A33D;
+      --f-miel-ink:#2A1900;
+      --f-polen:#C7C765;
+      --f-polen-ink:#22220A;
+      --critical-soft:#3C2018;
+      --shadow:rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#15110A;
+    --surface:#211A10;
+    --surface-2:#2A2115;
+    --ink:#F3E9D2;
+    --muted:#BBA57D;
+    --line:#3A2E1C;
+    --accent:#E8A33D;
+    --accent-ink:#2A1900;
+    --accent-soft:#4A3313;
+    --good:#7FBB6A;
+    --good-soft:#23361E;
+    --warn:#E0A33F;
+    --warn-soft:#3B2C11;
+    --critical:#E17662;
+    --critical-soft:#3C2018;
+    --shadow:rgba(0,0,0,0.4);
+    --f-vacio:#3A2E1C;
+    --f-vacio-ink:#BBA57D;
+    --f-cria:#E08A63;
+    --f-cria-ink:#2A1400;
+    --f-miel:#E8A33D;
+    --f-miel-ink:#2A1900;
+    --f-polen:#C7C765;
+    --f-polen-ink:#22220A;
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Inter",system-ui,-apple-system,sans-serif;
+    padding-inline:0;
+    -webkit-tap-highlight-color:transparent;
+  }
+  h1,h2,h3,.display{
+    font-family:"Fraunces",Georgia,serif;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+  .mono{ font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  button{ font-family:inherit; }
+  a{ color:var(--accent-ink); }
+
+  /* ---------- App shell ---------- */
+  #app{
+    max-width:520px;
+    margin:0 auto;
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+    background:var(--bg);
+  }
+  header.topbar{
+    position:sticky;
+    top:env(safe-area-inset-top,0px);
+    z-index:20;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+    padding:14px 16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  header.topbar .brand{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex:1;
+    min-width:0;
+  }
+  header.topbar .brand svg{ flex:none; color:var(--accent); }
+  header.topbar .titles{ min-width:0; }
+  header.topbar h1{
+    font-size:18px;
+    font-weight:700;
+    margin:0;
+    line-height:1.1;
+  }
+  header.topbar .sub{
+    font-size:12px;
+    color:var(--muted);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .demo-pill{
+    font-size:11px;
+    font-weight:600;
+    background:var(--accent-soft);
+    color:var(--accent-ink);
+    padding:4px 9px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+
+  main{
+    flex:1;
+    padding:16px 16px 96px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  main[hidden]{ display:none; }
+
+  nav.tabbar{
+    position:sticky;
+    bottom:0;
+    z-index:20;
+    background:var(--surface);
+    border-top:1px solid var(--line);
+    padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:2px;
+  }
+  nav.tabbar button{
+    background:none;
+    border:none;
+    color:var(--muted);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    padding:6px 2px;
+    border-radius:12px;
+    font-size:10.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  nav.tabbar button svg{ width:21px; height:21px; }
+  nav.tabbar button.active{ color:var(--accent-ink); background:var(--accent-soft); }
+
+  /* ---------- Generic components ---------- */
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px;
+  }
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--muted);
+    margin:0;
+  }
+  .row{ display:flex; align-items:center; gap:10px; }
+  .between{ justify-content:space-between; }
+  .wrap-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+
+  .chip{
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:var(--ink);
+    padding:7px 12px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .chip.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .chip.ghost{ background:transparent; }
+
+  .btn{
+    border:none;
+    border-radius:12px;
+    padding:12px 16px;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .btn-primary{ background:var(--accent); color:var(--accent-ink); }
+  .btn-line{ background:var(--surface); border:1px solid var(--line); color:var(--ink); }
+  .btn-block{ width:100%; }
+  .btn-danger{ background:var(--critical-soft); color:var(--critical); }
+  .btn:disabled{ opacity:0.45; cursor:default; }
+  .icon-btn{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    width:36px;height:36px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink);
+    cursor:pointer;
+  }
+
+  .badge{
+    font-size:11px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .badge-ok{ background:var(--good-soft); color:var(--good); }
+  .badge-atencion{ background:var(--warn-soft); color:var(--warn); }
+  .badge-critico{ background:var(--critical-soft); color:var(--critical); }
+  .badge-neutral{ background:var(--surface-2); color:var(--muted); }
+
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-size:12.5px; font-weight:600; color:var(--muted); }
+  .field input[type="text"], .field input[type="number"], .field textarea{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:15px;
+    color:var(--ink);
+    font-family:inherit;
+    width:100%;
+  }
+  .field textarea{ resize:vertical; min-height:90px; line-height:1.45; }
+
+  .empty{
+    text-align:center;
+    padding:30px 12px;
+    color:var(--muted);
+    font-size:14px;
+  }
+
+  .modal-backdrop{
+    position:fixed; inset:0;
+    background:rgba(20,15,8,0.45);
+    display:flex; align-items:flex-end; justify-content:center;
+    z-index:50;
+  }
+  .modal-backdrop[hidden]{ display:none; }
+  .modal{
+    background:var(--surface);
+    border-radius:20px 20px 0 0;
+    width:100%; max-width:520px;
+    max-height:88vh;
+    overflow-y:auto;
+    padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .modal h2{ font-size:19px; margin:0; }
+
+  .toast{
+    position:fixed;
+    left:50%; transform:translateX(-50%);
+    bottom:calc(78px + env(safe-area-inset-bottom,0px));
+    background:var(--ink);
+    color:var(--bg);
+    padding:10px 16px;
+    border-radius:999px;
+    font-size:13.5px;
+    font-weight:600;
+    box-shadow:0 6px 20px var(--shadow);
+    z-index:60;
+    transition:opacity .25s, transform .25s;
+  }
+  .toast[hidden]{ opacity:0; pointer-events:none; transform:translate(-50%,8px); }
+
+  /* ---------- Apiarios ---------- */
+  .apiario-card{ display:flex; flex-direction:column; gap:8px; }
+  .apiario-card .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .apiario-card h3{ font-size:16.5px; margin:0; }
+  .apiario-card .coords{ font-size:12px; color:var(--muted); }
+  .stat-mini{ display:flex; gap:14px; font-size:12.5px; color:var(--muted); }
+  .stat-mini b{ color:var(--ink); }
+
+  /* ---------- Colmena grid ---------- */
+  .hive-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(78px,1fr));
+    gap:8px;
+  }
+  .hive-tile{
+    background:var(--surface);
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    padding:8px 6px 7px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    cursor:pointer;
+  }
+  .hive-tile .num{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:14px; }
+  .hive-tile .dot{ width:8px; height:8px; border-radius:50%; }
+  .hive-tile[data-estado="ok"] .dot{ background:var(--good); }
+  .hive-tile[data-estado="atencion"] .dot{ background:var(--warn); }
+  .hive-tile[data-estado="critico"] .dot{ background:var(--critical); }
+  .hive-tile[data-estado="sin_revisar"] .dot{ background:var(--muted); }
+  .hive-tile.selected{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  .hive-tile .tipo-tag{
+    font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    color:var(--accent-ink); background:var(--accent-soft); padding:1px 5px; border-radius:999px; margin-top:1px;
+  }
+
+  /* ---------- Revisar tab ---------- */
+  .mic-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 0 4px; }
+  .mic-btn{
+    width:88px; height:88px; border-radius:50%;
+    background:var(--accent);
+    color:var(--accent-ink);
+    border:none;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:0 8px 22px var(--shadow);
+  }
+  .mic-btn.listening{ background:var(--critical); color:#fff; animation:pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(174,58,44,0.35); }
+    50%{ box-shadow:0 0 0 16px rgba(174,58,44,0); }
+  }
+  .mic-status{ font-size:13px; color:var(--muted); font-weight:600; }
+
+  .parsed-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .parsed-field{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:9px 10px;
+    display:flex; flex-direction:column; gap:5px;
+  }
+  .parsed-field .k{ font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .parsed-field .v{ font-size:14px; font-weight:600; }
+  .parsed-field.empty-val .v{ color:var(--muted); font-weight:500; }
+  .toggle-row{ display:flex; gap:6px; }
+  .toggle-row button{
+    flex:1;
+    border:1px solid var(--line);
+    background:var(--surface);
+    border-radius:8px;
+    padding:5px 4px;
+    font-size:12px;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .toggle-row button.on{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .toggle-row button.on.bad{ background:var(--critical); border-color:var(--critical); color:#fff; }
+
+  .disease-chip{
+    background:var(--critical-soft); color:var(--critical);
+    font-size:12px; font-weight:700; padding:4px 9px; border-radius:999px;
+  }
+
+  /* ---------- Marcos ---------- */
+  .frame-legend{ display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--muted); }
+  .frame-legend .sw{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .frame-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(38px,1fr));
+    gap:6px;
+  }
+  .frame-tile{
+    aspect-ratio:1/1.15;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--f-vacio);
+    color:var(--f-vacio-ink);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:11px; font-weight:600;
+    cursor:pointer; user-select:none;
+  }
+  .frame-tile .n{ font-size:10px; opacity:0.75; }
+  .frame-tile .s{ font-size:12px; font-weight:700; }
+  .frame-tile[data-estado="cria"]{ background:var(--f-cria); color:var(--f-cria-ink); border-color:transparent; }
+  .frame-tile[data-estado="miel"]{ background:var(--f-miel); color:var(--f-miel-ink); border-color:transparent; }
+  .frame-tile[data-estado="polen"]{ background:var(--f-polen); color:var(--f-polen-ink); border-color:transparent; }
+  .frame-tile.readonly{ cursor:default; }
+  .frame-summary{ display:flex; flex-wrap:wrap; gap:8px; font-size:12px; color:var(--muted); }
+  .frame-summary b{ color:var(--ink); }
+  .type-toggle{ display:flex; gap:8px; }
+  .type-toggle button{
+    flex:1; border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+    border-radius:10px; padding:10px 8px; font-weight:700; font-size:13px; cursor:pointer;
+    display:flex; flex-direction:column; gap:2px; align-items:center;
+  }
+  .type-toggle button span{ font-size:11px; font-weight:500; color:var(--muted); }
+  .type-toggle button.on{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .type-toggle button.on span{ color:var(--accent-ink); opacity:0.85; }
+
+  /* ---------- Mapa ---------- */
+  .map-caption{ font-size:12px; color:var(--muted); line-height:1.5; }
+  .legend{ display:flex; gap:14px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+  .legend .sw{ display:inline-block; width:14px; height:0; border-top:2px solid var(--accent); vertical-align:middle; margin-right:5px; }
+  .legend .sw.dash{ border-top-style:dashed; }
+  .warn-box{
+    background:var(--warn-soft); color:var(--warn-ink,var(--warn));
+    border-radius:10px; padding:9px 11px; font-size:12.5px; font-weight:600;
+  }
+
+  /* ---------- Historial ---------- */
+  .hist-row{
+    display:flex; flex-direction:column; gap:4px;
+    padding:11px 0;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .hist-row:last-child{ border-bottom:none; }
+  .hist-row .top{ display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .hist-row .who{ font-weight:700; font-size:14px; }
+  .hist-row .when{ font-size:11.5px; color:var(--muted); }
+  .hist-row .summary{ font-size:12.5px; color:var(--muted); }
+
+  .qr-box{
+    background:#fff;
+    border-radius:12px;
+    padding:10px;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ---------- Producción ---------- */
+  .prod-tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .prod-tile{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    padding:10px 8px; text-align:center; display:flex; flex-direction:column; gap:2px;
+  }
+  .prod-tile .v{ font-family:"Fraunces",serif; font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .prod-tile .k{ font-size:10.5px; color:var(--muted); font-weight:600; }
+  .prod-tile.accent{ background:var(--accent-soft); }
+  .prod-tile.accent .v{ color:var(--accent-ink); }
+  .prod-row{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:10px 0; border-bottom:1px solid var(--line);
+  }
+  .prod-row:last-child{ border-bottom:none; }
+  .prod-row .who{ font-weight:700; font-size:13.5px; }
+  .prod-row .apiario-name{ font-size:11.5px; color:var(--muted); font-weight:500; }
+  .prod-row .right{ text-align:right; }
+  .prod-row .kg{ font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .prod-row .ingreso{ font-size:12px; color:var(--good); font-weight:700; font-variant-numeric:tabular-nums; }
+  .prod-row .sindato{ font-size:12px; color:var(--muted); }
+
+  /* ---------- Tratamientos y alimentación ---------- */
+  .tx-row{ padding:9px 0; border-bottom:1px solid var(--line); }
+  .tx-row:last-child{ border-bottom:none; }
+  .tx-row .top{ display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .tx-row .who{ font-weight:700; font-size:13px; }
+  .tx-row .when{ font-size:11px; color:var(--muted); }
+  .tx-row .detail{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .due-tag{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .due-ok{ background:var(--good-soft); color:var(--good); }
+  .due-warn{ background:var(--warn-soft); color:var(--warn); }
+  .due-bad{ background:var(--critical-soft); color:var(--critical); }
+  .tx-total{ font-size:12.5px; color:var(--muted); padding:8px 0 2px; }
+  .tx-total b{ color:var(--ink); font-family:"IBM Plex Mono",monospace; }
+  .btn-small{ font-size:12.5px; padding:8px; }
+
+  textarea.export-area{
+    width:100%; min-height:160px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:11px;
+    padding:10px;
+    color:var(--ink);
+  }
+
+  ::selection{ background:var(--accent-soft); }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2 20 6.5V17.5L12 22 4 17.5V6.5L12 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M12 8 15.5 10V14L12 16 8.5 14V10L12 8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+      <div class="titles">
+        <h1>ApiCampo</h1>
+        <div class="sub" id="topbarSub">Registro de colmenas por dictado</div>
+      </div>
+    </div>
+    <span class="demo-pill">Prototipo</span>
+  </header>
+
+  <!-- ===================== TAB: APIARIOS ===================== -->
+  <main id="tab-apiarios">
+    <div class="row between">
+      <p class="section-title">Tus apiarios</p>
+      <button class="btn btn-line" id="btnNuevoApiario" style="padding:8px 12px;">+ Nuevo</button>
+    </div>
+    <div id="listaApiarios" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+    <div id="warnOverlap"></div>
+
+    <div class="card" id="cardInstalar" hidden style="background:var(--accent-soft); border-color:transparent;">
+      <p class="section-title" style="margin-bottom:6px; color:var(--accent-ink);">Instala ApiCampo en tu teléfono</p>
+      <p style="font-size:12.5px; color:var(--accent-ink); line-height:1.5; margin:0 0 10px;">
+        Se agrega un ícono a tu pantalla de inicio y abre como una app, sin barra del navegador — y ya queda lista para usarse sin internet.
+      </p>
+      <button class="btn btn-primary btn-block" id="btnInstalarApp">Instalar app</button>
+    </div>
+    <div class="card" id="cardInstalarIos" hidden style="background:var(--surface-2); border-style:dashed;">
+      <p class="section-title" style="margin-bottom:6px;">Instala ApiCampo en tu iPhone</p>
+      <p style="font-size:12.5px; color:var(--muted); line-height:1.5; margin:0;">
+        Toca el botón de <b>Compartir</b> de Safari y luego <b>"Agregar a pantalla de inicio"</b>.
+      </p>
+    </div>
+
+    <div class="card" style="background:var(--surface-2); border-style:dashed;">
+      <p class="section-title" style="margin-bottom:6px;">Sobre los datos de ejemplo</p>
+      <p style="font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 10px;">
+        Este prototipo trae dos apiarios y varias colmenas de ejemplo para que veas cómo se llena.
+        Los datos se guardan solo en este teléfono (en este navegador), no salen a ningún servidor.
+      </p>
+      <button class="btn btn-line btn-block" id="btnReset">Borrar todo y empezar de cero</button>
+    </div>
+  </main>
+
+  <!-- ===================== TAB: COLMENAS ===================== -->
+  <main id="tab-colmenas" hidden>
+    <div class="wrap-chips" id="chipsApiarioColmenas"></div>
+
+    <div class="row between">
+      <p class="section-title" id="tituloColmenas">Colmenas</p>
+      <button class="btn btn-line" id="btnNuevaColmena" style="padding:8px 12px;">+ Nueva</button>
+    </div>
+
+    <div class="hive-grid" id="hiveGrid"></div>
+    <div class="empty" id="hiveEmpty" hidden>Este apiario todavía no tiene colmenas registradas.</div>
+
+    <div class="legend">
+      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:5px;"></span>Bien</span>
+      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:5px;"></span>Atención</span>
+      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--critical);margin-right:5px;"></span>Crítico</span>
+      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:5px;"></span>Sin revisar +15 días</span>
+    </div>
+  </main>
+
+  <!-- ===================== TAB: REVISAR (DICTADO) ===================== -->
+  <main id="tab-revisar" hidden>
+    <div class="row between" style="align-items:center;">
+      <span style="font-size:12px; color:var(--muted); font-weight:600;">Revisando como</span>
+      <div class="wrap-chips" id="chipsUsuario" style="justify-content:flex-end;"></div>
+    </div>
+
+    <div class="wrap-chips" id="chipsApiarioRevisar"></div>
+
+    <div class="card">
+      <div class="row between">
+        <p class="section-title">Colmena</p>
+        <button class="btn-line btn" id="btnEscanear" style="padding:7px 11px; font-size:12.5px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          Escanear QR
+        </button>
+      </div>
+      <div class="hive-grid" id="hiveGridRevisar" style="margin-top:10px;"></div>
+      <div class="empty" id="hiveEmptyRevisar" hidden>Agrega colmenas primero en la pestaña Colmenas.</div>
+    </div>
+
+    <div class="card" id="cardDictado" style="display:none;">
+      <div class="row between">
+        <p class="section-title">Revisión — <span id="colmenaActivaLabel" class="mono"></span></p>
+        <span class="badge badge-neutral" id="fechaHoy"></span>
+      </div>
+
+      <div class="mic-wrap">
+        <button class="mic-btn" id="btnMic" aria-label="Dictar revisión">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="mic-status" id="micStatus">Toca para dictar la revisión</div>
+        <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;">El dictado por voz necesita internet (Chrome lo procesa en línea). Sin señal, escribe directo en el cuadro de abajo.</div>
+      </div>
+
+      <div class="field">
+        <label for="txtDictado">Transcripción (puedes editarla o escribir directo)</label>
+        <textarea id="txtDictado" placeholder="Ej: colmena cuarenta y siete, reina presente, postura de dos días, cría operculada abundante, sin enfermedades…"></textarea>
+      </div>
+
+      <div>
+        <p class="section-title" style="margin-bottom:8px;">Lo que se entendió — toca para corregir</p>
+        <div class="parsed-grid" id="parsedGrid"></div>
+      </div>
+
+      <div>
+        <p class="section-title" style="margin-bottom:8px;">Enfermedades o plagas observadas</p>
+        <div class="wrap-chips" id="diseaseChips"></div>
+      </div>
+
+      <div>
+        <div class="row between" style="margin-bottom:8px;">
+          <p class="section-title" style="margin:0;">Marcos — <span id="marcosTituloTipo" class="mono"></span></p>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Toca cada marco para marcar qué tiene. También puedes dictarlo: "marco 3 cría, marco 4 miel".</p>
+        <div class="frame-legend" style="margin-bottom:8px;">
+          <span><span class="sw" style="background:var(--f-vacio);"></span>Vacío</span>
+          <span><span class="sw" style="background:var(--f-cria);"></span>Cría</span>
+          <span><span class="sw" style="background:var(--f-miel);"></span>Miel / reservas</span>
+          <span><span class="sw" style="background:var(--f-polen);"></span>Pan de abeja</span>
+        </div>
+        <div class="frame-grid" id="marcosGrid"></div>
+        <div class="frame-summary" id="marcosResumen" style="margin-top:8px;"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="btnGuardarRevision">Guardar revisión</button>
+    </div>
+  </main>
+
+  <!-- ===================== TAB: MAPA ===================== -->
+  <main id="tab-mapa" hidden>
+    <div class="wrap-chips" id="chipsMapa"></div>
+    <div class="card">
+      <svg id="mapaSvg" viewBox="0 0 320 320" style="width:100%; height:auto; display:block;"></svg>
+      <div class="legend" style="margin-top:10px;">
+        <span><span class="sw"></span>Radio 3 km (pecoreo habitual)</span>
+        <span><span class="sw dash"></span>Radio 5 km (margen amplio)</span>
+      </div>
+    </div>
+    <p class="map-caption">
+      Mapa esquemático a escala, calculado con las coordenadas de cada apiario — no es una imagen satelital.
+      En la versión final esto se dibujaría sobre un mapa real (calles, ríos, vegetación) con Google Maps u OpenStreetMap.
+    </p>
+    <div id="mapaOverlapList" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </main>
+
+  <!-- ===================== TAB: HISTORIAL ===================== -->
+  <main id="tab-historial" hidden>
+    <div class="wrap-chips" id="chipsHistorialFiltro"></div>
+    <div class="card" style="padding:4px 14px;">
+      <div id="listaHistorial"></div>
+      <div class="empty" id="histEmpty" hidden>No hay revisiones con este filtro todavía.</div>
+    </div>
+
+    <div class="card">
+      <p class="section-title" style="margin-bottom:8px;">Llevar los datos a la computadora</p>
+      <p style="font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
+        En la app real, esto se sube solo a la nube en cuanto haya internet y aparece automáticamente en tu computadora.
+        Aquí, en este prototipo, puedes copiar el registro completo como texto.
+      </p>
+      <button class="btn btn-line btn-block" id="btnExportar">Ver / copiar todos los datos</button>
+    </div>
+  </main>
+
+  <!-- ===================== TAB: PRODUCCIÓN ===================== -->
+  <main id="tab-produccion" hidden>
+    <div class="card">
+      <p class="section-title" style="margin-bottom:8px;">Supuestos de cálculo</p>
+      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
+        Es una proyección, no la cosecha real: toma los marcos marcados como "miel" en la última revisión de cada colmena y los multiplica por estos dos números. Ajústalos a tu experiencia — un marco Langstroth profundo bien operculado suele rondar 2.5 a 3 kg de miel.
+      </p>
+      <div class="row" style="gap:10px;">
+        <div class="field" style="flex:1;">
+          <label for="inKgMarco">Kg de miel por marco lleno</label>
+          <input type="text" id="inKgMarco" inputmode="decimal">
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="inPrecioLb">Precio por libra (L)</label>
+          <input type="text" id="inPrecioLb" inputmode="decimal">
+        </div>
+      </div>
+    </div>
+
+    <div class="prod-tiles" id="prodTotales"></div>
+
+    <div class="wrap-chips" id="chipsApiarioProduccion"></div>
+    <div class="card" style="padding:4px 14px;">
+      <div id="listaProduccion"></div>
+      <div class="empty" id="prodEmpty" hidden>Ninguna colmena de este apiario tiene marcos de miel registrados todavía.</div>
+    </div>
+
+    <p class="map-caption">
+      El rendimiento promedio nacional en Honduras ronda 17 kg por colmena al año, y puede subir a 25–30 kg con buen manejo
+      (Secretaría de Agricultura y Ganadería). Esa es una cosecha anual completa, distinta de este cálculo por marcos de una sola revisión — úsalo solo como referencia.
+    </p>
+  </main>
+
+  <nav class="tabbar">
+    <button data-tab="apiarios" class="active">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.7"/></svg>
+      Apiarios
+    </button>
+    <button data-tab="colmenas">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8 15 9.7v3.6L12 15l-3-1.7V9.7L12 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Colmenas
+    </button>
+    <button data-tab="revisar">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.7"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      Revisar
+    </button>
+    <button data-tab="mapa">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="8.3" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2.4"/></svg>
+      Mapa
+    </button>
+    <button data-tab="historial">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Historial
+    </button>
+    <button data-tab="produccion">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c3 3.6 5 6.7 5 9.3A5 5 0 0 1 7 12.3C7 9.7 9 6.6 12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.5 13.2c.3 1.6 1.5 2.6 2.9 2.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Miel
+    </button>
+  </nav>
+</div>
+
+<!-- Modal: nuevo apiario -->
+<div class="modal-backdrop" id="modalApiario" hidden>
+  <div class="modal">
+    <h2>Nuevo apiario</h2>
+    <div class="field">
+      <label for="inNombreApiario">Nombre</label>
+      <input type="text" id="inNombreApiario" placeholder="Ej: Apiario Los Laureles">
+    </div>
+    <div class="row" style="gap:10px;">
+      <div class="field" style="flex:1;">
+        <label for="inLat">Latitud</label>
+        <input type="text" id="inLat" placeholder="14.0818" inputmode="decimal">
+      </div>
+      <div class="field" style="flex:1;">
+        <label for="inLng">Longitud</label>
+        <input type="text" id="inLng" placeholder="-87.2068" inputmode="decimal">
+      </div>
+    </div>
+    <button class="btn btn-line btn-block" id="btnUsarUbicacion">Usar mi ubicación actual</button>
+    <div id="ubicacionMsg" style="font-size:12px; color:var(--muted);"></div>
+    <div class="row" style="gap:10px; margin-top:4px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarApiario">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnGuardarApiario">Guardar apiario</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: nueva colmena -->
+<div class="modal-backdrop" id="modalColmena" hidden>
+  <div class="modal">
+    <h2>Nueva colmena</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0;">Se agregará al apiario seleccionado.</p>
+    <div class="field">
+      <label for="inNumeroColmena">Número de colmena</label>
+      <input type="text" id="inNumeroColmena" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label>Tipo de colmena</label>
+      <div class="type-toggle" id="tipoColmenaToggle">
+        <button type="button" data-tipo="doble" data-marcos="19">Doble<span>19 marcos</span></button>
+        <button type="button" data-tipo="sencilla" data-marcos="10">Sencilla<span>10 marcos</span></button>
+        <button type="button" data-tipo="nucleo" data-marcos="4">Núcleo<span>4 marcos · cría</span></button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="inMarcosColmena">Número de marcos (puedes ajustarlo)</label>
+      <input type="text" id="inMarcosColmena" inputmode="numeric">
+    </div>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarColmena">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnGuardarColmena">Crear e imprimir QR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: detalle de colmena / QR -->
+<div class="modal-backdrop" id="modalDetalle" hidden>
+  <div class="modal" id="modalDetalleBody"></div>
+</div>
+
+<!-- Modal: escanear QR -->
+<div class="modal-backdrop" id="modalScan" hidden>
+  <div class="modal">
+    <h2>Escanear código QR</h2>
+    <div id="scanArea" style="border-radius:14px; overflow:hidden; background:#000; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; position:relative;">
+      <video id="scanVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+      <div style="position:absolute; inset:16%; border:2.5px solid rgba(255,255,255,0.85); border-radius:16px;"></div>
+    </div>
+    <div id="scanMsg" style="font-size:12.5px; color:var(--muted); text-align:center;">Apunta la cámara al código QR de la colmena.</div>
+    <button class="btn btn-line btn-block" id="btnCerrarScan">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal: historial de una revisión -->
+<div class="modal-backdrop" id="modalHist" hidden>
+  <div class="modal" id="modalHistBody"></div>
+</div>
+
+<!-- Modal: exportar -->
+<div class="modal-backdrop" id="modalExport" hidden>
+  <div class="modal">
+    <h2>Todos tus datos</h2>
+    <p style="font-size:12.5px; color:var(--muted); margin:0;">Toca "Copiar" y pega este texto donde quieras guardarlo.</p>
+    <textarea class="export-area mono" id="exportText" readonly></textarea>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCerrarExport">Cerrar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnCopiarExport">Copiar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: registrar tratamiento -->
+<div class="modal-backdrop" id="modalTratamiento" hidden>
+  <div class="modal">
+    <h2>Registrar tratamiento</h2>
+    <p class="mono" id="txColmenaLabel" style="font-size:13px; color:var(--muted); margin:0;"></p>
+
+    <div class="field">
+      <label>¿Contra qué es? (toca uno)</label>
+      <div class="wrap-chips" id="txEnfermedadChips"></div>
+    </div>
+    <div class="field">
+      <label>Producto usado</label>
+      <div class="wrap-chips" id="txProductoChips"></div>
+    </div>
+    <div class="field">
+      <label for="inTxDosis">Dosis aplicada</label>
+      <input type="text" id="inTxDosis" placeholder="Ej: 2 tiras, 50 ml sublimado">
+    </div>
+    <div class="field">
+      <label for="inTxFrecuencia">Repetir cada (días)</label>
+      <input type="text" id="inTxFrecuencia" inputmode="numeric" placeholder="Ej: 14">
+    </div>
+    <div class="field">
+      <label for="inTxNotas">Notas (opcional)</label>
+      <textarea id="inTxNotas" style="min-height:60px;" placeholder="Cualquier observación..."></textarea>
+    </div>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarTratamiento">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnGuardarTratamiento">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: registrar alimentación -->
+<div class="modal-backdrop" id="modalAlimentacion" hidden>
+  <div class="modal">
+    <h2>Registrar alimentación</h2>
+    <p class="mono" id="alColmenaLabel" style="font-size:13px; color:var(--muted); margin:0;"></p>
+
+    <div class="field">
+      <label>Motivo</label>
+      <div class="wrap-chips" id="alMotivoChips"></div>
+    </div>
+    <div class="field">
+      <label>Proporción del jarabe (azúcar : agua)</label>
+      <div class="wrap-chips" id="alProporcionChips"></div>
+    </div>
+    <div class="field">
+      <label>¿Con gotas de limón?</label>
+      <div class="toggle-row" id="alLimonToggle">
+        <button type="button" data-v="si">Sí</button>
+        <button type="button" data-v="no">No</button>
+      </div>
+    </div>
+    <div class="row" style="gap:10px;">
+      <div class="field" style="flex:1;">
+        <label for="inAlLitros">Litros de jarabe dados</label>
+        <input type="text" id="inAlLitros" inputmode="decimal">
+      </div>
+      <div class="field" style="flex:1;">
+        <label for="inAlCosto">Costo (L)</label>
+        <input type="text" id="inAlCosto" inputmode="decimal">
+      </div>
+    </div>
+    <div class="field">
+      <label for="inAlFrecuencia">Repetir cada (días)</label>
+      <input type="text" id="inAlFrecuencia" inputmode="numeric" placeholder="Ej: 7">
+    </div>
+    <div class="field">
+      <label for="inAlNotas">Notas (opcional)</label>
+      <textarea id="inAlNotas" style="min-height:60px;"></textarea>
+    </div>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarAlimentacion">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnGuardarAlimentacion">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: confirmar (reemplaza confirm() nativo, que no funciona instalada como app) -->
+<div class="modal-backdrop" id="modalConfirm" hidden>
+  <div class="modal">
+    <h2>Confirmar</h2>
+    <p id="confirmMensaje" style="font-size:14.5px; line-height:1.5; margin:0;"></p>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnConfirmCancelar">Cancelar</button>
+      <button class="btn btn-danger" style="flex:1;" id="btnConfirmAceptar">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: pedir un texto (reemplaza prompt() nativo, que no funciona instalada como app) -->
+<div class="modal-backdrop" id="modalPrompt" hidden>
+  <div class="modal">
+    <h2 id="promptTitulo">Escribe un valor</h2>
+    <div class="field">
+      <input type="text" id="inPromptValor">
+    </div>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnPromptCancelar">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnPromptAceptar">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     1. INTÉRPRETE DE DICTADO
+     ============================================================ */
+  var NUM_PALABRAS = {"un":1,"uno":1,"una":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,"diez":10};
+  function palabraANumero(s){
+    if(!s) return null;
+    s = s.toLowerCase().trim();
+    if(/^\d+$/.test(s)) return parseInt(s,10);
+    return (s in NUM_PALABRAS) ? NUM_PALABRAS[s] : null;
+  }
+
+  function parseInspeccion(textoOriginal){
+    var t = " " + (textoOriginal||"").toLowerCase() + " ";
+    var r = {
+      reinaPresente:null, reinaVirgen:false,
+      posturaEtapa:null, posturaDias:null,
+      criaSellada:null, criaIntensidad:null,
+      zanganos:null, zanganosIntensidad:null,
+      reservasMiel:null, reservasPolen:null,
+      temperamento:null, espacio:null,
+      enfermedades:[], sanaExplicito:false
+    };
+
+    if(/\bsin reina\b|\bno hay reina\b|\breina ausente\b|\bno se (vio|observ[oó]|encontr[oó]) (la )?reina\b|\bno se mir[oó] (la )?reina\b|\breina no (vista|localizada|encontrada)\b/.test(t)){
+      r.reinaPresente = false;
+    } else if(/\breina (presente|vista|activa|localizada)\b|\bhay reina\b|\bse (vio|observ[oó]|encontr[oó]|mir[oó]) (la )?reina\b/.test(t)){
+      r.reinaPresente = true;
+    }
+    if(/\breina virgen\b/.test(t)){
+      r.reinaVirgen = true;
+      if(r.reinaPresente===null) r.reinaPresente = true;
+    }
+
+    if(/\bopercul/.test(t)) r.posturaEtapa = "operculada";
+    else if(/\blarva/.test(t)) r.posturaEtapa = "larva";
+    else if(/\bhuevo/.test(t)) r.posturaEtapa = "huevo";
+
+    var mDias = t.match(/postura de (\w+) d[ií]as?/);
+    if(mDias){
+      var n = palabraANumero(mDias[1]);
+      if(n!==null) r.posturaDias = n;
+    }
+
+    if(/\bcr[ií]a (sellada|opercul\w*)\b/.test(t)){
+      r.criaSellada = true;
+      if(/\b(abundante|mucha|bastante)\b.*cr[ií]a (sellada|opercul\w*)|cr[ií]a (sellada|opercul\w*)\b.*\b(abundante|mucha|bastante)\b/.test(t)) r.criaIntensidad="abundante";
+      else if(/\b(poca|escasa)\b.*cr[ií]a (sellada|opercul\w*)|cr[ií]a (sellada|opercul\w*)\b.*\b(poca|escasa)\b/.test(t)) r.criaIntensidad="poca";
+    } else if(/\bsin cr[ií]a\b|\bno hay cr[ií]a\b/.test(t)){
+      r.criaSellada = false;
+    }
+
+    if(/\bz[aá]ngano/.test(t)){
+      if(/\bsin z[aá]ngano|\bno hay z[aá]ngano/.test(t)){ r.zanganos = false; }
+      else{
+        r.zanganos = true;
+        if(/\b(muchos|bastantes|abundantes)\b.*z[aá]ngano|z[aá]ngano\w*\b.*\b(muchos|bastantes|abundantes)\b/.test(t)) r.zanganosIntensidad="muchos";
+        else if(/\b(pocos|algunos)\b.*z[aá]ngano|z[aá]ngano\w*\b.*\b(pocos|algunos)\b/.test(t)) r.zanganosIntensidad="pocos";
+      }
+    }
+
+    if(/\bmiel\b/.test(t)){
+      if(/\b(abundante|mucha|buena)\b.*miel|miel\b.*\b(abundante|mucha|buena)\b/.test(t)) r.reservasMiel="abundante";
+      else if(/\b(poca|escasa)\b.*miel|miel\b.*\b(poca|escasa)\b/.test(t)) r.reservasMiel="poca";
+      else r.reservasMiel="mencionada";
+    }
+    if(/\bpolen\b/.test(t)){
+      if(/\b(abundante|mucha|buena)\b.*polen|polen\b.*\b(abundante|mucha|buena)\b/.test(t)) r.reservasPolen="abundante";
+      else if(/\b(poca|escasa)\b.*polen|polen\b.*\b(poca|escasa)\b/.test(t)) r.reservasPolen="poca";
+      else r.reservasPolen="mencionada";
+    }
+
+    if(/\b(mansa|tranquila|d[oó]cil)\b/.test(t)) r.temperamento="mansa";
+    else if(/\b(agresiva|nerviosa|brava)\b/.test(t)) r.temperamento="agresiva";
+
+    if(/\bfalta (de )?espacio\b|\bnecesita alza\b|\bsin espacio\b/.test(t)) r.espacio="falta";
+
+    var mapaEnf = [
+      [/\bvarroa\b/, "Varroa"],
+      [/\bloque americana\b/, "Loque americana"],
+      [/\bloque europea\b/, "Loque europea"],
+      [/\bnosema\b|\bnosemosis\b/, "Nosema"],
+      [/\bcr[ií]a (yesificada|de cal)\b/, "Cría yesificada"],
+      [/\bescarabajo\b/, "Escarabajo de la colmena"],
+      [/\btropilaelaps\b/, "Tropilaelaps"]
+    ];
+    mapaEnf.forEach(function(par){ if(par[0].test(t)) r.enfermedades.push(par[1]); });
+    if(/\b(sana|saludable)\b|\bsin enfermedad(es)?\b|\bno se (observ[oó]|vio|encontr[oó]) (ninguna )?enfermedad/.test(t)) r.sanaExplicito = true;
+
+    return r;
+  }
+
+  /* ---- Marcos dictados: "marco 3 cría", "marco cuatro con miel"… ---- */
+  var NUM_PALABRAS_MARCO = {
+    "un":1,"uno":1,"una":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,"diez":10,
+    "once":11,"doce":12,"trece":13,"catorce":14,"quince":15,
+    "dieciseis":16,"dieciséis":16,"diecisiete":17,"dieciocho":18,"diecinueve":19
+  };
+  function palabraANumeroMarco(s){
+    if(!s) return null;
+    s = s.toLowerCase().trim();
+    if(/^\d+$/.test(s)) return parseInt(s,10);
+    return (s in NUM_PALABRAS_MARCO) ? NUM_PALABRAS_MARCO[s] : null;
+  }
+  function normalizarEstadoMarco(s){
+    s = s.toLowerCase();
+    if(/^cr[ií]a$/.test(s)) return "cria";
+    if(/^vac[íi][ao]$/.test(s)) return "vacio";
+    if(/pan de abeja|polen/.test(s)) return "polen";
+    if(/miel|reservas/.test(s)) return "miel";
+    return null;
+  }
+  function parseMarcosDesdeTexto(texto, totalMarcos){
+    var res = {};
+    var re = /marco\s+([a-z0-9áéíóúñ]+)\s*(?:con|de|tiene|trae|est[aá]\s+con|est[aá])?\s*(cr[ií]a|pan de abeja|polen|reservas de miel|reservas|miel|vac[íi]o|vac[íi]a)/gi;
+    var m;
+    while((m = re.exec(texto)) !== null){
+      var n = palabraANumeroMarco(m[1]);
+      var estado = normalizarEstadoMarco(m[2]);
+      if(n!==null && estado && n>=1 && n<=totalMarcos) res[n] = estado;
+    }
+    return res;
+  }
+
+  /* ============================================================
+     2. ALMACENAMIENTO (localStorage — solo en este teléfono)
+     ============================================================ */
+  var STORE_KEY = "apicampo:v1";
+  var store = null;
+
+  function marcosDemo(total, especif){
+    var arr = [];
+    for(var i=1;i<=total;i++) arr.push((especif&&especif[i])||"vacio");
+    return arr;
+  }
+
+  function seed(){
+    var ap1 = "ap_zapote", ap2 = "ap_ceiba";
+    var colmenasAp1 = [1,2,3,4,5,6].map(function(n){
+      var tipo = (n%3===0) ? "sencilla" : "doble";
+      return {id:"c_"+ap1+"_"+n, apiarioId:ap1, numero:n, tipo:tipo, marcosTotales: tipo==="doble"?19:10, historialMovimientos:[]};
+    });
+    colmenasAp1.push({id:"c_"+ap1+"_7", apiarioId:ap1, numero:7, tipo:"nucleo", marcosTotales:4, historialMovimientos:[]});
+    var colmenasAp2 = [1,2,3].map(function(n){
+      return {id:"c_"+ap2+"_"+n, apiarioId:ap2, numero:n, tipo:"doble", marcosTotales:19, historialMovimientos:[]};
+    });
+    var hoy = Date.now();
+    var dia = 86400000;
+    var revisiones = [
+      {id:"r1", colmenaId:"c_"+ap1+"_1", apiarioId:ap1, fecha:hoy-2*dia, revisadoPor:"JUCEAS", texto:"reina presente, postura de dos días, cría operculada abundante, sin enfermedades, colmena mansa",
+       campos:parseInspeccion("reina presente, postura de dos días, cría operculada abundante, sin enfermedades, colmena mansa"),
+       marcos:marcosDemo(19,{1:"miel",2:"miel",3:"polen",4:"cria",5:"cria",6:"cria",7:"cria",8:"cria",9:"cria",10:"cria",11:"cria",12:"cria",13:"polen",14:"miel",15:"miel",16:"miel",17:"miel"})},
+      {id:"r2", colmenaId:"c_"+ap1+"_2", apiarioId:ap1, fecha:hoy-4*dia, revisadoPor:"JUCEAS", texto:"reina activa, cría operculada, poca miel, algunos zánganos",
+       campos:parseInspeccion("reina activa, cría operculada, poca miel, algunos zánganos"),
+       marcos:marcosDemo(19,{1:"miel",2:"polen",3:"cria",4:"cria",5:"cria",6:"cria",7:"cria",8:"cria",9:"polen",10:"miel"})},
+      {id:"r3", colmenaId:"c_"+ap1+"_3", apiarioId:ap1, fecha:hoy-9*dia, revisadoPor:"JUCEAS", texto:"se observa varroa, cría operculada escasa, reina presente",
+       campos:parseInspeccion("se observa varroa, cría operculada escasa, reina presente"),
+       marcos:marcosDemo(10,{2:"cria",3:"cria",5:"polen",8:"miel"})},
+      {id:"r4", colmenaId:"c_"+ap2+"_1", apiarioId:ap2, fecha:hoy-1*dia, revisadoPor:"JUCEAS", texto:"colmena sana, reina presente, mucha miel y mucho polen, cría operculada abundante",
+       campos:parseInspeccion("colmena sana, reina presente, mucha miel y mucho polen, cría operculada abundante"),
+       marcos:marcosDemo(19,{1:"miel",2:"miel",3:"miel",4:"polen",5:"polen",6:"cria",7:"cria",8:"cria",9:"cria",10:"cria",11:"cria",12:"cria",13:"cria",14:"polen",15:"miel",16:"miel",17:"miel",18:"miel"})},
+      {id:"r5", colmenaId:"c_"+ap2+"_2", apiarioId:ap2, fecha:hoy-20*dia, revisadoPor:"JUCEAS", texto:"no se vio la reina, poca postura, revisar de nuevo pronto",
+       campos:parseInspeccion("no se vio la reina, poca postura, revisar de nuevo pronto"),
+       marcos:marcosDemo(19,{1:"miel",6:"cria",7:"cria"})}
+    ];
+    var tratamientos = [
+      {id:"tx1", colmenaId:"c_"+ap1+"_3", apiarioId:ap1, fecha:hoy-9*dia, enfermedad:"Varroa", producto:"Ácido oxálico (goteo)", dosis:"5 ml por calle", frecuenciaDias:21, notas:""}
+    ];
+    var alimentaciones = [
+      {id:"al1", colmenaId:"c_"+ap2+"_2", apiarioId:ap2, fecha:hoy-6*dia, motivo:"Falta de floración", proporcion:"1:1 (ligero)", limon:true, litros:1, costoL:35, frecuenciaDias:7, notas:""}
+    ];
+    return {
+      apiarios:[
+        {id:ap1, nombre:"Apiario El Zapote", lat:14.0818, lng:-87.2068, creado:hoy-60*dia},
+        {id:ap2, nombre:"Apiario La Ceiba", lat:14.1450, lng:-87.1500, creado:hoy-40*dia}
+      ],
+      colmenas: colmenasAp1.concat(colmenasAp2),
+      revisiones: revisiones,
+      tratamientos: tratamientos,
+      alimentaciones: alimentaciones,
+      config: {kgPorMarco:2.5, precioPorLb:60},
+      usuarios: ["JUCEAS"],
+      usuarioActual: "JUCEAS",
+      esDemo:true
+    };
+  }
+
+  function cargar(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(raw){
+        var datos = JSON.parse(raw);
+        if(!datos.config) datos.config = {kgPorMarco:2.5, precioPorLb:60};
+        if(!datos.usuarios || !datos.usuarios.length) datos.usuarios = ["JUCEAS"];
+        if(!datos.usuarioActual) datos.usuarioActual = datos.usuarios[0];
+        if(!datos.tratamientos) datos.tratamientos = [];
+        if(!datos.alimentaciones) datos.alimentaciones = [];
+        (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
+        (datos.revisiones||[]).forEach(function(r){
+          if(!r.apiarioId){
+            var col = (datos.colmenas||[]).find(function(x){ return x.id===r.colmenaId; });
+            r.apiarioId = col ? col.apiarioId : null;
+          }
+        });
+        return datos;
+      }
+    }catch(e){}
+    return seed();
+  }
+  function guardar(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
+  }
+  store = cargar();
+
+  function uid(pref){ return pref+"_"+Math.random().toString(36).slice(2,9); }
+
+  /* ============================================================
+     3. UTILIDADES
+     ============================================================ */
+  function $(sel){ return document.querySelector(sel); }
+  function $all(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function el(tag, attrs, children){
+    var e = document.createElement(tag);
+    if(attrs) Object.keys(attrs).forEach(function(k){
+      if(k==="text") e.textContent = attrs[k];
+      else if(k==="html") e.innerHTML = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    });
+    (children||[]).forEach(function(c){ if(c) e.appendChild(c); });
+    return e;
+  }
+
+  function haversineKm(lat1,lng1,lat2,lng2){
+    var R=6371;
+    var dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+    var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  function fechaCorta(ts){
+    var d = new Date(ts);
+    return d.toLocaleDateString("es-HN",{day:"numeric",month:"short",year:"numeric"});
+  }
+  function diasDesde(ts){ return Math.floor((Date.now()-ts)/86400000); }
+  function haceTiempo(ts){
+    var d = diasDesde(ts);
+    if(d<=0) return "hoy";
+    if(d===1) return "ayer";
+    return "hace "+d+" días";
+  }
+
+  function colmenasDe(apiarioId){ return store.colmenas.filter(function(c){ return c.apiarioId===apiarioId; }); }
+  function revisionesDe(colmenaId){
+    return store.revisiones.filter(function(r){ return r.colmenaId===colmenaId; }).sort(function(a,b){ return b.fecha-a.fecha; });
+  }
+  function ultimaRevision(colmenaId){ var rs = revisionesDe(colmenaId); return rs.length?rs[0]:null; }
+
+  function estadoRevision(campos){
+    if(!campos) return "sin_revisar";
+    var criticas = ["Loque americana","Loque europea","Escarabajo de la colmena","Tropilaelaps"];
+    if(campos.enfermedades.some(function(e){ return criticas.indexOf(e)!==-1; })) return "critico";
+    if(campos.reinaPresente===false || campos.enfermedades.length>0 || campos.espacio==="falta") return "atencion";
+    return "ok";
+  }
+  function estadoColmena(colmenaId){
+    var ult = ultimaRevision(colmenaId);
+    if(!ult) return "sin_revisar";
+    if(diasDesde(ult.fecha) > 15) return "sin_revisar";
+    return estadoRevision(ult.campos);
+  }
+  function estadoBadgeHtml(estado){
+    var map = {
+      ok:["Bien","badge-ok"], atencion:["Atención","badge-atencion"],
+      critico:["Crítico","badge-critico"], sin_revisar:["Sin revisar","badge-neutral"]
+    };
+    var v = map[estado]||map.sin_revisar;
+    return '<span class="badge '+v[1]+'">'+v[0]+'</span>';
+  }
+
+  function toast(msg){
+    var t = $("#toast");
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toast._h);
+    toast._h = setTimeout(function(){ t.hidden = true; }, 2200);
+  }
+
+  function apiarioNombre(id){
+    var a = store.apiarios.find(function(x){ return x.id===id; });
+    return a ? a.nombre : "—";
+  }
+
+  /* ---- Confirmar / preguntar con un modal propio.
+     window.confirm() y window.prompt() no muestran nada cuando la app está
+     instalada y abierta en modo standalone (fuera de una pestaña normal de Chrome),
+     así que todo lo que necesite confirmación o texto pasa por aquí. ---- */
+  var _confirmResolve = null;
+  function confirmarApp(mensaje){
+    return new Promise(function(resolve){
+      $("#confirmMensaje").textContent = mensaje;
+      _confirmResolve = resolve;
+      $("#modalConfirm").hidden = false;
+    });
+  }
+  function _cerrarConfirm(valor){
+    $("#modalConfirm").hidden = true;
+    var r = _confirmResolve; _confirmResolve = null;
+    if(r) r(valor);
+  }
+  $("#btnConfirmAceptar").addEventListener("click", function(){ _cerrarConfirm(true); });
+  $("#btnConfirmCancelar").addEventListener("click", function(){ _cerrarConfirm(false); });
+  $("#modalConfirm").addEventListener("click", function(e){ if(e.target===this) _cerrarConfirm(false); });
+
+  var _promptResolve = null;
+  function preguntarApp(mensaje, valorInicial){
+    return new Promise(function(resolve){
+      $("#promptTitulo").textContent = mensaje;
+      $("#inPromptValor").value = valorInicial || "";
+      _promptResolve = resolve;
+      $("#modalPrompt").hidden = false;
+      setTimeout(function(){ $("#inPromptValor").focus(); }, 60);
+    });
+  }
+  function _cerrarPrompt(valor){
+    $("#modalPrompt").hidden = true;
+    var r = _promptResolve; _promptResolve = null;
+    if(r) r(valor);
+  }
+  $("#btnPromptAceptar").addEventListener("click", function(){ _cerrarPrompt($("#inPromptValor").value.trim() || null); });
+  $("#btnPromptCancelar").addEventListener("click", function(){ _cerrarPrompt(null); });
+  $("#inPromptValor").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); _cerrarPrompt($("#inPromptValor").value.trim() || null); } });
+  $("#modalPrompt").addEventListener("click", function(e){ if(e.target===this) _cerrarPrompt(null); });
+
+  /* ============================================================
+     4. ESTADO DE NAVEGACIÓN
+     ============================================================ */
+  var apiarioActivo = store.apiarios[0] ? store.apiarios[0].id : null;
+  var colmenaEnRevision = null;
+  var camposActuales = parseInspeccion("");
+
+  function cambiarTab(tab){
+    $all("main[id^='tab-']").forEach(function(m){ m.hidden = (m.id !== "tab-"+tab); });
+    $all("nav.tabbar button").forEach(function(b){ b.classList.toggle("active", b.dataset.tab===tab); });
+    var subs = {
+      apiarios:"Registro de colmenas por dictado",
+      colmenas: apiarioActivo? apiarioNombre(apiarioActivo) : "Selecciona un apiario",
+      revisar: "Dicta lo que ves y la ficha se llena sola",
+      mapa: "Radio de vuelo de las abejas",
+      historial: "Todas las revisiones",
+      produccion: "Proyección de miel e ingreso"
+    };
+    $("#topbarSub").textContent = subs[tab]||"";
+    if(tab==="colmenas") renderColmenas();
+    if(tab==="revisar") renderRevisarColmenas();
+    if(tab==="mapa") renderMapa();
+    if(tab==="historial") renderHistorial();
+    if(tab==="produccion") renderProduccion();
+  }
+  $all("nav.tabbar button").forEach(function(b){
+    b.addEventListener("click", function(){ cambiarTab(b.dataset.tab); });
+  });
+
+  /* ============================================================
+     5. TAB APIARIOS
+     ============================================================ */
+  function renderApiarios(){
+    var wrap = $("#listaApiarios");
+    wrap.innerHTML = "";
+    if(store.apiarios.length===0){
+      wrap.appendChild(el("div",{class:"empty",text:"Todavía no tienes apiarios. Agrega el primero."}));
+    }
+    store.apiarios.forEach(function(ap){
+      var n = colmenasDe(ap.id).length;
+      var card = el("div",{class:"card apiario-card"});
+      card.innerHTML =
+        '<div class="top">'+
+          '<div><h3>'+ap.nombre+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
+        '</div>'+
+        '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>';
+      var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
+      var b1 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver colmenas"});
+      b1.addEventListener("click", function(){ apiarioActivo = ap.id; cambiarTab("colmenas"); });
+      var b2 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver en mapa"});
+      b2.addEventListener("click", function(){ apiarioActivo = ap.id; cambiarTab("mapa"); });
+      var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
+      b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      b3.addEventListener("click", function(){ eliminarApiario(ap); });
+      actions.appendChild(b1); actions.appendChild(b2); actions.appendChild(b3);
+      card.appendChild(actions);
+      wrap.appendChild(card);
+    });
+    renderOverlapWarning();
+  }
+
+  function renderOverlapWarning(){
+    var box = $("#warnOverlap");
+    box.innerHTML = "";
+    var pares = [];
+    for(var i=0;i<store.apiarios.length;i++){
+      for(var j=i+1;j<store.apiarios.length;j++){
+        var a=store.apiarios[i], b=store.apiarios[j];
+        var d = haversineKm(a.lat,a.lng,b.lat,b.lng);
+        if(d < 10) pares.push({a:a,b:b,d:d});
+      }
+    }
+    if(pares.length===0) return;
+    var card = el("div",{class:"card", style:"background:var(--warn-soft); border-color:transparent;"});
+    var title = el("p",{class:"section-title", style:"color:var(--warn); margin-bottom:6px;", text:"Radios de 5 km que se solapan"});
+    card.appendChild(title);
+    pares.forEach(function(p){
+      var line = el("p",{style:"font-size:12.5px; color:var(--warn); margin:0 0 4px; font-weight:600;"});
+      line.textContent = p.a.nombre+" y "+p.b.nombre+" están a "+p.d.toFixed(1)+" km — sus abejas pueden competir por la misma flora.";
+      card.appendChild(line);
+    });
+    box.appendChild(card);
+  }
+
+  $("#btnNuevoApiario").addEventListener("click", function(){
+    $("#inNombreApiario").value=""; $("#inLat").value=""; $("#inLng").value=""; $("#ubicacionMsg").textContent="";
+    $("#modalApiario").hidden = false;
+  });
+  $("#btnCancelarApiario").addEventListener("click", function(){ $("#modalApiario").hidden = true; });
+  $("#btnUsarUbicacion").addEventListener("click", function(){
+    if(!navigator.geolocation){ $("#ubicacionMsg").textContent = "Este navegador no puede obtener tu ubicación."; return; }
+    $("#ubicacionMsg").textContent = "Buscando ubicación…";
+    navigator.geolocation.getCurrentPosition(function(pos){
+      $("#inLat").value = pos.coords.latitude.toFixed(6);
+      $("#inLng").value = pos.coords.longitude.toFixed(6);
+      $("#ubicacionMsg").textContent = "Ubicación obtenida.";
+    }, function(err){
+      $("#ubicacionMsg").textContent = "No se pudo obtener la ubicación ("+(err&&err.message?err.message:"sin permiso")+"). Escríbela a mano.";
+    }, {enableHighAccuracy:true, timeout:8000});
+  });
+  $("#btnGuardarApiario").addEventListener("click", function(){
+    var nombre = $("#inNombreApiario").value.trim();
+    var lat = parseFloat($("#inLat").value);
+    var lng = parseFloat($("#inLng").value);
+    if(!nombre){ toast("Ponle un nombre al apiario"); return; }
+    if(isNaN(lat)||isNaN(lng)){ toast("Falta la latitud o longitud"); return; }
+    var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now()};
+    store.apiarios.push(ap);
+    store.esDemo = false;
+    guardar();
+    apiarioActivo = ap.id;
+    $("#modalApiario").hidden = true;
+    renderApiarios();
+    toast("Apiario agregado");
+  });
+
+  $("#btnReset").addEventListener("click", function(){
+    confirmarApp("¿Borrar todos los datos de este prototipo y volver a los de ejemplo?").then(function(ok){
+      if(!ok) return;
+      store = seed();
+      guardar();
+      apiarioActivo = store.apiarios[0] ? store.apiarios[0].id : null;
+      renderApiarios();
+      toast("Datos reiniciados");
+    });
+  });
+
+  /* ============================================================
+     6. TAB COLMENAS
+     ============================================================ */
+  function renderChipsApiario(containerSel, onPick){
+    var wrap = $(containerSel);
+    wrap.innerHTML = "";
+    store.apiarios.forEach(function(ap){
+      var chip = el("button",{class:"chip"+(ap.id===apiarioActivo?" active":""), text:ap.nombre});
+      chip.addEventListener("click", function(){ apiarioActivo = ap.id; onPick(); });
+      wrap.appendChild(chip);
+    });
+  }
+
+  function renderColmenas(){
+    renderChipsApiario("#chipsApiarioColmenas", function(){
+      $("#topbarSub").textContent = apiarioNombre(apiarioActivo);
+      renderColmenas();
+    });
+    $("#tituloColmenas").textContent = apiarioActivo ? ("Colmenas — "+apiarioNombre(apiarioActivo)) : "Colmenas";
+    var grid = $("#hiveGrid");
+    grid.innerHTML = "";
+    var lista = colmenasDe(apiarioActivo).sort(function(a,b){ return a.numero-b.numero; });
+    $("#hiveEmpty").hidden = lista.length>0;
+    lista.forEach(function(c){
+      var estado = estadoColmena(c.id);
+      var tile = el("div",{class:"hive-tile", "data-estado":estado});
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+(c.tipo==="nucleo"?'<span class="tipo-tag">núcleo</span>':'');
+      tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
+      grid.appendChild(tile);
+    });
+  }
+
+  var tipoColmenaSeleccionado = "doble";
+  $all("#tipoColmenaToggle button").forEach(function(b){
+    b.addEventListener("click", function(){
+      tipoColmenaSeleccionado = b.dataset.tipo;
+      $all("#tipoColmenaToggle button").forEach(function(x){ x.classList.toggle("on", x===b); });
+      $("#inMarcosColmena").value = b.dataset.marcos;
+    });
+  });
+
+  $("#btnNuevaColmena").addEventListener("click", function(){
+    if(!apiarioActivo){ toast("Primero crea un apiario"); return; }
+    var existentes = colmenasDe(apiarioActivo).map(function(c){ return c.numero; });
+    var siguiente = existentes.length ? Math.max.apply(null, existentes)+1 : 1;
+    $("#inNumeroColmena").value = siguiente;
+    tipoColmenaSeleccionado = "doble";
+    $all("#tipoColmenaToggle button").forEach(function(x){ x.classList.toggle("on", x.dataset.tipo==="doble"); });
+    $("#inMarcosColmena").value = 19;
+    $("#modalColmena").hidden = false;
+  });
+  $("#btnCancelarColmena").addEventListener("click", function(){ $("#modalColmena").hidden = true; });
+  $("#btnGuardarColmena").addEventListener("click", function(){
+    var numero = parseInt($("#inNumeroColmena").value,10);
+    if(!numero || numero<1){ toast("Escribe un número válido"); return; }
+    var yaExiste = colmenasDe(apiarioActivo).some(function(c){ return c.numero===numero; });
+    if(yaExiste){ toast("Ya existe la colmena #"+numero+" en este apiario"); return; }
+    var marcos = parseInt($("#inMarcosColmena").value,10);
+    if(!marcos || marcos<1){
+      marcos = tipoColmenaSeleccionado==="doble"?19:(tipoColmenaSeleccionado==="nucleo"?4:10);
+    }
+    var c = {id:uid("c"), apiarioId:apiarioActivo, numero:numero, tipo:tipoColmenaSeleccionado, marcosTotales:marcos, historialMovimientos:[]};
+    store.colmenas.push(c);
+    store.esDemo = false;
+    guardar();
+    $("#modalColmena").hidden = true;
+    renderColmenas();
+    toast("Colmena #"+numero+" creada");
+    abrirDetalleColmena(c.id);
+  });
+
+  function qrPayload(colmena){ return "COLMENA|"+colmena.apiarioId+"|"+colmena.numero; }
+
+  function abrirDetalleColmena(colmenaId){
+    var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
+    if(!c) return;
+    var estado = estadoColmena(c.id);
+    var ult = ultimaRevision(c.id);
+    var body = $("#modalDetalleBody");
+    body.innerHTML = "";
+    body.appendChild(el("h2",{text:"Colmena #"+c.numero}));
+    var subRow = el("div",{class:"row between"});
+    subRow.appendChild(el("span",{style:"font-size:13px;color:var(--muted);", text:apiarioNombre(c.apiarioId)}));
+    subRow.innerHTML += estadoBadgeHtml(estado);
+    body.appendChild(subRow);
+
+    var qrHolder = el("div",{class:"qr-box"});
+    body.appendChild(qrHolder);
+
+    var tipoLine = el("p",{style:"font-size:12.5px;color:var(--muted);text-align:center;margin:0;font-weight:600;"});
+    var nombreTipo = c.tipo==="sencilla"?"Sencilla":(c.tipo==="nucleo"?"Núcleo (colmena de cría)":"Doble");
+    tipoLine.textContent = nombreTipo+" · "+c.marcosTotales+" marcos";
+    body.appendChild(tipoLine);
+
+    var infoLine = el("p",{style:"font-size:12px;color:var(--muted);text-align:center;margin:0;"});
+    infoLine.textContent = ult ? ("Última revisión: "+haceTiempo(ult.fecha)) : "Todavía no tiene revisiones";
+    body.appendChild(infoLine);
+
+    if(store.apiarios.length>1){
+      var moverBtn = el("button",{class:"btn btn-line btn-block", style:"font-size:12.5px; padding:8px;", text:"Mover a otro apiario"});
+      var moverWrap = el("div",{class:"wrap-chips", hidden:"true", style:"justify-content:center;"});
+      store.apiarios.filter(function(a){ return a.id!==c.apiarioId; }).forEach(function(a){
+        var chip = el("button",{class:"chip", text:"→ "+a.nombre});
+        chip.addEventListener("click", function(){
+          confirmarApp("¿Mover la colmena #"+c.numero+" de "+apiarioNombre(c.apiarioId)+" a "+a.nombre+"?").then(function(ok){
+            if(!ok) return;
+            c.historialMovimientos.push({fecha:Date.now(), deApiarioId:c.apiarioId, aApiarioId:a.id});
+            c.apiarioId = a.id;
+            store.esDemo = false;
+            guardar();
+            toast("Colmena #"+c.numero+" movida a "+a.nombre);
+            abrirDetalleColmena(c.id);
+          });
+        });
+        moverWrap.appendChild(chip);
+      });
+      moverBtn.addEventListener("click", function(){ moverWrap.hidden = !moverWrap.hidden; });
+      body.appendChild(moverBtn);
+      body.appendChild(moverWrap);
+    }
+
+    if(c.historialMovimientos && c.historialMovimientos.length){
+      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Historial de traslados"}));
+      c.historialMovimientos.slice().reverse().forEach(function(m){
+        var line = el("p",{style:"font-size:12px; color:var(--muted); margin:0;"});
+        line.textContent = fechaCorta(m.fecha)+": "+apiarioNombre(m.deApiarioId)+" → "+apiarioNombre(m.aApiarioId);
+        body.appendChild(line);
+      });
+    }
+
+    if(ult && ult.marcos){
+      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Marcos en la última revisión"}));
+      var miniGrid = el("div",{class:"frame-grid"});
+      renderFrameGridInto(miniGrid, ult.marcos, true);
+      body.appendChild(miniGrid);
+      var miniResumen = el("div",{class:"frame-summary", style:"margin-top:6px;"});
+      miniResumen.innerHTML = resumenMarcosHtml(ult.marcos);
+      body.appendChild(miniResumen);
+
+      var p = proyeccionColmena(c);
+      if(p && p.marcosMiel>0){
+        var proyLine = el("p",{style:"font-size:12.5px; color:var(--good); font-weight:700; margin:2px 0 0;"});
+        proyLine.textContent = "Proyección: ≈"+fmtNum(p.kg,1)+" kg de miel · "+fmtL(p.ingreso);
+        body.appendChild(proyLine);
+      }
+    }
+
+    var goBtn = el("button",{class:"btn btn-primary btn-block", text:"Iniciar revisión por dictado"});
+    goBtn.addEventListener("click", function(){
+      $("#modalDetalle").hidden = true;
+      apiarioActivo = c.apiarioId;
+      colmenaEnRevision = c.id;
+      cambiarTab("revisar");
+      seleccionarColmenaRevision(c.id);
+    });
+    body.appendChild(goBtn);
+
+    var txRow = el("div",{class:"row", style:"gap:8px;"});
+    var txBtn = el("button",{class:"btn btn-line btn-small", style:"flex:1;", text:"+ Tratamiento"});
+    txBtn.addEventListener("click", function(){ abrirModalTratamiento(c); });
+    var alBtn = el("button",{class:"btn btn-line btn-small", style:"flex:1;", text:"+ Alimentación"});
+    alBtn.addEventListener("click", function(){ abrirModalAlimentacion(c); });
+    txRow.appendChild(txBtn); txRow.appendChild(alBtn);
+    body.appendChild(txRow);
+
+    renderListaTratamientos(body, c);
+    renderListaAlimentaciones(body, c);
+
+    var revs = revisionesDe(c.id);
+    if(revs.length){
+      body.appendChild(el("p",{class:"section-title", style:"margin:8px 0 0;", text:"Historial de esta colmena"}));
+      var hist = el("div");
+      revs.forEach(function(r){
+        var row = el("div",{class:"hist-row"});
+        var apId = r.apiarioId || c.apiarioId;
+        var muestraApiario = store.apiarios.length>1 && apId!==c.apiarioId;
+        row.innerHTML =
+          '<div class="top"><span class="who">'+fechaCorta(r.fecha)+(muestraApiario?(' · '+apiarioNombre(apId)):'')+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
+          '<div class="summary">'+resumenCampos(r.campos, r.marcos)+(r.revisadoPor?(' · revisó '+r.revisadoPor):'')+'</div>';
+        row.addEventListener("click", function(){ abrirDetalleRevision(r); });
+        hist.appendChild(row);
+      });
+      body.appendChild(hist);
+    }
+
+    var cerrar = el("button",{class:"btn btn-line btn-block", text:"Cerrar"});
+    cerrar.addEventListener("click", function(){ $("#modalDetalle").hidden = true; });
+    body.appendChild(cerrar);
+
+    var eliminarBtn = el("button",{class:"btn btn-danger btn-block", text:"Eliminar esta colmena (ya no tiene abejas)"});
+    eliminarBtn.addEventListener("click", function(){ eliminarColmena(c); });
+    body.appendChild(eliminarBtn);
+
+    $("#modalDetalle").hidden = false;
+    try{
+      new QRCode(qrHolder, {text:qrPayload(c), width:150, height:150, correctLevel:QRCode.CorrectLevel.M});
+    }catch(e){
+      qrHolder.textContent = "#"+c.numero;
+    }
+  }
+  $("#modalDetalle").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+  $("#modalApiario").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+  $("#modalColmena").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+
+  function eliminarColmena(c){
+    var nRevs = revisionesDe(c.id).length;
+    var nTx = store.tratamientos.filter(function(t){ return t.colmenaId===c.id; }).length;
+    var nAl = store.alimentaciones.filter(function(a){ return a.colmenaId===c.id; }).length;
+    var detalle = [];
+    if(nRevs) detalle.push(nRevs+" revisión"+(nRevs===1?"":"es"));
+    if(nTx) detalle.push(nTx+" tratamiento"+(nTx===1?"":"s"));
+    if(nAl) detalle.push(nAl+" alimentación"+(nAl===1?"":"es"));
+    var msg = "¿Eliminar la colmena #"+c.numero+" de "+apiarioNombre(c.apiarioId)+"?"+
+      (detalle.length ? (" También se borrará su historial: "+detalle.join(", ")+".") : "")+
+      " Esta acción no se puede deshacer.";
+    confirmarApp(msg).then(function(ok){
+      if(!ok) return;
+      store.revisiones = store.revisiones.filter(function(r){ return r.colmenaId!==c.id; });
+      store.tratamientos = store.tratamientos.filter(function(t){ return t.colmenaId!==c.id; });
+      store.alimentaciones = store.alimentaciones.filter(function(a){ return a.colmenaId!==c.id; });
+      store.colmenas = store.colmenas.filter(function(x){ return x.id!==c.id; });
+      store.esDemo = false;
+      guardar();
+      if(colmenaEnRevision===c.id) colmenaEnRevision = null;
+      $("#modalDetalle").hidden = true;
+      renderColmenas();
+      toast("Colmena #"+c.numero+" eliminada");
+    });
+  }
+
+  function eliminarApiario(ap){
+    var colmenasApiario = colmenasDe(ap.id);
+    var n = colmenasApiario.length;
+    var msg = "¿Eliminar el apiario \""+ap.nombre+"\""+
+      (n ? (" y sus "+n+" colmena"+(n===1?"":"s")+", junto con todas sus revisiones, tratamientos y alimentaciones") : "")+
+      "? Esta acción no se puede deshacer.";
+    confirmarApp(msg).then(function(ok){
+      if(!ok) return;
+      var colmenaIds = colmenasApiario.map(function(c){ return c.id; });
+      store.revisiones = store.revisiones.filter(function(r){ return colmenaIds.indexOf(r.colmenaId)===-1; });
+      store.tratamientos = store.tratamientos.filter(function(t){ return colmenaIds.indexOf(t.colmenaId)===-1; });
+      store.alimentaciones = store.alimentaciones.filter(function(a){ return colmenaIds.indexOf(a.colmenaId)===-1; });
+      store.colmenas = store.colmenas.filter(function(c){ return c.apiarioId!==ap.id; });
+      store.apiarios = store.apiarios.filter(function(a){ return a.id!==ap.id; });
+      store.esDemo = false;
+      guardar();
+      if(apiarioActivo===ap.id) apiarioActivo = store.apiarios[0] ? store.apiarios[0].id : null;
+      renderApiarios();
+      toast("Apiario \""+ap.nombre+"\" eliminado");
+    });
+  }
+
+  /* ============================================================
+     TRATAMIENTOS (enfermedad/plaga) Y ALIMENTACIÓN ARTIFICIAL
+     ============================================================ */
+  var ENFERMEDADES_LISTA = ["Varroa","Loque americana","Loque europea","Nosema","Cría yesificada","Escarabajo de la colmena","Tropilaelaps"];
+  var UN_DIA_MS = 86400000;
+  var ENFERMEDAD_TX_LISTA = ENFERMEDADES_LISTA.concat(["Preventivo (sin enfermedad específica)"]);
+  var PRODUCTO_TX_LISTA = ["Ácido oxálico","Ácido fórmico","Timol (Apiguard)","Apistán","Bayvarol","Perizin","Otro"];
+  var MOTIVO_AL_LISTA = ["Falta de floración","Estimulante (pre-floración)","Refuerzo de invierno","Otro"];
+  var PROPORCION_AL_LISTA = ["1:1 (ligero)","2:1 (concentrado)","Otro"];
+
+  function calcularVencimiento(fecha, frecuenciaDias){
+    if(!frecuenciaDias) return null;
+    var proxima = fecha + frecuenciaDias*UN_DIA_MS;
+    var diasRestantes = Math.round((proxima-Date.now())/UN_DIA_MS);
+    var estado = diasRestantes<0 ? "bad" : (diasRestantes<=3 ? "warn" : "ok");
+    return {proxima:proxima, diasRestantes:diasRestantes, estado:estado};
+  }
+  function tagVencimientoHtml(v){
+    if(!v) return "";
+    var texto = v.diasRestantes<0 ? ("vencido hace "+Math.abs(v.diasRestantes)+"d") :
+                (v.diasRestantes===0 ? "toca hoy" : ("en "+v.diasRestantes+"d"));
+    return '<span class="due-tag due-'+v.estado+'">'+texto+'</span>';
+  }
+
+  function crearChipsUnicos(container, opciones, valorInicial, onSeleccion){
+    var actual = valorInicial;
+    function pintar(){
+      container.innerHTML = "";
+      opciones.forEach(function(op){
+        var chip = el("button",{class:"chip"+(actual===op?" active":""), type:"button", text:op});
+        chip.addEventListener("click", function(){
+          if(op==="Otro"){
+            preguntarApp("Escribe el valor:", (opciones.indexOf(actual)===-1?actual:"")||"").then(function(custom){
+              if(!custom) return;
+              actual = custom.trim();
+              onSeleccion(actual);
+              pintar();
+            });
+            return;
+          }
+          actual = op;
+          onSeleccion(actual);
+          pintar();
+        });
+        container.appendChild(chip);
+      });
+    }
+    pintar();
+    return { get:function(){ return actual; } };
+  }
+
+  /* ---- Tratamientos ---- */
+  var txColmenaActual = null, txEnfermedadSel = null, txProductoSel = null;
+  function abrirModalTratamiento(c){
+    txColmenaActual = c;
+    $("#txColmenaLabel").textContent = "#"+c.numero+" · "+apiarioNombre(c.apiarioId);
+    $("#inTxDosis").value = "";
+    $("#inTxFrecuencia").value = "";
+    $("#inTxNotas").value = "";
+    var refEnf = crearChipsUnicos($("#txEnfermedadChips"), ENFERMEDAD_TX_LISTA, ENFERMEDAD_TX_LISTA[0], function(v){ txEnfermedadSel=v; });
+    txEnfermedadSel = refEnf.get();
+    var refProd = crearChipsUnicos($("#txProductoChips"), PRODUCTO_TX_LISTA, PRODUCTO_TX_LISTA[0], function(v){ txProductoSel=v; });
+    txProductoSel = refProd.get();
+    $("#modalDetalle").hidden = true;
+    $("#modalTratamiento").hidden = false;
+  }
+  $("#btnCancelarTratamiento").addEventListener("click", function(){
+    $("#modalTratamiento").hidden = true;
+    if(txColmenaActual) abrirDetalleColmena(txColmenaActual.id);
+  });
+  $("#modalTratamiento").addEventListener("click", function(e){ if(e.target===this){ this.hidden = true; if(txColmenaActual) abrirDetalleColmena(txColmenaActual.id); } });
+  $("#btnGuardarTratamiento").addEventListener("click", function(){
+    if(!txColmenaActual) return;
+    var frec = parseInt($("#inTxFrecuencia").value,10);
+    var tx = {
+      id:uid("tx"), colmenaId:txColmenaActual.id, apiarioId:txColmenaActual.apiarioId, fecha:Date.now(),
+      enfermedad:txEnfermedadSel, producto:txProductoSel,
+      dosis:$("#inTxDosis").value.trim(), frecuenciaDias:(frec>0?frec:null),
+      notas:$("#inTxNotas").value.trim()
+    };
+    store.tratamientos.push(tx);
+    store.esDemo = false;
+    guardar();
+    $("#modalTratamiento").hidden = true;
+    toast("Tratamiento guardado");
+    abrirDetalleColmena(txColmenaActual.id);
+  });
+
+  function renderListaTratamientos(body, c){
+    var lista = store.tratamientos.filter(function(t){ return t.colmenaId===c.id; }).sort(function(a,b){ return b.fecha-a.fecha; });
+    if(!lista.length) return;
+    body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Tratamientos"}));
+    var wrap = el("div");
+    lista.forEach(function(t){
+      var v = calcularVencimiento(t.fecha, t.frecuenciaDias);
+      var row = el("div",{class:"tx-row"});
+      row.innerHTML =
+        '<div class="top"><span class="who">'+t.producto+'</span>'+tagVencimientoHtml(v)+'</div>'+
+        '<div class="when">'+fechaCorta(t.fecha)+' · '+t.enfermedad+'</div>'+
+        (t.dosis?('<div class="detail">Dosis: '+t.dosis+'</div>'):'');
+      wrap.appendChild(row);
+    });
+    body.appendChild(wrap);
+  }
+
+  /* ---- Alimentación ---- */
+  var alColmenaActual = null, alMotivoSel = null, alProporcionSel = null, alLimonSel = true;
+  function abrirModalAlimentacion(c){
+    alColmenaActual = c;
+    $("#alColmenaLabel").textContent = "#"+c.numero+" · "+apiarioNombre(c.apiarioId);
+    $("#inAlLitros").value = "";
+    $("#inAlCosto").value = "";
+    $("#inAlFrecuencia").value = "";
+    $("#inAlNotas").value = "";
+    var refMot = crearChipsUnicos($("#alMotivoChips"), MOTIVO_AL_LISTA, MOTIVO_AL_LISTA[0], function(v){ alMotivoSel=v; });
+    alMotivoSel = refMot.get();
+    var refProp = crearChipsUnicos($("#alProporcionChips"), PROPORCION_AL_LISTA, PROPORCION_AL_LISTA[0], function(v){ alProporcionSel=v; });
+    alProporcionSel = refProp.get();
+    alLimonSel = true;
+    pintarLimonToggle();
+    $("#modalDetalle").hidden = true;
+    $("#modalAlimentacion").hidden = false;
+  }
+  function pintarLimonToggle(){
+    $all("#alLimonToggle button").forEach(function(b){ b.classList.toggle("on", (b.dataset.v==="si")===alLimonSel); });
+  }
+  $all("#alLimonToggle button").forEach(function(b){
+    b.addEventListener("click", function(){ alLimonSel = (b.dataset.v==="si"); pintarLimonToggle(); });
+  });
+  $("#btnCancelarAlimentacion").addEventListener("click", function(){
+    $("#modalAlimentacion").hidden = true;
+    if(alColmenaActual) abrirDetalleColmena(alColmenaActual.id);
+  });
+  $("#modalAlimentacion").addEventListener("click", function(e){ if(e.target===this){ this.hidden = true; if(alColmenaActual) abrirDetalleColmena(alColmenaActual.id); } });
+  $("#btnGuardarAlimentacion").addEventListener("click", function(){
+    if(!alColmenaActual) return;
+    var litros = parseFloat($("#inAlLitros").value);
+    var costo = parseFloat($("#inAlCosto").value);
+    var frec = parseInt($("#inAlFrecuencia").value,10);
+    var al = {
+      id:uid("al"), colmenaId:alColmenaActual.id, apiarioId:alColmenaActual.apiarioId, fecha:Date.now(),
+      motivo:alMotivoSel, proporcion:alProporcionSel, limon:alLimonSel,
+      litros:(!isNaN(litros)?litros:null), costoL:(!isNaN(costo)?costo:0),
+      frecuenciaDias:(frec>0?frec:null), notas:$("#inAlNotas").value.trim()
+    };
+    store.alimentaciones.push(al);
+    store.esDemo = false;
+    guardar();
+    $("#modalAlimentacion").hidden = true;
+    toast("Alimentación guardada");
+    abrirDetalleColmena(alColmenaActual.id);
+  });
+
+  function renderListaAlimentaciones(body, c){
+    var lista = store.alimentaciones.filter(function(a){ return a.colmenaId===c.id; }).sort(function(a,b){ return b.fecha-a.fecha; });
+    if(!lista.length) return;
+    body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Alimentación"}));
+    var totalInvertido = lista.reduce(function(s,a){ return s+(a.costoL||0); }, 0);
+    body.appendChild(el("div",{class:"tx-total", html:"Invertido en esta colmena: <b>"+fmtL(totalInvertido)+"</b>"}));
+    var wrap = el("div");
+    lista.forEach(function(a){
+      var v = calcularVencimiento(a.fecha, a.frecuenciaDias);
+      var row = el("div",{class:"tx-row"});
+      row.innerHTML =
+        '<div class="top"><span class="who">'+a.motivo+'</span>'+tagVencimientoHtml(v)+'</div>'+
+        '<div class="when">'+fechaCorta(a.fecha)+' · '+a.proporcion+(a.limon?" · con limón":"")+'</div>'+
+        '<div class="detail">'+(a.litros?(a.litros+" L"):"")+(a.costoL?(" · "+fmtL(a.costoL)):"")+'</div>';
+      wrap.appendChild(row);
+    });
+    body.appendChild(wrap);
+  }
+
+  /* ---- Marcos: helpers de conteo y dibujo ---- */
+  var ESTADOS_MARCO = ["vacio","cria","miel","polen"];
+  var ETIQUETA_MARCO = {vacio:"·", cria:"C", miel:"M", polen:"P"};
+  var NOMBRE_MARCO = {vacio:"vacíos", cria:"con cría", miel:"con miel", polen:"con pan de abeja"};
+
+  function contarMarcos(marcos){
+    var c = {vacio:0, cria:0, miel:0, polen:0};
+    (marcos||[]).forEach(function(e){ if(c[e]!==undefined) c[e]++; });
+    return c;
+  }
+  function resumenMarcosHtml(marcos){
+    if(!marcos || !marcos.length) return "";
+    var c = contarMarcos(marcos);
+    var partes = [];
+    ["cria","miel","polen","vacio"].forEach(function(k){
+      if(c[k]>0) partes.push("<span><b>"+c[k]+"</b> "+NOMBRE_MARCO[k]+"</span>");
+    });
+    return partes.join("");
+  }
+  function resumenMarcosTexto(marcos){
+    if(!marcos || !marcos.length) return "";
+    var c = contarMarcos(marcos);
+    var partes = [];
+    ["cria","miel","polen"].forEach(function(k){
+      if(c[k]>0) partes.push(c[k]+" "+NOMBRE_MARCO[k]);
+    });
+    return partes.join(", ");
+  }
+  function renderFrameGridInto(container, marcos, readonly, onTap){
+    container.innerHTML = "";
+    marcos.forEach(function(estado, i){
+      var tile = el("div",{class:"frame-tile"+(readonly?" readonly":""), "data-estado":estado});
+      tile.innerHTML = '<span class="n">'+(i+1)+'</span><span class="s">'+ETIQUETA_MARCO[estado]+'</span>';
+      if(!readonly && onTap){
+        tile.addEventListener("click", function(){ onTap(i); });
+      }
+      container.appendChild(tile);
+    });
+  }
+
+  function resumenCampos(campos, marcos){
+    if(!campos) return "";
+    var partes = [];
+    if(campos.reinaPresente===true) partes.push("reina presente");
+    if(campos.reinaPresente===false) partes.push("reina no vista");
+    if(campos.posturaEtapa) partes.push("postura: "+campos.posturaEtapa);
+    if(campos.criaSellada) partes.push("cría sellada"+(campos.criaIntensidad?(" ("+campos.criaIntensidad+")"):""));
+    if(campos.enfermedades.length) partes.push(campos.enfermedades.join(", "));
+    if(campos.sanaExplicito && !campos.enfermedades.length) partes.push("sana");
+    var rm = resumenMarcosTexto(marcos);
+    if(rm) partes.push(rm);
+    return partes.join(" · ")||"sin detalles";
+  }
+
+  /* ============================================================
+     7. TAB REVISAR (DICTADO)
+     ============================================================ */
+  function renderChipsUsuario(){
+    var wrap = $("#chipsUsuario");
+    wrap.innerHTML = "";
+    store.usuarios.forEach(function(nombre){
+      var chip = el("button",{class:"chip"+(store.usuarioActual===nombre?" active":""), text:nombre});
+      chip.addEventListener("click", function(){ store.usuarioActual = nombre; guardar(); renderChipsUsuario(); });
+      wrap.appendChild(chip);
+    });
+    var add = el("button",{class:"chip ghost", text:"+ persona"});
+    add.addEventListener("click", function(){
+      preguntarApp("Nombre de la persona que va a revisar:", "").then(function(nombre){
+        if(!nombre) return;
+        nombre = nombre.trim();
+        if(!nombre) return;
+        if(store.usuarios.indexOf(nombre)===-1) store.usuarios.push(nombre);
+        store.usuarioActual = nombre;
+        guardar();
+        renderChipsUsuario();
+      });
+    });
+    wrap.appendChild(add);
+  }
+
+  function renderRevisarColmenas(){
+    renderChipsUsuario();
+    renderChipsApiario("#chipsApiarioRevisar", function(){ renderRevisarColmenas(); });
+    var grid = $("#hiveGridRevisar");
+    grid.innerHTML = "";
+    var lista = colmenasDe(apiarioActivo).sort(function(a,b){ return a.numero-b.numero; });
+    $("#hiveEmptyRevisar").hidden = lista.length>0;
+    lista.forEach(function(c){
+      var estado = estadoColmena(c.id);
+      var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+(c.tipo==="nucleo"?'<span class="tipo-tag">núcleo</span>':'');
+      tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
+      grid.appendChild(tile);
+    });
+    if(colmenaEnRevision && !lista.some(function(c){return c.id===colmenaEnRevision;})){
+      colmenaEnRevision = null;
+      $("#cardDictado").style.display = "none";
+    }
+  }
+
+  var marcosActuales = [];
+  function seleccionarColmenaRevision(colmenaId){
+    colmenaEnRevision = colmenaId;
+    var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
+    renderRevisarColmenas();
+    $("#cardDictado").style.display = "flex";
+    $("#cardDictado").style.flexDirection = "column";
+    $("#colmenaActivaLabel").textContent = "#"+c.numero+" · "+apiarioNombre(c.apiarioId);
+    $("#fechaHoy").textContent = fechaCorta(Date.now());
+    $("#txtDictado").value = "";
+    camposActuales = parseInspeccion("");
+    var total = c.marcosTotales || (c.tipo==="sencilla"?10:19);
+    marcosActuales = [];
+    for(var i=0;i<total;i++) marcosActuales.push("vacio");
+    var etiquetaTipo = c.tipo==="sencilla"?"sencilla, ":(c.tipo==="nucleo"?"núcleo, ":"doble, ");
+    $("#marcosTituloTipo").textContent = etiquetaTipo+total+" marcos";
+    renderParsedGrid();
+    renderDiseaseChips();
+    renderMarcosGrid();
+  }
+
+  function renderMarcosGrid(){
+    var grid = $("#marcosGrid");
+    renderFrameGridInto(grid, marcosActuales, false, function(i){
+      var idx = ESTADOS_MARCO.indexOf(marcosActuales[i]);
+      marcosActuales[i] = ESTADOS_MARCO[(idx+1) % ESTADOS_MARCO.length];
+      renderMarcosGrid();
+    });
+    $("#marcosResumen").innerHTML = resumenMarcosHtml(marcosActuales) || '<span>Todavía no marcas ningún marco</span>';
+  }
+
+  var FIELD_DEFS = [
+    {key:"reina", label:"Reina", get:function(c){
+        if(c.reinaPresente===true) return c.reinaVirgen ? "Presente (virgen)":"Presente";
+        if(c.reinaPresente===false) return "No vista";
+        return "Sin dato";
+      }},
+    {key:"postura", label:"Postura / cría", get:function(c){
+        var p = c.posturaEtapa ? c.posturaEtapa : null;
+        var d = c.posturaDias!==null ? (c.posturaDias+" días") : null;
+        if(p&&d) return p+" · "+d;
+        if(p) return p;
+        if(d) return "postura de "+d;
+        return "Sin dato";
+      }},
+    {key:"cria", label:"Cría sellada", get:function(c){
+        if(c.criaSellada===true) return "Sí"+(c.criaIntensidad?(" ("+c.criaIntensidad+")"):"");
+        if(c.criaSellada===false) return "No";
+        return "Sin dato";
+      }},
+    {key:"zanganos", label:"Zánganos", get:function(c){
+        if(c.zanganos===true) return "Sí"+(c.zanganosIntensidad?(" ("+c.zanganosIntensidad+")"):"");
+        if(c.zanganos===false) return "No";
+        return "Sin dato";
+      }},
+    {key:"reservas", label:"Miel / polen", get:function(c){
+        var m = c.reservasMiel, p = c.reservasPolen;
+        if(!m && !p) return "Sin dato";
+        var partes = [];
+        if(m) partes.push("miel: "+m);
+        if(p) partes.push("polen: "+p);
+        return partes.join(" · ");
+      }},
+    {key:"temperamento", label:"Temperamento", get:function(c){ return c.temperamento || "Sin dato"; }}
+  ];
+
+  function renderParsedGrid(){
+    var grid = $("#parsedGrid");
+    grid.innerHTML = "";
+    FIELD_DEFS.forEach(function(def){
+      var val = def.get(camposActuales);
+      var box = el("div",{class:"parsed-field"+(val==="Sin dato"?" empty-val":"")});
+      box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+val+'</span>';
+      grid.appendChild(box);
+    });
+
+    // toggles rápidos para reina y cría (corrección manual)
+    var reinaBox = grid.children[0];
+    var toggle = el("div",{class:"toggle-row", style:"margin-top:2px;"});
+    ["Sí","No","?"].forEach(function(lbl){
+      var b = el("button",{text:lbl});
+      var val = lbl==="Sí"?true:(lbl==="No"?false:null);
+      if(camposActuales.reinaPresente===val) b.classList.add("on");
+      if(lbl==="No") b.classList.add("bad");
+      b.addEventListener("click", function(){ camposActuales.reinaPresente = val; renderParsedGrid(); });
+      toggle.appendChild(b);
+    });
+    reinaBox.appendChild(toggle);
+  }
+
+  function renderDiseaseChips(){
+    var wrap = $("#diseaseChips");
+    wrap.innerHTML = "";
+    ENFERMEDADES_LISTA.forEach(function(nombre){
+      var activo = camposActuales.enfermedades.indexOf(nombre)!==-1;
+      var chip = el("button",{class:"chip"+(activo?" active":""), text:nombre});
+      chip.addEventListener("click", function(){
+        var i = camposActuales.enfermedades.indexOf(nombre);
+        if(i===-1) camposActuales.enfermedades.push(nombre); else camposActuales.enfermedades.splice(i,1);
+        renderDiseaseChips();
+      });
+      wrap.appendChild(chip);
+    });
+  }
+
+  $("#txtDictado").addEventListener("input", function(){
+    var texto = $("#txtDictado").value;
+    camposActuales = parseInspeccion(texto);
+    var marcosDichos = parseMarcosDesdeTexto(texto, marcosActuales.length);
+    Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
+    renderParsedGrid();
+    renderDiseaseChips();
+    renderMarcosGrid();
+  });
+
+  $("#btnGuardarRevision").addEventListener("click", function(){
+    if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
+    var texto = $("#txtDictado").value.trim();
+    if(!texto){ toast("Dicta o escribe algo antes de guardar"); return; }
+    var cRev = store.colmenas.find(function(x){ return x.id===colmenaEnRevision; });
+    var r = {id:uid("r"), colmenaId:colmenaEnRevision, apiarioId:cRev?cRev.apiarioId:apiarioActivo, fecha:Date.now(), revisadoPor:store.usuarioActual, texto:texto, campos:camposActuales, marcos:marcosActuales.slice()};
+    store.revisiones.push(r);
+    store.esDemo = false;
+    guardar();
+    toast("Revisión guardada");
+    var cId = colmenaEnRevision;
+    seleccionarColmenaRevision(cId);
+    renderRevisarColmenas();
+  });
+
+  /* ---- Dictado por voz (Web Speech API) ---- */
+  var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var reconocimiento = null;
+  var escuchando = false;
+
+  function initReconocimiento(){
+    if(!SpeechRecognitionCtor) return null;
+    var rec = new SpeechRecognitionCtor();
+    rec.lang = "es-HN";
+    rec.continuous = true;
+    rec.interimResults = true;
+    return rec;
+  }
+
+  $("#btnMic").addEventListener("click", function(){
+    if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
+    if(!SpeechRecognitionCtor){
+      $("#micStatus").textContent = "Tu navegador no tiene dictado por voz. Escribe en el cuadro de abajo.";
+      return;
+    }
+    if(navigator.onLine===false){
+      $("#micStatus").textContent = "Sin internet: el dictado por voz no funciona sin conexión. Escribe directo en el cuadro de abajo.";
+      toast("El dictado necesita internet");
+      return;
+    }
+    if(escuchando){
+      if(reconocimiento) reconocimiento.stop();
+      return;
+    }
+    reconocimiento = initReconocimiento();
+    var base = $("#txtDictado").value;
+    var baseConEspacio = base && !/\s$/.test(base) ? base+" " : base;
+
+    reconocimiento.onstart = function(){
+      escuchando = true;
+      $("#btnMic").classList.add("listening");
+      $("#micStatus").textContent = "Escuchando… toca de nuevo para detener";
+    };
+    reconocimiento.onresult = function(ev){
+      var texto = "";
+      for(var i=0;i<ev.results.length;i++){ texto += ev.results[i][0].transcript; }
+      var completo = baseConEspacio + texto;
+      $("#txtDictado").value = completo;
+      camposActuales = parseInspeccion(completo);
+      var marcosDichos = parseMarcosDesdeTexto(completo, marcosActuales.length);
+      Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
+      renderParsedGrid();
+      renderDiseaseChips();
+      renderMarcosGrid();
+    };
+    reconocimiento.onerror = function(ev){
+      var mensajes = {
+        "not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
+        "service-not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
+        "network": "El dictado necesita internet y no se pudo conectar. Escribe directo en el cuadro de abajo.",
+        "no-speech": "No se escuchó nada. Toca el micrófono e intenta de nuevo.",
+        "audio-capture": "No se encontró un micrófono en este dispositivo."
+      };
+      $("#micStatus").textContent = mensajes[ev.error] || ("No se pudo escuchar ("+(ev.error||"error")+"). Intenta de nuevo o escribe.");
+    };
+    reconocimiento.onend = function(){
+      escuchando = false;
+      $("#btnMic").classList.remove("listening");
+      $("#micStatus").textContent = "Toca para dictar la revisión";
+    };
+    try{ reconocimiento.start(); }
+    catch(e){ $("#micStatus").textContent = "No se pudo iniciar el micrófono."; }
+  });
+
+  if(!SpeechRecognitionCtor){
+    document.addEventListener("DOMContentLoaded", function(){
+      $("#micStatus").textContent = "Dictado no disponible en este navegador — funciona en Chrome para Android. Puedes escribir directo.";
+    });
+  }
+
+  /* ---- Escanear QR con la cámara ---- */
+  var scanStream = null, scanTimer = null;
+  $("#btnEscanear").addEventListener("click", function(){
+    $("#modalScan").hidden = false;
+    $("#scanMsg").textContent = "Apunta la cámara al código QR de la colmena.";
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      $("#scanMsg").textContent = "Este navegador no puede usar la cámara aquí. Toca el número de la colmena en la lista.";
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(stream){
+      scanStream = stream;
+      var video = $("#scanVideo");
+      video.srcObject = stream;
+      video.play();
+      var canvas = document.createElement("canvas");
+      var ctx = canvas.getContext("2d");
+      scanTimer = setInterval(function(){
+        if(!window.jsQR || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        var img = ctx.getImageData(0,0,canvas.width,canvas.height);
+        var code = window.jsQR(img.data, img.width, img.height);
+        if(code && code.data){
+          procesarQR(code.data);
+        }
+      }, 350);
+    }).catch(function(err){
+      $("#scanMsg").textContent = "No se pudo abrir la cámara. Toca el número de la colmena en la lista.";
+    });
+  });
+  function cerrarScan(){
+    $("#modalScan").hidden = true;
+    if(scanTimer){ clearInterval(scanTimer); scanTimer = null; }
+    if(scanStream){ scanStream.getTracks().forEach(function(t){ t.stop(); }); scanStream = null; }
+  }
+  $("#btnCerrarScan").addEventListener("click", cerrarScan);
+  $("#modalScan").addEventListener("click", function(e){ if(e.target===this) cerrarScan(); });
+
+  function procesarQR(data){
+    var partes = String(data).split("|");
+    if(partes[0]!=="COLMENA" || partes.length<3) return;
+    var apId = partes[1], num = parseInt(partes[2],10);
+    var c = store.colmenas.find(function(x){ return x.apiarioId===apId && x.numero===num; });
+    if(!c) return;
+    cerrarScan();
+    apiarioActivo = apId;
+    renderRevisarColmenas();
+    seleccionarColmenaRevision(c.id);
+    toast("Colmena #"+num+" identificada por QR");
+  }
+
+  /* ============================================================
+     8. TAB MAPA
+     ============================================================ */
+  function renderMapa(){
+    var wrap = $("#chipsMapa");
+    wrap.innerHTML = "";
+    var chipTodos = el("button",{class:"chip"+(mapaModo==="todos"?" active":""), text:"Todos los apiarios"});
+    chipTodos.addEventListener("click", function(){ mapaModo="todos"; renderMapa(); });
+    wrap.appendChild(chipTodos);
+    store.apiarios.forEach(function(ap){
+      var chip = el("button",{class:"chip"+(mapaModo===ap.id?" active":""), text:ap.nombre});
+      chip.addEventListener("click", function(){ mapaModo=ap.id; renderMapa(); });
+      wrap.appendChild(chip);
+    });
+    dibujarMapa();
+    renderMapaOverlapList();
+  }
+  var mapaModo = "todos";
+
+  function dibujarMapa(){
+    var svg = $("#mapaSvg");
+    svg.innerHTML = "";
+    var W=320,H=320,cx=W/2,cy=H/2;
+    var apiariosVisibles = mapaModo==="todos" ? store.apiarios : store.apiarios.filter(function(a){return a.id===mapaModo;});
+    if(apiariosVisibles.length===0) return;
+
+    var latC = apiariosVisibles.reduce(function(s,a){return s+a.lat;},0)/apiariosVisibles.length;
+    var lngC = apiariosVisibles.reduce(function(s,a){return s+a.lng;},0)/apiariosVisibles.length;
+    var mPerDegLat = 111320;
+    var mPerDegLng = 111320*Math.cos(latC*Math.PI/180);
+
+    // radio de referencia en px para 5km, ajustado según extensión
+    var maxKm = 6;
+    apiariosVisibles.forEach(function(a){
+      var dLatKm = Math.abs(a.lat-latC)*mPerDegLat/1000;
+      var dLngKm = Math.abs(a.lng-lngC)*mPerDegLng/1000;
+      maxKm = Math.max(maxKm, dLatKm+5, dLngKm+5);
+    });
+    var pxPerKm = (Math.min(W,H)/2 - 20) / maxKm;
+
+    function toXY(lat,lng){
+      var dLatKm = (lat-latC)*mPerDegLat/1000;
+      var dLngKm = (lng-lngC)*mPerDegLng/1000;
+      return [cx + dLngKm*pxPerKm, cy - dLatKm*pxPerKm];
+    }
+
+    var ns = "http://www.w3.org/2000/svg";
+    function mk(tag,attrs){
+      var e = document.createElementNS(ns,tag);
+      Object.keys(attrs).forEach(function(k){ e.setAttribute(k, attrs[k]); });
+      return e;
+    }
+
+    // fondo
+    svg.appendChild(mk("rect",{x:0,y:0,width:W,height:H,fill:"var(--surface-2)",rx:14}));
+
+    apiariosVisibles.forEach(function(a){
+      var p = toXY(a.lat,a.lng);
+      svg.appendChild(mk("circle",{cx:p[0],cy:p[1],r:5*pxPerKm,fill:"var(--accent)","fill-opacity":"0.10","stroke":"var(--accent)","stroke-width":"1.3","stroke-dasharray":"3 3"}));
+      svg.appendChild(mk("circle",{cx:p[0],cy:p[1],r:3*pxPerKm,fill:"var(--accent)","fill-opacity":"0.16","stroke":"var(--accent)","stroke-width":"1.6"}));
+      svg.appendChild(mk("circle",{cx:p[0],cy:p[1],r:3.5,fill:"var(--critical)"}));
+      var label = mk("text",{x:p[0],y:p[1]-5*pxPerKm-8,"text-anchor":"middle","font-size":"10","font-weight":"700",fill:"var(--ink)","font-family":"Inter,sans-serif"});
+      label.textContent = a.nombre;
+      if(p[1]-5*pxPerKm-10 > 8) svg.appendChild(label);
+    });
+
+    // escala
+    var barKm = maxKm>15?5:(maxKm>6?2:1);
+    var barPx = barKm*pxPerKm;
+    var bx = 16, by = H-16;
+    svg.appendChild(mk("line",{x1:bx,y1:by,x2:bx+barPx,y2:by,stroke:"var(--ink)","stroke-width":"2"}));
+    var t2 = mk("text",{x:bx,y:by-6,"font-size":"9",fill:"var(--muted)","font-family":"IBM Plex Mono,monospace"});
+    t2.textContent = barKm+" km";
+    svg.appendChild(t2);
+  }
+
+  function renderMapaOverlapList(){
+    var box = $("#mapaOverlapList");
+    box.innerHTML = "";
+    var apiariosVisibles = mapaModo==="todos" ? store.apiarios : store.apiarios.filter(function(a){return a.id===mapaModo;});
+    if(mapaModo!=="todos"){
+      var a = apiariosVisibles[0];
+      if(a){
+        var card = el("div",{class:"card"});
+        card.innerHTML = '<p class="section-title" style="margin-bottom:6px;">'+a.nombre+'</p>'+
+          '<p class="mono" style="font-size:13px; margin:0 0 8px;">'+a.lat.toFixed(5)+', '+a.lng.toFixed(5)+'</p>'+
+          '<p style="font-size:12.5px; color:var(--muted); margin:0;">Área de pecoreo a 3 km ≈ 2 827 ha. A 5 km, el área crece a unas 7 850 ha.</p>';
+        box.appendChild(card);
+      }
+      return;
+    }
+    for(var i=0;i<store.apiarios.length;i++){
+      for(var j=i+1;j<store.apiarios.length;j++){
+        var x=store.apiarios[i], y=store.apiarios[j];
+        var d = haversineKm(x.lat,x.lng,y.lat,y.lng);
+        if(d<10){
+          var wbox = el("div",{class:"warn-box"});
+          wbox.textContent = x.nombre+" ↔ "+y.nombre+": "+d.toFixed(1)+" km entre sí"+(d<10?" — los radios de 5 km se solapan":"");
+          box.appendChild(wbox);
+        }
+      }
+    }
+  }
+
+  /* ============================================================
+     9. TAB HISTORIAL
+     ============================================================ */
+  var histFiltro = "todos";
+  function renderHistorial(){
+    var wrap = $("#chipsHistorialFiltro");
+    wrap.innerHTML = "";
+    [["todos","Todos"],["atencion","Necesitan atención"],["sin_revisar","Sin revisar +15 días"]].forEach(function(f){
+      var chip = el("button",{class:"chip"+(histFiltro===f[0]?" active":""), text:f[1]});
+      chip.addEventListener("click", function(){ histFiltro=f[0]; renderHistorial(); });
+      wrap.appendChild(chip);
+    });
+
+    var lista = store.revisiones.slice().sort(function(a,b){ return b.fecha-a.fecha; });
+    var contenedor = $("#listaHistorial");
+    contenedor.innerHTML = "";
+
+    var colmenasSinRevisar = [];
+    if(histFiltro==="sin_revisar"){
+      store.colmenas.forEach(function(c){
+        if(estadoColmena(c.id)==="sin_revisar") colmenasSinRevisar.push(c);
+      });
+    }
+
+    if(histFiltro==="atencion"){
+      lista = lista.filter(function(r){ var e = estadoRevision(r.campos); return e==="atencion"||e==="critico"; });
+    }
+
+    $("#histEmpty").hidden = !((histFiltro==="sin_revisar" && colmenasSinRevisar.length===0) || (histFiltro!=="sin_revisar" && lista.length===0));
+
+    if(histFiltro==="sin_revisar"){
+      colmenasSinRevisar.forEach(function(c){
+        var row = el("div",{class:"hist-row"});
+        var ult = ultimaRevision(c.id);
+        row.innerHTML = '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombre(c.apiarioId)+'</span>'+estadoBadgeHtml("sin_revisar")+'</div>'+
+          '<div class="summary">'+(ult? ("última revisión "+haceTiempo(ult.fecha)) : "nunca revisada")+'</div>';
+        row.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
+        contenedor.appendChild(row);
+      });
+      return;
+    }
+
+    lista.forEach(function(r){
+      var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
+      if(!c) return;
+      var apId = r.apiarioId || c.apiarioId;
+      var row = el("div",{class:"hist-row"});
+      row.innerHTML =
+        '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombre(apId)+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
+        '<div class="when">'+fechaCorta(r.fecha)+' · '+haceTiempo(r.fecha)+(r.revisadoPor?(' · revisó '+r.revisadoPor):'')+'</div>'+
+        '<div class="summary">'+resumenCampos(r.campos, r.marcos)+'</div>';
+      row.addEventListener("click", function(){ abrirDetalleRevision(r); });
+      contenedor.appendChild(row);
+    });
+  }
+
+  function abrirDetalleRevision(r){
+    var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
+    var apId = r.apiarioId || (c?c.apiarioId:null);
+    var body = $("#modalHistBody");
+    body.innerHTML = "";
+    body.appendChild(el("h2",{text:(c?("Colmena #"+c.numero):"Revisión")}));
+    var sub = el("div",{class:"row between"});
+    sub.appendChild(el("span",{style:"font-size:13px;color:var(--muted);", text:fechaCorta(r.fecha)+" · "+(apId?apiarioNombre(apId):"")}));
+    sub.innerHTML += estadoBadgeHtml(estadoRevision(r.campos));
+    body.appendChild(sub);
+    if(r.revisadoPor){
+      body.appendChild(el("p",{style:"font-size:12px; color:var(--muted); margin:0;", text:"Revisado por "+r.revisadoPor}));
+    }
+
+    body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Transcripción"}));
+    var texto = el("p",{style:"font-size:14px; line-height:1.5; background:var(--surface-2); padding:10px 12px; border-radius:10px; margin:0;"});
+    texto.textContent = r.texto;
+    body.appendChild(texto);
+
+    body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Campos entendidos"}));
+    var grid = el("div",{class:"parsed-grid"});
+    FIELD_DEFS.forEach(function(def){
+      var val = def.get(r.campos);
+      var box = el("div",{class:"parsed-field"+(val==="Sin dato"?" empty-val":"")});
+      box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+val+'</span>';
+      grid.appendChild(box);
+    });
+    body.appendChild(grid);
+
+    if(r.campos.enfermedades.length){
+      var dwrap = el("div",{class:"wrap-chips", style:"margin-top:4px;"});
+      r.campos.enfermedades.forEach(function(n){ dwrap.appendChild(el("span",{class:"disease-chip", text:n})); });
+      body.appendChild(dwrap);
+    }
+
+    if(r.marcos && r.marcos.length){
+      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Marcos"}));
+      var fgrid = el("div",{class:"frame-grid"});
+      renderFrameGridInto(fgrid, r.marcos, true);
+      body.appendChild(fgrid);
+      var fsum = el("div",{class:"frame-summary", style:"margin-top:6px;"});
+      fsum.innerHTML = resumenMarcosHtml(r.marcos) || '<span>No se registraron marcos</span>';
+      body.appendChild(fsum);
+    }
+
+    var cerrar = el("button",{class:"btn btn-line btn-block", text:"Cerrar"});
+    cerrar.addEventListener("click", function(){ $("#modalHist").hidden = true; });
+    body.appendChild(cerrar);
+
+    $("#modalHist").hidden = false;
+  }
+  $("#modalHist").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+
+  /* ============================================================
+     9b. TAB PRODUCCIÓN
+     ============================================================ */
+  var prodApiarioFiltro = "todos";
+  var LB_POR_KG = 2.20462;
+
+  function proyeccionColmena(c){
+    var ult = ultimaRevision(c.id);
+    if(!ult || !ult.marcos) return null;
+    var marcosMiel = ult.marcos.filter(function(e){ return e==="miel"; }).length;
+    if(marcosMiel===0) return {marcosMiel:0, kg:0, lb:0, ingreso:0, fecha:ult.fecha};
+    var kg = marcosMiel * store.config.kgPorMarco;
+    var lb = kg * LB_POR_KG;
+    var ingreso = lb * store.config.precioPorLb;
+    return {marcosMiel:marcosMiel, kg:kg, lb:lb, ingreso:ingreso, fecha:ult.fecha};
+  }
+
+  function fmtNum(n, dec){
+    return n.toLocaleString("es-HN", {minimumFractionDigits:dec, maximumFractionDigits:dec});
+  }
+  function fmtL(n){
+    return "L "+n.toLocaleString("es-HN", {minimumFractionDigits:0, maximumFractionDigits:0});
+  }
+
+  function renderProduccion(){
+    $("#inKgMarco").value = store.config.kgPorMarco;
+    $("#inPrecioLb").value = store.config.precioPorLb;
+
+    var wrap = $("#chipsApiarioProduccion");
+    wrap.innerHTML = "";
+    var chipTodos = el("button",{class:"chip"+(prodApiarioFiltro==="todos"?" active":""), text:"Todos los apiarios"});
+    chipTodos.addEventListener("click", function(){ prodApiarioFiltro="todos"; renderProduccion(); });
+    wrap.appendChild(chipTodos);
+    store.apiarios.forEach(function(ap){
+      var chip = el("button",{class:"chip"+(prodApiarioFiltro===ap.id?" active":""), text:ap.nombre});
+      chip.addEventListener("click", function(){ prodApiarioFiltro=ap.id; renderProduccion(); });
+      wrap.appendChild(chip);
+    });
+
+    var colmenas = prodApiarioFiltro==="todos" ? store.colmenas : colmenasDe(prodApiarioFiltro);
+    colmenas = colmenas.slice().sort(function(a,b){
+      if(a.apiarioId!==b.apiarioId) return apiarioNombre(a.apiarioId)<apiarioNombre(b.apiarioId)?-1:1;
+      return a.numero-b.numero;
+    });
+
+    var totalMarcos=0, totalKg=0, totalIngreso=0, colmenasConDatos=0;
+    var lista = $("#listaProduccion");
+    lista.innerHTML = "";
+    var hayFilas = false;
+
+    colmenas.forEach(function(c){
+      var p = proyeccionColmena(c);
+      var row = el("div",{class:"prod-row"});
+      var izq = el("div");
+      izq.innerHTML = '<div class="who">#'+c.numero+'</div><div class="apiario-name">'+apiarioNombre(c.apiarioId)+(c.tipo==="nucleo"?" · núcleo":"")+'</div>';
+      row.appendChild(izq);
+      if(p && p.marcosMiel>0){
+        hayFilas = true;
+        colmenasConDatos++;
+        totalMarcos += p.marcosMiel;
+        totalKg += p.kg;
+        totalIngreso += p.ingreso;
+        var der = el("div",{class:"right"});
+        der.innerHTML = '<div class="kg">'+p.marcosMiel+' marco'+(p.marcosMiel===1?"":"s")+' · '+fmtNum(p.kg,1)+' kg</div><div class="ingreso">≈ '+fmtL(p.ingreso)+'</div>';
+        row.appendChild(der);
+      } else {
+        var der2 = el("div",{class:"right"});
+        der2.innerHTML = '<span class="sindato">'+(p?"sin marcos de miel":"sin revisión")+'</span>';
+        row.appendChild(der2);
+      }
+      lista.appendChild(row);
+    });
+    $("#prodEmpty").hidden = colmenas.length>0;
+
+    var totalLb = totalKg*LB_POR_KG;
+    var tilesWrap = $("#prodTotales");
+    tilesWrap.innerHTML =
+      '<div class="prod-tile"><span class="v">'+colmenasConDatos+'</span><span class="k">colmenas con miel</span></div>'+
+      '<div class="prod-tile"><span class="v">'+fmtNum(totalKg,1)+'</span><span class="k">kg estimados</span></div>'+
+      '<div class="prod-tile accent"><span class="v">'+fmtL(totalIngreso)+'</span><span class="k">ingreso estimado</span></div>';
+  }
+
+  function guardarConfigProduccion(){
+    var kg = parseFloat($("#inKgMarco").value);
+    var precio = parseFloat($("#inPrecioLb").value);
+    if(!isNaN(kg) && kg>0) store.config.kgPorMarco = kg;
+    if(!isNaN(precio) && precio>0) store.config.precioPorLb = precio;
+    guardar();
+    renderProduccion();
+  }
+  $("#inKgMarco").addEventListener("change", guardarConfigProduccion);
+  $("#inPrecioLb").addEventListener("change", guardarConfigProduccion);
+
+  /* ============================================================
+     10. EXPORTAR
+     ============================================================ */
+  $("#btnExportar").addEventListener("click", function(){
+    $("#exportText").value = JSON.stringify(store, null, 2);
+    $("#modalExport").hidden = false;
+  });
+  $("#btnCerrarExport").addEventListener("click", function(){ $("#modalExport").hidden = true; });
+  $("#modalExport").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+  $("#btnCopiarExport").addEventListener("click", function(){
+    var area = $("#exportText");
+    area.select();
+    var copiado = false;
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(area.value);
+        copiado = true;
+      }
+    }catch(e){}
+    if(!copiado){
+      try{ document.execCommand("copy"); copiado = true; }catch(e){}
+    }
+    toast(copiado ? "Copiado" : "Selecciona el texto y cópialo manualmente");
+  });
+
+  /* ============================================================
+     11. INSTALACIÓN COMO APP (PWA)
+     ============================================================ */
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){ /* si falla, la app sigue funcionando en el navegador */ });
+    });
+  }
+
+  var enStandalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  var eventoInstalacion = null;
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault();
+    eventoInstalacion = e;
+    if(!enStandalone) $("#cardInstalar").hidden = false;
+  });
+  var btnInstalar = $("#btnInstalarApp");
+  if(btnInstalar){
+    btnInstalar.addEventListener("click", function(){
+      if(!eventoInstalacion) return;
+      eventoInstalacion.prompt();
+      eventoInstalacion.userChoice.then(function(){ eventoInstalacion = null; $("#cardInstalar").hidden = true; });
+    });
+  }
+  window.addEventListener("appinstalled", function(){ $("#cardInstalar").hidden = true; toast("ApiCampo instalada"); });
+
+  var esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(esIOS && !enStandalone) $("#cardInstalarIos").hidden = false;
+
+  /* ============================================================
+     12. ARRANQUE
+     ============================================================ */
+  renderApiarios();
+  cambiarTab("apiarios");
+
+})();
+</script>
