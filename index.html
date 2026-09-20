@@ -2088,18 +2088,95 @@
     renderRevisarColmenas();
   });
 
-  /* ---- Dictado por voz (Web Speech API) ---- */
+  /* ---- Dictado por voz (Web Speech API) ----
+     Nota técnica: en Android, el modo "continuous" de Chrome es poco confiable —
+     el propio sistema reinicia el reconocimiento cada pocos segundos y, al hacerlo,
+     puede repetir palabras ya captadas, y además corta por completo tras una pausa
+     corta. Por eso aquí se usa continuous=false (cada sesión capta una frase) y se
+     reinicia automáticamente por código en segundo plano cuando el usuario no ha
+     detenido el dictado a propósito — así se ve continuo mucho más limpio, sin
+     duplicar texto. */
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   var reconocimiento = null;
   var escuchando = false;
+  var detenerManual = false;
+  var dictadoBase = "";       // texto que ya estaba en el cuadro antes de empezar a dictar
+  var dictadoAcumulado = "";  // texto final ya confirmado durante esta sesión de dictado (puede abarcar varios reinicios)
 
   function initReconocimiento(){
     if(!SpeechRecognitionCtor) return null;
     var rec = new SpeechRecognitionCtor();
     rec.lang = "es-HN";
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = true;
     return rec;
+  }
+
+  function actualizarCuadroDictado(interino){
+    var partes = [dictadoBase, dictadoAcumulado, interino].filter(function(s){ return s && s.length; });
+    var completo = partes.join(" ").replace(/\s+/g," ");
+    $("#txtDictado").value = completo;
+    camposActuales = parseInspeccion(completo);
+    var marcosDichos = parseMarcosDesdeTexto(completo, marcosActuales.length);
+    Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
+    renderParsedGrid();
+    renderDiseaseChips();
+    renderMarcosGrid();
+  }
+
+  function iniciarSesionReconocimiento(){
+    reconocimiento = initReconocimiento();
+    if(!reconocimiento) return;
+
+    reconocimiento.onstart = function(){
+      escuchando = true;
+      $("#btnMic").classList.add("listening");
+      $("#micStatus").textContent = "Escuchando… toca de nuevo para detener";
+    };
+    reconocimiento.onresult = function(ev){
+      var interino = "";
+      for(var i=0;i<ev.results.length;i++){
+        var r = ev.results[i];
+        if(r.isFinal){
+          dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + r[0].transcript.trim();
+        } else {
+          interino += r[0].transcript;
+        }
+      }
+      actualizarCuadroDictado(interino);
+    };
+    reconocimiento.onerror = function(ev){
+      var mensajes = {
+        "not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
+        "service-not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
+        "network": "El dictado necesita internet y no se pudo conectar. Escribe directo en el cuadro de abajo.",
+        "no-speech": "No se escuchó nada. Sigue hablando o toca el micrófono para detener.",
+        "audio-capture": "No se encontró un micrófono en este dispositivo."
+      };
+      // "no-speech" no es un error real aquí: solo significa que hubo una pausa;
+      // como reiniciamos solos en onend, no hace falta mostrar nada alarmante.
+      if(ev.error!=="no-speech"){
+        $("#micStatus").textContent = mensajes[ev.error] || ("No se pudo escuchar ("+(ev.error||"error")+"). Intenta de nuevo o escribe.");
+      }
+    };
+    reconocimiento.onend = function(){
+      if(detenerManual){
+        escuchando = false;
+        $("#btnMic").classList.remove("listening");
+        $("#micStatus").textContent = "Toca para dictar la revisión";
+        return;
+      }
+      // Se cortó solo (pausa o límite de tiempo de Android) — seguimos escuchando
+      // sin que el usuario tenga que volver a tocar el botón.
+      try{ iniciarSesionReconocimiento(); }
+      catch(e){
+        escuchando = false;
+        $("#btnMic").classList.remove("listening");
+        $("#micStatus").textContent = "Se detuvo el dictado. Toca el micrófono para continuar.";
+      }
+    };
+    try{ reconocimiento.start(); }
+    catch(e){ $("#micStatus").textContent = "No se pudo iniciar el micrófono."; }
   }
 
   $("#btnMic").addEventListener("click", function(){
@@ -2114,47 +2191,15 @@
       return;
     }
     if(escuchando){
+      detenerManual = true;
       if(reconocimiento) reconocimiento.stop();
       return;
     }
-    reconocimiento = initReconocimiento();
+    detenerManual = false;
+    dictadoAcumulado = "";
     var base = $("#txtDictado").value;
-    var baseConEspacio = base && !/\s$/.test(base) ? base+" " : base;
-
-    reconocimiento.onstart = function(){
-      escuchando = true;
-      $("#btnMic").classList.add("listening");
-      $("#micStatus").textContent = "Escuchando… toca de nuevo para detener";
-    };
-    reconocimiento.onresult = function(ev){
-      var texto = "";
-      for(var i=0;i<ev.results.length;i++){ texto += ev.results[i][0].transcript; }
-      var completo = baseConEspacio + texto;
-      $("#txtDictado").value = completo;
-      camposActuales = parseInspeccion(completo);
-      var marcosDichos = parseMarcosDesdeTexto(completo, marcosActuales.length);
-      Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
-      renderParsedGrid();
-      renderDiseaseChips();
-      renderMarcosGrid();
-    };
-    reconocimiento.onerror = function(ev){
-      var mensajes = {
-        "not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
-        "service-not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
-        "network": "El dictado necesita internet y no se pudo conectar. Escribe directo en el cuadro de abajo.",
-        "no-speech": "No se escuchó nada. Toca el micrófono e intenta de nuevo.",
-        "audio-capture": "No se encontró un micrófono en este dispositivo."
-      };
-      $("#micStatus").textContent = mensajes[ev.error] || ("No se pudo escuchar ("+(ev.error||"error")+"). Intenta de nuevo o escribe.");
-    };
-    reconocimiento.onend = function(){
-      escuchando = false;
-      $("#btnMic").classList.remove("listening");
-      $("#micStatus").textContent = "Toca para dictar la revisión";
-    };
-    try{ reconocimiento.start(); }
-    catch(e){ $("#micStatus").textContent = "No se pudo iniciar el micrófono."; }
+    dictadoBase = base && !/\s$/.test(base) ? base+" " : base;
+    iniciarSesionReconocimiento();
   });
 
   if(!SpeechRecognitionCtor){
