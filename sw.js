@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v2";
+var CACHE_NAME = "apicampo-cache-v3";
 
 var APP_SHELL = [
   "./manifest.json",
@@ -16,6 +16,8 @@ var APP_SHELL = [
 var EXTERNOS = [
   "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
+  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
   "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
 ];
 
