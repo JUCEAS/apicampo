@@ -1592,6 +1592,13 @@
     infoLine.textContent = ult ? ("Última revisión: "+haceTiempo(ult.fecha)) : "Todavía no tiene revisiones";
     body.appendChild(infoLine);
 
+    if(c.tipo==="doble" || c.tipo==="sencilla"){
+      var alzaBtn = el("button",{class:"btn btn-line btn-block", style:"font-size:12.5px; padding:8px;",
+        text: c.tipo==="sencilla" ? "Agregar alza (pasar a doble, 19 marcos)" : "Quitar alza (pasar a sencilla, 10 marcos)"});
+      alzaBtn.addEventListener("click", function(){ cambiarAlzaColmena(c); });
+      body.appendChild(alzaBtn);
+    }
+
     if(store.apiarios.length>1){
       var moverBtn = el("button",{class:"btn btn-line btn-block", style:"font-size:12.5px; padding:8px;", text:"Mover a otro apiario"});
       var moverWrap = el("div",{class:"wrap-chips", hidden:"true", style:"justify-content:center;"});
@@ -1697,6 +1704,25 @@
   $("#modalDetalle").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
   $("#modalApiario").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
   $("#modalColmena").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+
+  function cambiarAlzaColmena(c){
+    var aDoble = c.tipo==="sencilla";
+    var msg = aDoble
+      ? "¿Agregar una alza a la colmena #"+c.numero+"? Pasará de sencilla (10 marcos) a doble (19 marcos). Las próximas revisiones ya van a mostrar los 19 marcos."
+      : "¿Quitar una alza a la colmena #"+c.numero+"? Pasará de doble (19 marcos) a sencilla (10 marcos). Las próximas revisiones solo van a mostrar 10 marcos.";
+    confirmarApp(msg).then(function(ok){
+      if(!ok) return;
+      c.historialAlzas = c.historialAlzas || [];
+      c.historialAlzas.push({fecha:Date.now(), de:c.tipo, a: aDoble?"doble":"sencilla"});
+      c.tipo = aDoble ? "doble" : "sencilla";
+      c.marcosTotales = aDoble ? 19 : 10;
+      store.esDemo = false;
+      guardar();
+      renderColmenas();
+      toast("Colmena #"+c.numero+" ahora es "+(aDoble?"doble":"sencilla"));
+      abrirDetalleColmena(c.id);
+    });
+  }
 
   function eliminarColmena(c){
     var nRevs = revisionesDe(c.id).length;
