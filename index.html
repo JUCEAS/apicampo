@@ -902,7 +902,11 @@
       <input type="text" id="inTxDosis" placeholder="Ej: 2 tiras, 50 ml sublimado">
     </div>
     <div class="field">
-      <label for="inTxFrecuencia">Repetir cada (días)</label>
+      <label for="inTxDuracion">¿Cuántos días va a durar este tratamiento?</label>
+      <input type="text" id="inTxDuracion" inputmode="numeric" placeholder="Ej: 21 (si no sabes, deja 10 por defecto)">
+    </div>
+    <div class="field">
+      <label for="inTxFrecuencia">Repetir dosis cada (días) — opcional</label>
       <input type="text" id="inTxFrecuencia" inputmode="numeric" placeholder="Ej: 14">
     </div>
     <div class="field">
@@ -948,7 +952,11 @@
       </div>
     </div>
     <div class="field">
-      <label for="inAlFrecuencia">Repetir cada (días)</label>
+      <label for="inAlDuracion">¿Cuántos días va a durar esta alimentación?</label>
+      <input type="text" id="inAlDuracion" inputmode="numeric" placeholder="Ej: 5 (si no sabes, deja 5 por defecto)">
+    </div>
+    <div class="field">
+      <label for="inAlFrecuencia">Repetir cada (días) — opcional</label>
       <input type="text" id="inAlFrecuencia" inputmode="numeric" placeholder="Ej: 7">
     </div>
     <div class="field">
@@ -1315,25 +1323,33 @@
 
   /* Alimentación / tratamiento "activos": se guardan con una fecha de inicio y,
      si se llenó "Repetir cada (días)", esa cantidad de días marca cuánto dura
-     vigente. Mientras no se haya cumplido ese plazo, la etiqueta se muestra en
-     el cuadro de colmenas; en cuanto se cumple, desaparece sola. Si no se puso
-     ningún número de días, no hay forma de saber cuándo termina, así que no se
-     muestra etiqueta (queda solo en el historial de la colmena). */
-  function registroActivo(lista, colmenaId){
+     vigente. Se usa, en este orden: la duración que se haya puesto en "¿Cuántos
+     días va a durar?" (la más confiable, porque la puso la persona a propósito
+     para esto); si no se puso, el número de "Repetir cada (días)"; y si
+     tampoco se puso nada, un plazo por defecto (para que la etiqueta nunca
+     falte, aunque se hayan dejado los dos campos vacíos). En cuanto se cumple
+     el plazo, la etiqueta desaparece sola. */
+  var DIAS_ALIMENTACION_DEFAULT = 5;
+  var DIAS_TRATAMIENTO_DEFAULT = 10;
+  function registroActivo(lista, colmenaId, diasPorDefecto){
     var deLaColmena = lista.filter(function(x){ return x.colmenaId===colmenaId; }).sort(function(a,b){ return b.fecha-a.fecha; });
     if(!deLaColmena.length) return null;
     var ultimo = deLaColmena[0];
-    if(!ultimo.frecuenciaDias) return null;
-    var v = calcularVencimiento(ultimo.fecha, ultimo.frecuenciaDias);
-    return (v && v.diasRestantes>=0) ? ultimo : null;
+    var dias = ultimo.duracionDias || ultimo.frecuenciaDias || diasPorDefecto;
+    var v = calcularVencimiento(ultimo.fecha, dias);
+    return (v && v.diasRestantes>=0) ? {registro:ultimo, diasUsados:dias, restantes:v.diasRestantes} : null;
   }
   function alimentacionTagHtml(colmenaId){
-    var a = registroActivo(store.alimentaciones, colmenaId);
-    return a ? '<span class="tag-alimentando" title="Alimentando desde '+fechaCorta(a.fecha)+'">alimentando</span>' : '';
+    var a = registroActivo(store.alimentaciones, colmenaId, DIAS_ALIMENTACION_DEFAULT);
+    if(!a) return "";
+    var titulo = "Alimentando desde "+fechaCorta(a.registro.fecha)+" · dura "+a.diasUsados+" días · quedan "+Math.max(a.restantes,0)+"d";
+    return '<span class="tag-alimentando" title="'+titulo+'">alimentando</span>';
   }
   function tratamientoTagHtml(colmenaId){
-    var t = registroActivo(store.tratamientos, colmenaId);
-    return t ? '<span class="tag-tratamiento" title="En tratamiento desde '+fechaCorta(t.fecha)+'">tratamiento</span>' : '';
+    var t = registroActivo(store.tratamientos, colmenaId, DIAS_TRATAMIENTO_DEFAULT);
+    if(!t) return "";
+    var titulo = "En tratamiento desde "+fechaCorta(t.registro.fecha)+" · dura "+t.diasUsados+" días · quedan "+Math.max(t.restantes,0)+"d";
+    return '<span class="tag-tratamiento" title="'+titulo+'">tratamiento</span>';
   }
   function estadoBadgeHtml(estado){
     var map = {
@@ -1663,7 +1679,12 @@
     }
 
     if(ult && ult.marcos){
-      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Marcos en la última revisión"}));
+      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Marcos en la última revisión ("+fechaCorta(ult.fecha)+")"}));
+      if(ult.marcos.length !== c.marcosTotales){
+        var notaAlza = el("p",{style:"font-size:12px; color:var(--muted); margin:0 0 4px;"});
+        notaAlza.textContent = "Esa revisión se hizo con "+ult.marcos.length+" marcos, antes del cambio de alza. La colmena ahora tiene "+c.marcosTotales+" — la próxima revisión ya los va a mostrar.";
+        body.appendChild(notaAlza);
+      }
       var miniGrid = el("div",{class:"frame-grid"});
       renderFrameGridInto(miniGrid, ult.marcos, true);
       body.appendChild(miniGrid);
@@ -1860,6 +1881,7 @@
     txColmenaActual = c;
     $("#txColmenaLabel").textContent = "#"+c.numero+" · "+apiarioNombre(c.apiarioId);
     $("#inTxDosis").value = "";
+    $("#inTxDuracion").value = "";
     $("#inTxFrecuencia").value = "";
     $("#inTxNotas").value = "";
     var refEnf = crearChipsUnicos($("#txEnfermedadChips"), ENFERMEDAD_TX_LISTA, ENFERMEDAD_TX_LISTA[0], function(v){ txEnfermedadSel=v; });
@@ -1877,10 +1899,12 @@
   $("#btnGuardarTratamiento").addEventListener("click", function(){
     if(!txColmenaActual) return;
     var frec = parseInt($("#inTxFrecuencia").value,10);
+    var dur = parseInt($("#inTxDuracion").value,10);
     var tx = {
       id:uid("tx"), colmenaId:txColmenaActual.id, apiarioId:txColmenaActual.apiarioId, fecha:Date.now(),
       enfermedad:txEnfermedadSel, producto:txProductoSel,
       dosis:$("#inTxDosis").value.trim(), frecuenciaDias:(frec>0?frec:null),
+      duracionDias:(dur>0?dur:null),
       notas:$("#inTxNotas").value.trim()
     };
     store.tratamientos.push(tx);
@@ -1902,7 +1926,8 @@
       row.innerHTML =
         '<div class="top"><span class="who">'+t.producto+'</span>'+tagVencimientoHtml(v)+'</div>'+
         '<div class="when">'+fechaCorta(t.fecha)+' · '+t.enfermedad+'</div>'+
-        (t.dosis?('<div class="detail">Dosis: '+t.dosis+'</div>'):'');
+        (t.dosis?('<div class="detail">Dosis: '+t.dosis+'</div>'):'')+
+        (t.duracionDias?('<div class="detail">Duración: '+t.duracionDias+' días</div>'):'');
       wrap.appendChild(row);
     });
     body.appendChild(wrap);
@@ -1915,6 +1940,7 @@
     $("#alColmenaLabel").textContent = "#"+c.numero+" · "+apiarioNombre(c.apiarioId);
     $("#inAlLitros").value = "";
     $("#inAlCosto").value = "";
+    $("#inAlDuracion").value = "";
     $("#inAlFrecuencia").value = "";
     $("#inAlNotas").value = "";
     var refMot = crearChipsUnicos($("#alMotivoChips"), MOTIVO_AL_LISTA, MOTIVO_AL_LISTA[0], function(v){ alMotivoSel=v; });
@@ -1942,11 +1968,13 @@
     var litros = parseFloat($("#inAlLitros").value);
     var costo = parseFloat($("#inAlCosto").value);
     var frec = parseInt($("#inAlFrecuencia").value,10);
+    var dur = parseInt($("#inAlDuracion").value,10);
     var al = {
       id:uid("al"), colmenaId:alColmenaActual.id, apiarioId:alColmenaActual.apiarioId, fecha:Date.now(),
       motivo:alMotivoSel, proporcion:alProporcionSel, limon:alLimonSel,
       litros:(!isNaN(litros)?litros:null), costoL:(!isNaN(costo)?costo:0),
-      frecuenciaDias:(frec>0?frec:null), notas:$("#inAlNotas").value.trim()
+      frecuenciaDias:(frec>0?frec:null), duracionDias:(dur>0?dur:null),
+      notas:$("#inAlNotas").value.trim()
     };
     store.alimentaciones.push(al);
     store.esDemo = false;
@@ -1969,7 +1997,8 @@
       row.innerHTML =
         '<div class="top"><span class="who">'+a.motivo+'</span>'+tagVencimientoHtml(v)+'</div>'+
         '<div class="when">'+fechaCorta(a.fecha)+' · '+a.proporcion+(a.limon?" · con limón":"")+'</div>'+
-        '<div class="detail">'+(a.litros?(a.litros+" L"):"")+(a.costoL?(" · "+fmtL(a.costoL)):"")+'</div>';
+        '<div class="detail">'+(a.litros?(a.litros+" L"):"")+(a.costoL?(" · "+fmtL(a.costoL)):"")+'</div>'+
+        (a.duracionDias?('<div class="detail">Duración: '+a.duracionDias+' días</div>'):'');
       wrap.appendChild(row);
     });
     body.appendChild(wrap);
