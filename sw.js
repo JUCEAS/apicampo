@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v1";
+var CACHE_NAME = "apicampo-cache-v2";
 
 var APP_SHELL = [
   "./manifest.json",
@@ -37,11 +37,35 @@ self.addEventListener("activate", function(event){
   );
 });
 
-/* Estrategia: cache primero, y si no está, red — y lo que llega de red
-   (incluyendo fuentes/librerías externas) se guarda para la próxima vez. */
+/* Estrategia para la página principal (navegación, index.html): red primero,
+   así siempre se ve la versión más reciente en cuanto hay internet, y solo se
+   usa la copia guardada si no hay conexión. Para todo lo demás (íconos,
+   manifest, fuentes, librerías): copia guardada primero, y lo que llega de
+   red se guarda para la próxima vez. */
 self.addEventListener("fetch", function(event){
   var req = event.request;
   if(req.method !== "GET") return;
+
+  if(req.mode === "navigate"){
+    event.respondWith(
+      fetch(req).then(function(res){
+        var copia = res.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copia); });
+        return res;
+      }).catch(function(){
+        return caches.match(req).then(function(cached){
+          if(cached) return cached;
+          return caches.match(self.registration.scope).then(function(r){
+            return r || new Response(
+              "<h1>Sin conexión</h1><p>Abre ApiCampo una vez con internet para que quede disponible sin conexión.</p>",
+              {headers:{"Content-Type":"text/html; charset=utf-8"}}
+            );
+          });
+        });
+      })
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(req, {ignoreVary:true, ignoreSearch:false}).then(function(cached){
@@ -54,16 +78,7 @@ self.addEventListener("fetch", function(event){
           caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copia); });
         }
         return res;
-      }).catch(function(){
-        if(req.mode === "navigate"){
-          return caches.match(self.registration.scope).then(function(r){
-            return r || new Response(
-              "<h1>Sin conexión</h1><p>Abre ApiCampo una vez con internet para que quede disponible sin conexión.</p>",
-              {headers:{"Content-Type":"text/html; charset=utf-8"}}
-            );
-          });
-        }
-      });
+      }).catch(function(){});
     })
   );
 });
