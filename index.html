@@ -316,6 +316,16 @@
   }
   .modal h2{ font-size:19px; margin:0; }
 
+  .save-fab{
+    position:fixed;
+    left:50%; transform:translateX(-50%);
+    bottom:calc(78px + env(safe-area-inset-bottom,0px));
+    width:calc(100% - 32px);
+    max-width:488px;
+    z-index:15;
+    box-shadow:0 8px 22px var(--shadow);
+  }
+
   .toast{
     position:fixed;
     left:50%; transform:translateX(-50%);
@@ -365,8 +375,9 @@
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     color:var(--accent-ink); background:var(--accent-soft); padding:1px 5px; border-radius:999px; margin-top:1px;
   }
-  /* núcleo se queda con los colores de --accent (ámbar); doble y sencilla usan
-     colores distintos entre sí y respecto a núcleo, para que se distingan a simple vista */
+  /* núcleo, doble y sencilla usan colores bien distintos entre sí para que se
+     reconozcan a simple vista */
+  .hive-tile .tipo-tag.tipo-nucleo{ color:#7A5C00; background:#FFF3B0; }
   .hive-tile .tipo-tag.tipo-doble{ color:#1C4E80; background:#DCE8F5; }
   .hive-tile .tipo-tag.tipo-sencilla{ color:#0E5C63; background:#D2EFEC; }
   .hive-tile .tag-reforzada{
@@ -650,7 +661,12 @@
         </button>
         <div class="mic-status" id="micStatus">Toca para dictar la revisión</div>
         <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;">El dictado por voz necesita internet (Chrome lo procesa en línea). Sin señal, escribe directo en el cuadro de abajo.</div>
+        <button class="btn btn-primary btn-block" id="btnGuardarRevisionTop" style="margin-top:4px;">Guardar revisión</button>
       </div>
+
+      <!-- Botón flotante: se queda fijo cerca del pulgar mientras esta ficha está abierta,
+           así no hay que bajar toda la pantalla para guardar (útil usando guantes). -->
+      <button class="btn btn-primary save-fab" id="btnGuardarFlotante">Guardar revisión</button>
 
       <div class="field">
         <label for="txtDictado">Transcripción (puedes editarla o escribir directo)</label>
@@ -2170,7 +2186,7 @@
     renderMarcosGrid();
   });
 
-  $("#btnGuardarRevision").addEventListener("click", function(){
+  function guardarRevisionActual(){
     if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
     var texto = $("#txtDictado").value.trim();
     if(!texto){ toast("Dicta o escribe algo antes de guardar"); return; }
@@ -2183,7 +2199,10 @@
     var cId = colmenaEnRevision;
     seleccionarColmenaRevision(cId);
     renderRevisarColmenas();
-  });
+  }
+  $("#btnGuardarRevision").addEventListener("click", guardarRevisionActual);
+  $("#btnGuardarRevisionTop").addEventListener("click", guardarRevisionActual);
+  $("#btnGuardarFlotante").addEventListener("click", guardarRevisionActual);
 
   /* ---- Dictado por voz (Web Speech API) ----
      Nota técnica: en Android, el modo "continuous" de Chrome es poco confiable —
