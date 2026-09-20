@@ -316,16 +316,6 @@
   }
   .modal h2{ font-size:19px; margin:0; }
 
-  .save-fab{
-    position:fixed;
-    left:50%; transform:translateX(-50%);
-    bottom:calc(78px + env(safe-area-inset-bottom,0px));
-    width:calc(100% - 32px);
-    max-width:488px;
-    z-index:15;
-    box-shadow:0 8px 22px var(--shadow);
-  }
-
   .toast{
     position:fixed;
     left:50%; transform:translateX(-50%);
@@ -384,6 +374,12 @@
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     color:#5B3B96; background:#EAE1F5; padding:1px 5px; border-radius:999px; margin-top:1px;
   }
+  .hive-tile .tag-alimentando, .hive-tile .tag-tratamiento{
+    font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:1px 5px; border-radius:999px; margin-top:1px;
+  }
+  .hive-tile .tag-alimentando{ color:#8C2F52; background:#F9D9E7; }
+  .hive-tile .tag-tratamiento{ color:#384060; background:#E4E7EE; }
 
   /* ---------- Revisar tab ---------- */
   .mic-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 0 4px; }
@@ -663,10 +659,6 @@
         <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;">El dictado por voz necesita internet (Chrome lo procesa en línea). Sin señal, escribe directo en el cuadro de abajo.</div>
         <button class="btn btn-primary btn-block" id="btnGuardarRevisionTop" style="margin-top:4px;">Guardar revisión</button>
       </div>
-
-      <!-- Botón flotante: se queda fijo cerca del pulgar mientras esta ficha está abierta,
-           así no hay que bajar toda la pantalla para guardar (útil usando guantes). -->
-      <button class="btn btn-primary save-fab" id="btnGuardarFlotante">Guardar revisión</button>
 
       <div class="field">
         <label for="txtDictado">Transcripción (puedes editarla o escribir directo)</label>
@@ -1320,6 +1312,29 @@
   function reforzadaTagHtml(colmenaId){
     return fueReforzadaUltimaVisita(colmenaId) ? '<span class="tag-reforzada" title="Se reforzó con cría en la visita anterior">reforzada</span>' : '';
   }
+
+  /* Alimentación / tratamiento "activos": se guardan con una fecha de inicio y,
+     si se llenó "Repetir cada (días)", esa cantidad de días marca cuánto dura
+     vigente. Mientras no se haya cumplido ese plazo, la etiqueta se muestra en
+     el cuadro de colmenas; en cuanto se cumple, desaparece sola. Si no se puso
+     ningún número de días, no hay forma de saber cuándo termina, así que no se
+     muestra etiqueta (queda solo en el historial de la colmena). */
+  function registroActivo(lista, colmenaId){
+    var deLaColmena = lista.filter(function(x){ return x.colmenaId===colmenaId; }).sort(function(a,b){ return b.fecha-a.fecha; });
+    if(!deLaColmena.length) return null;
+    var ultimo = deLaColmena[0];
+    if(!ultimo.frecuenciaDias) return null;
+    var v = calcularVencimiento(ultimo.fecha, ultimo.frecuenciaDias);
+    return (v && v.diasRestantes>=0) ? ultimo : null;
+  }
+  function alimentacionTagHtml(colmenaId){
+    var a = registroActivo(store.alimentaciones, colmenaId);
+    return a ? '<span class="tag-alimentando" title="Alimentando desde '+fechaCorta(a.fecha)+'">alimentando</span>' : '';
+  }
+  function tratamientoTagHtml(colmenaId){
+    var t = registroActivo(store.tratamientos, colmenaId);
+    return t ? '<span class="tag-tratamiento" title="En tratamiento desde '+fechaCorta(t.fecha)+'">tratamiento</span>' : '';
+  }
   function estadoBadgeHtml(estado){
     var map = {
       ok:["Bien","badge-ok"], atencion:["Atención","badge-atencion"],
@@ -1536,7 +1551,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile", "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id);
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id);
       tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
       grid.appendChild(tile);
     });
@@ -2054,7 +2069,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id);
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id);
       tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
       grid.appendChild(tile);
     });
@@ -2202,7 +2217,6 @@
   }
   $("#btnGuardarRevision").addEventListener("click", guardarRevisionActual);
   $("#btnGuardarRevisionTop").addEventListener("click", guardarRevisionActual);
-  $("#btnGuardarFlotante").addEventListener("click", guardarRevisionActual);
 
   /* ---- Dictado por voz (Web Speech API) ----
      Nota técnica: en Android, el modo "continuous" de Chrome es poco confiable —
