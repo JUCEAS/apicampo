@@ -12,6 +12,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
     --bg:#FBF7EE;
@@ -679,16 +681,18 @@
   <!-- ===================== TAB: MAPA ===================== -->
   <main id="tab-mapa" hidden>
     <div class="wrap-chips" id="chipsMapa"></div>
-    <div class="card">
-      <svg id="mapaSvg" viewBox="0 0 320 320" style="width:100%; height:auto; display:block;"></svg>
-      <div class="legend" style="margin-top:10px;">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div id="mapaLeaflet" style="width:100%; height:320px;"></div>
+      <div id="mapaOffline" hidden style="padding:16px;">
+        <p style="margin:0; font-size:13.5px; color:var(--muted);">El mapa necesita internet para cargar las calles y el terreno (se descargan de OpenStreetMap). Conéctate una vez y se guardará para consultarlo luego con menos señal.</p>
+      </div>
+      <div class="legend" style="margin:0; padding:10px 14px;">
         <span><span class="sw"></span>Radio 3 km (pecoreo habitual)</span>
         <span><span class="sw dash"></span>Radio 5 km (margen amplio)</span>
       </div>
     </div>
     <p class="map-caption">
-      Mapa esquemático a escala, calculado con las coordenadas de cada apiario — no es una imagen satelital.
-      En la versión final esto se dibujaría sobre un mapa real (calles, ríos, vegetación) con Google Maps u OpenStreetMap.
+      Mapa real (OpenStreetMap), calculado con las coordenadas de cada apiario. Toca un punto para ver su nombre y coordenadas.
     </p>
     <div id="mapaOverlapList" style="display:flex; flex-direction:column; gap:8px;"></div>
   </main>
@@ -994,6 +998,8 @@
       criaSellada:null, criaIntensidad:null,
       zanganos:null, zanganosIntensidad:null,
       reservasMiel:null, reservasPolen:null,
+      poblacion:null,
+      sinAlimento:false,
       temperamento:null, espacio:null,
       enfermedades:[], sanaExplicito:false
     };
@@ -1035,15 +1041,30 @@
       }
     }
 
-    if(/\bmiel\b/.test(t)){
+    if(/\bsin miel\b|\bno hay miel\b|\bno tiene miel\b/.test(t)){
+      r.reservasMiel="sin";
+    } else if(/\bmiel\b/.test(t)){
       if(/\b(abundante|mucha|buena)\b.*miel|miel\b.*\b(abundante|mucha|buena)\b/.test(t)) r.reservasMiel="abundante";
       else if(/\b(poca|escasa)\b.*miel|miel\b.*\b(poca|escasa)\b/.test(t)) r.reservasMiel="poca";
       else r.reservasMiel="mencionada";
     }
-    if(/\bpolen\b/.test(t)){
+    if(/\bsin polen\b|\bno hay polen\b|\bno tiene polen\b/.test(t)){
+      r.reservasPolen="sin";
+    } else if(/\bpolen\b/.test(t)){
       if(/\b(abundante|mucha|buena)\b.*polen|polen\b.*\b(abundante|mucha|buena)\b/.test(t)) r.reservasPolen="abundante";
       else if(/\b(poca|escasa)\b.*polen|polen\b.*\b(poca|escasa)\b/.test(t)) r.reservasPolen="poca";
       else r.reservasPolen="mencionada";
+    }
+    if(/\bsin alimento\b|\bsin alimentaci[oó]n\b|\bno tiene(n)? alimento\b|\bno tiene(n)? alimentaci[oó]n\b|\bsin reservas\b|\bfalta(n)? reservas\b/.test(t)){
+      r.sinAlimento = true;
+    }
+
+    if(/\bsin abejas\b|\bcolmena vac[ií]a\b|\bcolmena muerta\b|\bcolmena perdida\b|\bse (muri[oó]|perdi[oó])( la colmena)?\b/.test(t)){
+      r.poblacion = "ninguna";
+    } else if(/\bbaja (de )?poblaci[oó]n\b|\bpoblaci[oó]n baja\b|\bpoca poblaci[oó]n\b|\bpocas abejas\b|\bcolmena d[eé]bil\b|\bcolmena despoblada\b/.test(t)){
+      r.poblacion = "baja";
+    } else if(/\bbuena poblaci[oó]n\b|\bpoblaci[oó]n buena\b|\bmucha poblaci[oó]n\b|\bcolmena fuerte\b|\bbastantes abejas\b|\bpoblaci[oó]n abundante\b/.test(t)){
+      r.poblacion = "buena";
     }
 
     if(/\b(mansa|tranquila|d[oó]cil)\b/.test(t)) r.temperamento="mansa";
@@ -1235,7 +1256,13 @@
     if(!campos) return "sin_revisar";
     var criticas = ["Loque americana","Loque europea","Escarabajo de la colmena","Tropilaelaps"];
     if(campos.enfermedades.some(function(e){ return criticas.indexOf(e)!==-1; })) return "critico";
-    if(campos.reinaPresente===false || campos.enfermedades.length>0 || campos.espacio==="falta") return "atencion";
+    // sin reina o colmena sin abejas/perdida: se trata como crítico, no como "atención",
+    // porque sin reina la colmena no puede sostenerse por sí sola.
+    if(campos.reinaPresente===false || campos.poblacion==="ninguna") return "critico";
+    if(campos.enfermedades.length>0 || campos.espacio==="falta") return "atencion";
+    if(campos.poblacion==="baja") return "atencion";
+    if(campos.sinAlimento || campos.reservasMiel==="sin" || campos.reservasPolen==="sin") return "atencion";
+    if(campos.reservasMiel==="poca" || campos.reservasPolen==="poca") return "atencion";
     return "ok";
   }
   function estadoColmena(colmenaId){
@@ -1903,6 +1930,9 @@
     var partes = [];
     if(campos.reinaPresente===true) partes.push("reina presente");
     if(campos.reinaPresente===false) partes.push("reina no vista");
+    if(campos.poblacion==="ninguna") partes.push("sin abejas / perdida");
+    else if(campos.poblacion==="baja") partes.push("población baja");
+    if(campos.sinAlimento || campos.reservasMiel==="sin" || campos.reservasPolen==="sin") partes.push("sin alimento");
     if(campos.posturaEtapa) partes.push("postura: "+campos.posturaEtapa);
     if(campos.criaSellada) partes.push("cría sellada"+(campos.criaIntensidad?(" ("+campos.criaIntensidad+")"):""));
     if(campos.enfermedades.length) partes.push(campos.enfermedades.join(", "));
@@ -2015,11 +2045,18 @@
       }},
     {key:"reservas", label:"Miel / polen", get:function(c){
         var m = c.reservasMiel, p = c.reservasPolen;
-        if(!m && !p) return "Sin dato";
+        if(!m && !p && !c.sinAlimento) return "Sin dato";
         var partes = [];
         if(m) partes.push("miel: "+m);
         if(p) partes.push("polen: "+p);
+        if(c.sinAlimento && !m && !p) partes.push("sin alimento");
         return partes.join(" · ");
+      }},
+    {key:"poblacion", label:"Población", get:function(c){
+        if(c.poblacion==="ninguna") return "Sin abejas / perdida";
+        if(c.poblacion==="baja") return "Baja";
+        if(c.poblacion==="buena") return "Buena";
+        return "Sin dato";
       }},
     {key:"temperamento", label:"Temperamento", get:function(c){ return c.temperamento || "Sin dato"; }}
   ];
@@ -2278,61 +2315,59 @@
   }
   var mapaModo = "todos";
 
+  /* Mapa real con Leaflet + OpenStreetMap (gratis, sin cuenta ni tarjeta).
+     Si el navegador no pudo cargar la librería (sin internet la primera vez),
+     se avisa en #mapaOffline en vez de fallar en silencio. */
+  var mapaLeaflet = null;
+  var mapaCapas = [];
   function dibujarMapa(){
-    var svg = $("#mapaSvg");
-    svg.innerHTML = "";
-    var W=320,H=320,cx=W/2,cy=H/2;
+    var cont = $("#mapaLeaflet");
+    if(typeof L === "undefined"){
+      cont.hidden = true;
+      $("#mapaOffline").hidden = false;
+      return;
+    }
+    cont.hidden = false;
+    $("#mapaOffline").hidden = true;
+
     var apiariosVisibles = mapaModo==="todos" ? store.apiarios : store.apiarios.filter(function(a){return a.id===mapaModo;});
-    if(apiariosVisibles.length===0) return;
 
-    var latC = apiariosVisibles.reduce(function(s,a){return s+a.lat;},0)/apiariosVisibles.length;
-    var lngC = apiariosVisibles.reduce(function(s,a){return s+a.lng;},0)/apiariosVisibles.length;
-    var mPerDegLat = 111320;
-    var mPerDegLng = 111320*Math.cos(latC*Math.PI/180);
-
-    // radio de referencia en px para 5km, ajustado según extensión
-    var maxKm = 6;
-    apiariosVisibles.forEach(function(a){
-      var dLatKm = Math.abs(a.lat-latC)*mPerDegLat/1000;
-      var dLngKm = Math.abs(a.lng-lngC)*mPerDegLng/1000;
-      maxKm = Math.max(maxKm, dLatKm+5, dLngKm+5);
-    });
-    var pxPerKm = (Math.min(W,H)/2 - 20) / maxKm;
-
-    function toXY(lat,lng){
-      var dLatKm = (lat-latC)*mPerDegLat/1000;
-      var dLngKm = (lng-lngC)*mPerDegLng/1000;
-      return [cx + dLngKm*pxPerKm, cy - dLatKm*pxPerKm];
+    if(!mapaLeaflet){
+      mapaLeaflet = L.map(cont, {scrollWheelZoom:false});
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+      }).addTo(mapaLeaflet);
     }
 
-    var ns = "http://www.w3.org/2000/svg";
-    function mk(tag,attrs){
-      var e = document.createElementNS(ns,tag);
-      Object.keys(attrs).forEach(function(k){ e.setAttribute(k, attrs[k]); });
-      return e;
+    mapaCapas.forEach(function(capa){ mapaLeaflet.removeLayer(capa); });
+    mapaCapas = [];
+
+    if(apiariosVisibles.length===0){
+      mapaLeaflet.setView([14.0818,-87.2068], 12);
+      return;
     }
 
-    // fondo
-    svg.appendChild(mk("rect",{x:0,y:0,width:W,height:H,fill:"var(--surface-2)",rx:14}));
-
+    var bounds = [];
     apiariosVisibles.forEach(function(a){
-      var p = toXY(a.lat,a.lng);
-      svg.appendChild(mk("circle",{cx:p[0],cy:p[1],r:5*pxPerKm,fill:"var(--accent)","fill-opacity":"0.10","stroke":"var(--accent)","stroke-width":"1.3","stroke-dasharray":"3 3"}));
-      svg.appendChild(mk("circle",{cx:p[0],cy:p[1],r:3*pxPerKm,fill:"var(--accent)","fill-opacity":"0.16","stroke":"var(--accent)","stroke-width":"1.6"}));
-      svg.appendChild(mk("circle",{cx:p[0],cy:p[1],r:3.5,fill:"var(--critical)"}));
-      var label = mk("text",{x:p[0],y:p[1]-5*pxPerKm-8,"text-anchor":"middle","font-size":"10","font-weight":"700",fill:"var(--ink)","font-family":"Inter,sans-serif"});
-      label.textContent = a.nombre;
-      if(p[1]-5*pxPerKm-10 > 8) svg.appendChild(label);
+      var punto = [a.lat, a.lng];
+      bounds.push(punto);
+
+      var c5 = L.circle(punto, {radius:5000, color:"#D98C12", weight:1.3, fillOpacity:0.06, dashArray:"5 5"}).addTo(mapaLeaflet);
+      var c3 = L.circle(punto, {radius:3000, color:"#D98C12", weight:1.6, fillOpacity:0.12}).addTo(mapaLeaflet);
+      var marker = L.circleMarker(punto, {radius:6, color:"#AE3A2C", weight:2, fillColor:"#AE3A2C", fillOpacity:1}).addTo(mapaLeaflet);
+      marker.bindPopup("<b>"+a.nombre+"</b><br>"+a.lat.toFixed(5)+", "+a.lng.toFixed(5)+"<br>"+colmenasDe(a.id).length+" colmena(s)");
+      mapaCapas.push(c5, c3, marker);
     });
 
-    // escala
-    var barKm = maxKm>15?5:(maxKm>6?2:1);
-    var barPx = barKm*pxPerKm;
-    var bx = 16, by = H-16;
-    svg.appendChild(mk("line",{x1:bx,y1:by,x2:bx+barPx,y2:by,stroke:"var(--ink)","stroke-width":"2"}));
-    var t2 = mk("text",{x:bx,y:by-6,"font-size":"9",fill:"var(--muted)","font-family":"IBM Plex Mono,monospace"});
-    t2.textContent = barKm+" km";
-    svg.appendChild(t2);
+    if(bounds.length===1){
+      mapaLeaflet.setView(bounds[0], 13);
+    } else {
+      mapaLeaflet.fitBounds(bounds, {padding:[30,30]});
+    }
+
+    // el contenedor puede haber estado oculto (pestaña sin abrir) cuando Leaflet midió el tamaño
+    setTimeout(function(){ if(mapaLeaflet) mapaLeaflet.invalidateSize(); }, 80);
   }
 
   function renderMapaOverlapList(){
