@@ -365,6 +365,14 @@
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     color:var(--accent-ink); background:var(--accent-soft); padding:1px 5px; border-radius:999px; margin-top:1px;
   }
+  /* núcleo se queda con los colores de --accent (ámbar); doble y sencilla usan
+     colores distintos entre sí y respecto a núcleo, para que se distingan a simple vista */
+  .hive-tile .tipo-tag.tipo-doble{ color:#1C4E80; background:#DCE8F5; }
+  .hive-tile .tipo-tag.tipo-sencilla{ color:#0E5C63; background:#D2EFEC; }
+  .hive-tile .tag-reforzada{
+    font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    color:#5B3B96; background:#EAE1F5; padding:1px 5px; border-radius:999px; margin-top:1px;
+  }
 
   /* ---------- Revisar tab ---------- */
   .mic-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 0 4px; }
@@ -1000,6 +1008,7 @@
       reservasMiel:null, reservasPolen:null,
       poblacion:null,
       sinAlimento:false,
+      reforzada:false, reforzadaDias:null,
       temperamento:null, espacio:null,
       enfermedades:[], sanaExplicito:false
     };
@@ -1071,6 +1080,16 @@
     else if(/\b(agresiva|nerviosa|brava)\b/.test(t)) r.temperamento="agresiva";
 
     if(/\bfalta (de )?espacio\b|\bnecesita alza\b|\bsin espacio\b/.test(t)) r.espacio="falta";
+
+    // Refuerzo con cría (típico cuando no había reina: se le pone un panal de cría
+    // de otra colmena para que puedan criar una reina nueva).
+    if(/\breforz\w*\b/.test(t)) r.reforzada = true;
+    if(/\bse (le )?(puso|agreg[oó]|di[oó]|dio) cr[ií]a de (\w+) d[ií]as?\b/.test(t)) r.reforzada = true;
+    var mDiasReforzada = t.match(/reforz\w*[^.]*?cr[ií]a de (\w+) d[ií]as?/) || t.match(/cr[ií]a de (\w+) d[ií]as?[^.]*?reforz\w*/) || t.match(/\bse (?:le )?(?:puso|agreg[oó]|di[oó]) cr[ií]a de (\w+) d[ií]as?/);
+    if(mDiasReforzada){
+      var diasRef = palabraANumero(mDiasReforzada[1]);
+      if(diasRef!==null) r.reforzadaDias = diasRef;
+    }
 
     var mapaEnf = [
       [/\bvarroa\b/, "Varroa"],
@@ -1270,6 +1289,20 @@
     if(!ult) return "sin_revisar";
     if(diasDesde(ult.fecha) > 15) return "sin_revisar";
     return estadoRevision(ult.campos);
+  }
+  function tipoTagHtml(c){
+    if(c.tipo==="nucleo") return '<span class="tipo-tag tipo-nucleo">núcleo</span>';
+    var total = c.marcosTotales || (c.tipo==="sencilla"?10:19);
+    if(total>10) return '<span class="tipo-tag tipo-doble">doble</span>';
+    if(total===10) return '<span class="tipo-tag tipo-sencilla">sencilla</span>';
+    return '';
+  }
+  function fueReforzadaUltimaVisita(colmenaId){
+    var ult = ultimaRevision(colmenaId);
+    return !!(ult && ult.campos && ult.campos.reforzada);
+  }
+  function reforzadaTagHtml(colmenaId){
+    return fueReforzadaUltimaVisita(colmenaId) ? '<span class="tag-reforzada" title="Se reforzó con cría en la visita anterior">reforzada</span>' : '';
   }
   function estadoBadgeHtml(estado){
     var map = {
@@ -1487,7 +1520,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile", "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+(c.tipo==="nucleo"?'<span class="tipo-tag">núcleo</span>':'');
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id);
       tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
       grid.appendChild(tile);
     });
@@ -1933,6 +1966,7 @@
     if(campos.poblacion==="ninguna") partes.push("sin abejas / perdida");
     else if(campos.poblacion==="baja") partes.push("población baja");
     if(campos.sinAlimento || campos.reservasMiel==="sin" || campos.reservasPolen==="sin") partes.push("sin alimento");
+    if(campos.reforzada) partes.push("reforzada"+(campos.reforzadaDias!==null?(" (cría de "+campos.reforzadaDias+" días)"):""));
     if(campos.posturaEtapa) partes.push("postura: "+campos.posturaEtapa);
     if(campos.criaSellada) partes.push("cría sellada"+(campos.criaIntensidad?(" ("+campos.criaIntensidad+")"):""));
     if(campos.enfermedades.length) partes.push(campos.enfermedades.join(", "));
@@ -1978,7 +2012,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+(c.tipo==="nucleo"?'<span class="tipo-tag">núcleo</span>':'');
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id);
       tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
       grid.appendChild(tile);
     });
