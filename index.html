@@ -278,6 +278,7 @@
     color:var(--ink);
     cursor:pointer;
   }
+  .icon-btn.listening{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
 
   .badge{
     font-size:11px;
@@ -753,6 +754,7 @@
   <main id="tab-historial" hidden>
     <div class="wrap-chips" id="chipsHistorialApiario"></div>
     <div class="wrap-chips" id="chipsHistorialFiltro"></div>
+    <button class="btn btn-line btn-block" id="btnDescargarHistorialPDF" style="margin:2px 0 10px;">⬇ Descargar este historial en PDF</button>
     <div class="card" style="padding:4px 14px;">
       <div id="listaHistorial"></div>
       <div class="empty" id="histEmpty" hidden>No hay revisiones con este filtro todavía.</div>
@@ -1007,6 +1009,30 @@
   </div>
 </div>
 
+<!-- Modal: registrar trabajo general del apiario (sin abrir una colmena en particular) -->
+<div class="modal-backdrop" id="modalTrabajo" hidden>
+  <div class="modal">
+    <h2>Registrar trabajo en el apiario</h2>
+    <p class="mono" id="trabajoApiarioLabel" style="font-size:13px; color:var(--muted); margin:0;"></p>
+
+    <div class="field">
+      <label>Tipo de trabajo (toca uno)</label>
+      <div class="wrap-chips" id="trabajoTipoChips"></div>
+    </div>
+    <div class="field">
+      <label for="inTrabajoDetalle">Detalle (puedes dictarlo con el micrófono)</label>
+      <div class="row" style="gap:8px; align-items:flex-start;">
+        <textarea id="inTrabajoDetalle" style="min-height:70px; flex:1;" placeholder="Ej: se chapeó todo el apiario porque había mucho monte"></textarea>
+        <button type="button" class="icon-btn" id="btnMicTrabajo" title="Dictar detalle" aria-label="Dictar detalle" style="flex:none;">🎙</button>
+      </div>
+    </div>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarTrabajo">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnGuardarTrabajo">Guardar trabajo</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: confirmar (reemplaza confirm() nativo, que no funciona instalada como app) -->
 <div class="modal-backdrop" id="modalConfirm" hidden>
   <div class="modal">
@@ -1254,6 +1280,7 @@
       revisiones: revisiones,
       tratamientos: tratamientos,
       alimentaciones: alimentaciones,
+      trabajos: [],
       config: {kgPorMarco:2.5, precioPorLb:60},
       usuarios: ["JUCEAS"],
       usuarioActual: "JUCEAS",
@@ -1271,6 +1298,7 @@
         if(!datos.usuarioActual) datos.usuarioActual = datos.usuarios[0];
         if(!datos.tratamientos) datos.tratamientos = [];
         if(!datos.alimentaciones) datos.alimentaciones = [];
+        if(!datos.trabajos) datos.trabajos = [];
         (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
         (datos.revisiones||[]).forEach(function(r){
           if(!r.apiarioId){
@@ -1512,7 +1540,8 @@
         '<div class="top">'+
           '<div><h3>'+ap.nombre+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
-        '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>';
+        '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
+        ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
       var b1 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver colmenas"});
       b1.addEventListener("click", function(){ apiarioActivo = ap.id; cambiarTab("colmenas"); });
@@ -1523,6 +1552,9 @@
       b3.addEventListener("click", function(){ eliminarApiario(ap); });
       actions.appendChild(b1); actions.appendChild(b2); actions.appendChild(b3);
       card.appendChild(actions);
+      var b4 = el("button",{class:"btn btn-line btn-block", style:"padding:8px; font-size:13px; margin-top:6px;", text:"🛠 Registrar trabajo en el apiario"});
+      b4.addEventListener("click", function(){ abrirModalTrabajo(ap); });
+      card.appendChild(b4);
       wrap.appendChild(card);
     });
     renderOverlapWarning();
@@ -1999,6 +2031,7 @@
       store.revisiones = store.revisiones.filter(function(r){ return colmenaIds.indexOf(r.colmenaId)===-1; });
       store.tratamientos = store.tratamientos.filter(function(t){ return colmenaIds.indexOf(t.colmenaId)===-1; });
       store.alimentaciones = store.alimentaciones.filter(function(a){ return colmenaIds.indexOf(a.colmenaId)===-1; });
+      store.trabajos = store.trabajos.filter(function(t){ return t.apiarioId!==ap.id; });
       store.colmenas = store.colmenas.filter(function(c){ return c.apiarioId!==ap.id; });
       store.apiarios = store.apiarios.filter(function(a){ return a.id!==ap.id; });
       store.esDemo = false;
@@ -2008,6 +2041,81 @@
       toast("Apiario \""+ap.nombre+"\" eliminado");
     });
   }
+
+  /* ============================================================
+     TRABAJOS GENERALES DEL APIARIO (sin abrir una colmena en concreto)
+     Para cosas como chapear el monte, reparar estructuras de madera,
+     alimentar o tratar a todo el apiario de una vez, etc.
+     ============================================================ */
+  function escaparHtml(s){
+    return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  var TRABAJO_TIPOS = ["Chapeo / limpieza de maleza","Reparación de estructura","Alimentación general del apiario","Tratamiento general del apiario","Traslado o acomodo de colmenas","Otro"];
+  var trabajoApiarioActual = null;
+  var trabajoTipoSel = TRABAJO_TIPOS[0];
+
+  function trabajosDe(apiarioId){
+    return store.trabajos.filter(function(t){ return t.apiarioId===apiarioId; }).sort(function(a,b){ return b.fecha-a.fecha; });
+  }
+  function ultimoTrabajoHtml(apiarioId){
+    var lista = trabajosDe(apiarioId);
+    if(!lista.length) return "";
+    var t = lista[0];
+    return '<p style="font-size:12px; color:var(--muted); margin:4px 0 0;">🛠 Último trabajo: <b>'+escaparHtml(t.tipo)+'</b> — '+haceTiempo(t.fecha)+'</p>';
+  }
+
+  function abrirModalTrabajo(ap){
+    trabajoApiarioActual = ap;
+    $("#trabajoApiarioLabel").textContent = ap.nombre;
+    $("#inTrabajoDetalle").value = "";
+    var ref = crearChipsUnicos($("#trabajoTipoChips"), TRABAJO_TIPOS, TRABAJO_TIPOS[0], function(v){ trabajoTipoSel=v; });
+    trabajoTipoSel = ref.get();
+    $("#modalTrabajo").hidden = false;
+  }
+  $("#btnCancelarTrabajo").addEventListener("click", function(){ $("#modalTrabajo").hidden = true; });
+  $("#modalTrabajo").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+  $("#btnGuardarTrabajo").addEventListener("click", function(){
+    if(!trabajoApiarioActual) return;
+    var texto = $("#inTrabajoDetalle").value.trim();
+    store.trabajos.push({
+      id:uid("tr"), apiarioId:trabajoApiarioActual.id, fecha:Date.now(),
+      tipo:trabajoTipoSel, texto:texto, registradoPor:store.usuarioActual
+    });
+    store.esDemo = false;
+    guardar();
+    $("#modalTrabajo").hidden = true;
+    renderApiarios();
+    toast("Trabajo registrado en "+trabajoApiarioActual.nombre);
+  });
+
+  // Dictado rápido (una sola frase) para el detalle del trabajo — reutiliza el
+  // mismo motor de reconocimiento de voz del resto de la app, pero de un solo
+  // disparo, porque aquí no hace falta el dictado continuo de una revisión.
+  (function(){
+    var btn = $("#btnMicTrabajo");
+    if(!btn) return;
+    var SRTrabajo = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SRTrabajo){ btn.hidden = true; return; }
+    var activo = false;
+    btn.addEventListener("click", function(){
+      if(activo) return;
+      var rec = new SRTrabajo();
+      rec.lang = "es-HN";
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      activo = true;
+      btn.classList.add("listening");
+      rec.addEventListener("result", function(ev){
+        var frase = ev.results[0][0].transcript;
+        var ta = $("#inTrabajoDetalle");
+        ta.value = (ta.value.trim() ? (ta.value.trim()+" ") : "") + frase;
+      });
+      rec.addEventListener("end", function(){ activo = false; btn.classList.remove("listening"); });
+      rec.addEventListener("error", function(){ activo = false; btn.classList.remove("listening"); });
+      try{ rec.start(); }catch(e){ activo = false; btn.classList.remove("listening"); }
+    });
+  })();
 
   /* ============================================================
      TRATAMIENTOS (enfermedad/plaga) Y ALIMENTACIÓN ARTIFICIAL
@@ -2716,27 +2824,11 @@
      ============================================================ */
   var histFiltro = "todos";
   var histApiario = "todos";
-  function renderHistorial(){
-    var wrapAp = $("#chipsHistorialApiario");
-    wrapAp.innerHTML = "";
-    var opcionesApiario = [["todos","Todos los apiarios"]].concat(store.apiarios.map(function(a){ return [a.id, a.nombre]; }));
-    opcionesApiario.forEach(function(f){
-      var chip = el("button",{class:"chip"+(histApiario===f[0]?" active":""), text:f[1]});
-      chip.addEventListener("click", function(){ histApiario=f[0]; renderHistorial(); });
-      wrapAp.appendChild(chip);
-    });
 
-    var wrap = $("#chipsHistorialFiltro");
-    wrap.innerHTML = "";
-    [["todos","Todos"],["atencion","Necesitan atención"],["sin_revisar","Sin revisar +15 días"]].forEach(function(f){
-      var chip = el("button",{class:"chip"+(histFiltro===f[0]?" active":""), text:f[1]});
-      chip.addEventListener("click", function(){ histFiltro=f[0]; renderHistorial(); });
-      wrap.appendChild(chip);
-    });
-
+  /* Aplica los mismos filtros (apiario + estado) que se ven en pantalla, para
+     que tanto la lista como el PDF descargado muestren exactamente lo mismo. */
+  function obtenerHistorialFiltrado(){
     var lista = store.revisiones.slice().sort(function(a,b){ return b.fecha-a.fecha; });
-    var contenedor = $("#listaHistorial");
-    contenedor.innerHTML = "";
 
     if(histApiario!=="todos"){
       lista = lista.filter(function(r){
@@ -2758,7 +2850,48 @@
       lista = lista.filter(function(r){ var e = estadoRevision(r.campos); return e==="atencion"||e==="critico"; });
     }
 
-    $("#histEmpty").hidden = !((histFiltro==="sin_revisar" && colmenasSinRevisar.length===0) || (histFiltro!=="sin_revisar" && lista.length===0));
+    // Los trabajos generales (chapeo, reparaciones, etc.) no tienen un "estado"
+    // como las revisiones, así que solo se muestran con el filtro "Todos".
+    var trabajos = [];
+    if(histFiltro==="todos"){
+      trabajos = store.trabajos.slice().sort(function(a,b){ return b.fecha-a.fecha; });
+      if(histApiario!=="todos"){
+        trabajos = trabajos.filter(function(t){ return t.apiarioId===histApiario; });
+      }
+    }
+
+    return {lista:lista, colmenasSinRevisar:colmenasSinRevisar, trabajos:trabajos};
+  }
+
+  function renderHistorial(){
+    var wrapAp = $("#chipsHistorialApiario");
+    wrapAp.innerHTML = "";
+    var opcionesApiario = [["todos","Todos los apiarios"]].concat(store.apiarios.map(function(a){ return [a.id, a.nombre]; }));
+    opcionesApiario.forEach(function(f){
+      var chip = el("button",{class:"chip"+(histApiario===f[0]?" active":""), text:f[1]});
+      chip.addEventListener("click", function(){ histApiario=f[0]; renderHistorial(); });
+      wrapAp.appendChild(chip);
+    });
+
+    var wrap = $("#chipsHistorialFiltro");
+    wrap.innerHTML = "";
+    [["todos","Todos"],["atencion","Necesitan atención"],["sin_revisar","Sin revisar +15 días"]].forEach(function(f){
+      var chip = el("button",{class:"chip"+(histFiltro===f[0]?" active":""), text:f[1]});
+      chip.addEventListener("click", function(){ histFiltro=f[0]; renderHistorial(); });
+      wrap.appendChild(chip);
+    });
+
+    var filtrado = obtenerHistorialFiltrado();
+    var lista = filtrado.lista;
+    var colmenasSinRevisar = filtrado.colmenasSinRevisar;
+    var trabajos = filtrado.trabajos;
+    var contenedor = $("#listaHistorial");
+    contenedor.innerHTML = "";
+
+    $("#histEmpty").hidden = !((histFiltro==="sin_revisar" && colmenasSinRevisar.length===0) || (histFiltro!=="sin_revisar" && lista.length===0 && trabajos.length===0));
+
+    var btnPdfHist = $("#btnDescargarHistorialPDF");
+    if(btnPdfHist) btnPdfHist.textContent = histApiario==="todos" ? "⬇ Descargar este historial en PDF" : ("⬇ Descargar historial de "+apiarioNombre(histApiario)+" en PDF");
 
     if(histFiltro==="sin_revisar"){
       colmenasSinRevisar.forEach(function(c){
@@ -2772,7 +2905,25 @@
       return;
     }
 
-    lista.forEach(function(r){
+    // Se mezclan revisiones (por colmena) y trabajos generales (por apiario) en
+    // una sola lista ordenada por fecha, para que el historial se lea como una
+    // sola bitácora en vez de dos listas separadas.
+    var eventos = lista.map(function(r){ return {fecha:r.fecha, tipo:"revision", data:r}; })
+      .concat(trabajos.map(function(t){ return {fecha:t.fecha, tipo:"trabajo", data:t}; }));
+    eventos.sort(function(a,b){ return b.fecha-a.fecha; });
+
+    eventos.forEach(function(ev){
+      if(ev.tipo==="trabajo"){
+        var t = ev.data;
+        var rowT = el("div",{class:"hist-row"});
+        rowT.innerHTML =
+          '<div class="top"><span class="who">🛠 '+apiarioNombre(t.apiarioId)+' — '+escaparHtml(t.tipo)+'</span></div>'+
+          '<div class="when">'+fechaCorta(t.fecha)+' · '+haceTiempo(t.fecha)+(t.registradoPor?(' · registró '+t.registradoPor):'')+'</div>'+
+          (t.texto ? ('<div class="summary">'+escaparHtml(t.texto)+'</div>') : '');
+        contenedor.appendChild(rowT);
+        return;
+      }
+      var r = ev.data;
       var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
       if(!c) return;
       var apId = r.apiarioId || c.apiarioId;
@@ -2785,6 +2936,161 @@
       contenedor.appendChild(row);
     });
   }
+
+  var ESTADO_TEXTO = {ok:"Bien", atencion:"Atención", critico:"Crítico", sin_revisar:"Sin revisar"};
+
+  /* Arma un PDF con el historial que se está viendo en ese momento (respeta el
+     apiario y el filtro de estado elegidos con los chips), agrupado por
+     apiario y por colmena, para poder guardarlo, imprimirlo o mandarlo por
+     WhatsApp — igual que el PDF de los códigos QR. */
+  function descargarHistorialPDF(){
+    var filtrado = obtenerHistorialFiltrado();
+    if(!filtrado.lista.length && !filtrado.colmenasSinRevisar.length && !filtrado.trabajos.length){
+      toast("No hay nada que descargar con este filtro");
+      return;
+    }
+    if(!(window.jspdf && window.jspdf.jsPDF)){
+      toast("No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.");
+      return;
+    }
+
+    try{
+      var jsPDFCtor = window.jspdf.jsPDF;
+      var doc = new jsPDFCtor({unit:"mm", format:"letter"});
+      var margin = 15;
+      var pageW = doc.internal.pageSize.getWidth();
+      var pageH = doc.internal.pageSize.getHeight();
+      var anchoTexto = pageW - margin*2;
+      var y = margin;
+
+      function nuevaPaginaSiHaceFalta(alturaNecesaria){
+        if(y + alturaNecesaria > pageH - margin){ doc.addPage(); y = margin; }
+      }
+
+      var apiariosAMostrar = histApiario==="todos" ? store.apiarios : store.apiarios.filter(function(a){ return a.id===histApiario; });
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(15);
+      doc.text("ApiCampo — Historial", margin, y);
+      y += 6;
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(110);
+      var filtroTexto = histFiltro==="atencion" ? "Solo colmenas que necesitan atención" : (histFiltro==="sin_revisar" ? "Solo colmenas sin revisar hace más de 15 días" : "Todas las revisiones y trabajos generales");
+      doc.text(filtroTexto+" · generado "+fechaCorta(Date.now()), margin, y);
+      doc.setTextColor(20);
+      y += 9;
+
+      var huboContenido = false;
+
+      apiariosAMostrar.forEach(function(a){
+        var revisApiario = filtrado.lista.filter(function(r){
+          var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
+          var apId = r.apiarioId || (c?c.apiarioId:null);
+          return apId===a.id;
+        });
+        var sinRevApiario = filtrado.colmenasSinRevisar.filter(function(c){ return c.apiarioId===a.id; });
+        var trabajosApiario = filtrado.trabajos.filter(function(t){ return t.apiarioId===a.id; });
+        if(!revisApiario.length && !sinRevApiario.length && !trabajosApiario.length) return;
+        huboContenido = true;
+
+        nuevaPaginaSiHaceFalta(14);
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(12.5);
+        doc.text(a.nombre, margin, y);
+        y += 6;
+        doc.setDrawColor(200);
+        doc.line(margin, y, pageW-margin, y);
+        y += 6;
+
+        if(histFiltro==="sin_revisar"){
+          sinRevApiario.forEach(function(c){
+            var ult = ultimaRevision(c.id);
+            nuevaPaginaSiHaceFalta(10);
+            doc.setFont("helvetica","bold");
+            doc.setFontSize(10.5);
+            doc.text("Colmena #"+c.numero, margin, y);
+            doc.setFont("helvetica","normal");
+            doc.setFontSize(9.5);
+            doc.text(ult ? ("última revisión "+fechaCorta(ult.fecha)) : "nunca revisada", margin+38, y);
+            y += 6.5;
+          });
+        }else{
+          revisApiario.forEach(function(r){
+            var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
+            if(!c) return;
+            var resumen = resumenCampos(r.campos, r.marcos) || "sin observaciones adicionales";
+            var lineas = doc.splitTextToSize(resumen, anchoTexto - 4);
+            nuevaPaginaSiHaceFalta(10 + lineas.length*4.4);
+
+            doc.setFont("helvetica","bold");
+            doc.setFontSize(10.5);
+            doc.text("Colmena #"+c.numero, margin, y);
+            doc.setFont("helvetica","normal");
+            doc.setFontSize(9.5);
+            doc.text(fechaCorta(r.fecha)+" · "+(ESTADO_TEXTO[estadoRevision(r.campos)]||"")+(r.revisadoPor?(" · revisó "+r.revisadoPor):""), margin+38, y);
+            y += 5.5;
+            doc.setFontSize(9.5);
+            doc.text(lineas, margin+4, y);
+            y += lineas.length*4.4 + 4;
+          });
+        }
+
+        if(trabajosApiario.length){
+          nuevaPaginaSiHaceFalta(10);
+          doc.setFont("helvetica","bold");
+          doc.setFontSize(10.5);
+          doc.setTextColor(80);
+          doc.text("Trabajos generales del apiario", margin, y);
+          doc.setTextColor(20);
+          y += 5.5;
+          trabajosApiario.forEach(function(t){
+            var detalle = t.texto || "";
+            var lineasT = detalle ? doc.splitTextToSize(detalle, anchoTexto - 4) : [];
+            nuevaPaginaSiHaceFalta(6 + lineasT.length*4.4);
+            doc.setFont("helvetica","bold");
+            doc.setFontSize(9.5);
+            doc.text(t.tipo, margin, y);
+            doc.setFont("helvetica","normal");
+            doc.text(fechaCorta(t.fecha)+(t.registradoPor?(" · registró "+t.registradoPor):""), margin+70, y);
+            y += 4.8;
+            if(lineasT.length){
+              doc.setFontSize(9.5);
+              doc.text(lineasT, margin+4, y);
+              y += lineasT.length*4.4;
+            }
+            y += 2.5;
+          });
+        }
+        y += 3;
+      });
+
+      if(!huboContenido){
+        doc.setFont("helvetica","normal");
+        doc.setFontSize(10.5);
+        doc.text("No hay datos para este filtro.", margin, y);
+      }
+
+      var nombreApiarioArchivo = histApiario==="todos" ? "todos" : normalizarNombreArchivo(apiarioNombre(histApiario));
+      var nombreArchivo = "apicampo-historial-"+nombreApiarioArchivo+".pdf";
+      var blob = doc.output("blob");
+
+      var archivo = null;
+      try{ archivo = new File([blob], nombreArchivo, {type:"application/pdf"}); }catch(e){}
+      if(archivo && navigator.canShare && navigator.canShare({files:[archivo]})){
+        navigator.share({files:[archivo], title:"Historial — ApiCampo"}).catch(function(){});
+      }else{
+        doc.save(nombreArchivo);
+        toast("PDF descargado — ábrelo desde Descargas para compartirlo por WhatsApp o imprimirlo");
+      }
+    }catch(e){
+      toast("No se pudo generar el PDF. Intenta de nuevo.");
+    }
+  }
+  function normalizarNombreArchivo(s){
+    return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "apiario";
+  }
+  $("#btnDescargarHistorialPDF").addEventListener("click", function(){ descargarHistorialPDF(); });
 
   function abrirDetalleRevision(r){
     var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
