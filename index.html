@@ -167,6 +167,19 @@
     border-radius:999px;
     white-space:nowrap;
   }
+  .voz-global-btn{
+    flex:none; width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+    background:var(--surface-2); font-size:16px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; color:var(--ink);
+  }
+  .voz-global-btn.escuchando{
+    background:var(--accent); color:var(--accent-ink); border-color:var(--accent);
+    animation:vozPulso 1s ease-in-out infinite;
+  }
+  @keyframes vozPulso{
+    0%,100%{ box-shadow:0 0 0 0 var(--accent-soft); }
+    50%{ box-shadow:0 0 0 6px transparent; }
+  }
 
   main{
     flex:1;
@@ -380,6 +393,22 @@
   }
   .hive-tile .tag-alimentando{ color:#8C2F52; background:#F9D9E7; }
   .hive-tile .tag-tratamiento{ color:#384060; background:#E4E7EE; }
+  .hive-tile .fecha-rev{
+    font-family:"IBM Plex Mono",monospace; font-size:8.5px; font-weight:500;
+    color:var(--muted); margin-top:1px;
+  }
+  .hive-tile .fecha-rev.sin{ font-style:italic; opacity:.75; }
+
+  /* ---------- Página de impresión de QR (solo visible al imprimir) ---------- */
+  #printQRPage{ display:none; }
+  .qr-print-item{ break-inside:avoid; text-align:center; padding:8px; border:1px solid #ccc; border-radius:6px; }
+  .qr-print-item .qr-print-titulo{ font-family:"Inter",sans-serif; font-weight:700; font-size:13px; margin:0 0 4px; color:#111; }
+  .qr-print-item .qr-print-sub{ font-family:"Inter",sans-serif; font-size:10.5px; margin:4px 0 0; color:#444; }
+  .qr-print-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media print{
+    body > *:not(#printQRPage){ display:none !important; }
+    #printQRPage{ display:block !important; }
+  }
 
   /* ---------- Revisar tab ---------- */
   .mic-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 0 4px; }
@@ -567,6 +596,7 @@
         <div class="sub" id="topbarSub">Registro de colmenas por dictado</div>
       </div>
     </div>
+    <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <span class="demo-pill">Prototipo</span>
   </header>
 
@@ -610,7 +640,10 @@
 
     <div class="row between">
       <p class="section-title" id="tituloColmenas">Colmenas</p>
-      <button class="btn btn-line" id="btnNuevaColmena" style="padding:8px 12px;">+ Nueva</button>
+      <div class="row" style="gap:6px;">
+        <button class="btn btn-line" id="btnImprimirQR" style="padding:8px 12px;">🖨 QR</button>
+        <button class="btn btn-line" id="btnNuevaColmena" style="padding:8px 12px;">+ Nueva</button>
+      </div>
     </div>
 
     <div class="hive-grid" id="hiveGrid"></div>
@@ -998,6 +1031,9 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<!-- Página especial que solo se ve al imprimir: todos los códigos QR juntos -->
+<div id="printQRPage"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
 <script>
 (function(){
@@ -1273,6 +1309,10 @@
     var d = new Date(ts);
     return d.toLocaleDateString("es-HN",{day:"numeric",month:"short",year:"numeric"});
   }
+  function fechaCortita(ts){
+    var d = new Date(ts);
+    return d.toLocaleDateString("es-HN",{day:"numeric",month:"short"});
+  }
   function diasDesde(ts){ return Math.floor((Date.now()-ts)/86400000); }
   function haceTiempo(ts){
     var d = diasDesde(ts);
@@ -1350,6 +1390,11 @@
     if(!t) return "";
     var titulo = "En tratamiento desde "+fechaCorta(t.registro.fecha)+" · dura "+t.diasUsados+" días · quedan "+Math.max(t.restantes,0)+"d";
     return '<span class="tag-tratamiento" title="'+titulo+'">tratamiento</span>';
+  }
+  function fechaUltimaRevisionHtml(colmenaId){
+    var ult = ultimaRevision(colmenaId);
+    if(!ult) return '<span class="fecha-rev sin">sin revisar</span>';
+    return '<span class="fecha-rev">'+fechaCortita(ult.fecha)+'</span>';
   }
   function estadoBadgeHtml(estado){
     var map = {
@@ -1567,7 +1612,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile", "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id);
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
       grid.appendChild(tile);
     });
@@ -1581,6 +1626,8 @@
       $("#inMarcosColmena").value = b.dataset.marcos;
     });
   });
+
+  $("#btnImprimirQR").addEventListener("click", function(){ imprimirTodosLosQR(); });
 
   $("#btnNuevaColmena").addEventListener("click", function(){
     if(!apiarioActivo){ toast("Primero crea un apiario"); return; }
@@ -1613,6 +1660,41 @@
   });
 
   function qrPayload(colmena){ return "COLMENA|"+colmena.apiarioId+"|"+colmena.numero; }
+
+  /* Arma una página con todos los códigos QR de todas las colmenas (agrupados
+     por apiario) y abre el diálogo de impresión del navegador. Así no hay que
+     ir colmena por colmena para conseguir cada QR. */
+  function imprimirTodosLosQR(){
+    if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
+    var page = $("#printQRPage");
+    page.innerHTML = "";
+    page.appendChild(el("h1",{style:"font-family:Inter,sans-serif;font-size:18px;margin:0 0 4px;", text:"ApiCampo — Códigos QR"}));
+
+    store.apiarios.forEach(function(a){
+      var cs = colmenasDe(a.id).slice().sort(function(x,y){ return x.numero-y.numero; });
+      if(!cs.length) return;
+      page.appendChild(el("h2",{style:"font-family:Inter,sans-serif;font-size:14px;margin:14px 0 8px;", text:a.nombre}));
+      var grid = el("div",{class:"qr-print-grid"});
+      cs.forEach(function(c){
+        var item = el("div",{class:"qr-print-item"});
+        item.appendChild(el("p",{class:"qr-print-titulo", text:"Colmena #"+c.numero}));
+        var qrBox = el("div");
+        item.appendChild(qrBox);
+        var nombreTipo = c.tipo==="sencilla"?"Sencilla":(c.tipo==="nucleo"?"Núcleo":"Doble");
+        item.appendChild(el("p",{class:"qr-print-sub", text:nombreTipo}));
+        grid.appendChild(item);
+        try{
+          new QRCode(qrBox, {text:qrPayload(c), width:110, height:110, correctLevel:QRCode.CorrectLevel.M});
+        }catch(e){
+          qrBox.textContent = "#"+c.numero;
+        }
+      });
+      page.appendChild(grid);
+    });
+
+    // Pequeña pausa para que los QR terminen de dibujarse antes de imprimir.
+    setTimeout(function(){ window.print(); }, 150);
+  }
 
   function abrirDetalleColmena(colmenaId){
     var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
@@ -2098,7 +2180,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id);
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
       grid.appendChild(tile);
     });
@@ -2748,11 +2830,127 @@
   });
 
   /* ============================================================
+     10.5 COMANDO DE VOZ GLOBAL (navegar sin tocar botones)
+     Ejemplos que entiende:
+       "selecciona la colmena 2 del apiario Zapote"
+       "abre colmenas" / "ve a revisar" / "abre el mapa" / "historial" / "producción"
+       "apiario Zapote"  (cambia el apiario activo)
+     ============================================================ */
+  (function(){
+    var btnVoz = $("#btnVozGlobal");
+    if(!btnVoz) return;
+    var SRVoz = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SRVoz){ btnVoz.hidden = true; return; }
+
+    function normalizarVoz(s){
+      return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
+    }
+
+    function buscarApiarioPorTexto(texto){
+      var t = normalizarVoz(texto);
+      if(!t) return null;
+      var encontrado = store.apiarios.find(function(a){ return normalizarVoz(a.nombre).indexOf(t)!==-1 || t.indexOf(normalizarVoz(a.nombre))!==-1; });
+      return encontrado || null;
+    }
+
+    function ejecutarComandoVoz(fraseOriginal){
+      var f = normalizarVoz(fraseOriginal);
+
+      // "colmena 2 del apiario zapote" / "colmena numero 2 de zapote" / "colmena 2"
+      var mColmena = f.match(/colmena\s+(?:numero\s+)?(\d+)(?:\s+(?:del|de el|de)\s+apiario\s+([a-z0-9ñ ]+)|\s+(?:del|de)\s+([a-z0-9ñ ]+))?/);
+      var mApiarioSolo = !mColmena && f.match(/apiario\s+([a-z0-9ñ ]+)/);
+
+      if(mColmena){
+        var numero = parseInt(mColmena[1],10);
+        var nombreApiario = mColmena[2] || mColmena[3] || "";
+        var apiario = nombreApiario ? buscarApiarioPorTexto(nombreApiario) : null;
+        var candidatos = store.colmenas.filter(function(x){ return x.numero===numero && (!apiario || x.apiarioId===apiario.id); });
+        var c = candidatos.length===1 ? candidatos[0]
+          : candidatos.find(function(x){ return x.apiarioId===apiarioActivo; }) || candidatos[0];
+        if(c){
+          apiarioActivo = c.apiarioId;
+          cambiarTab("colmenas");
+          toast("Colmena #"+c.numero+" — "+apiarioNombre(c.apiarioId));
+          abrirDetalleColmena(c.id);
+        }else{
+          toast("No encontré la colmena #"+numero+(nombreApiario?(" en "+nombreApiario):""));
+        }
+        return;
+      }
+
+      if(mApiarioSolo){
+        var ap = buscarApiarioPorTexto(mApiarioSolo[1]);
+        if(ap){
+          apiarioActivo = ap.id;
+          cambiarTab("colmenas");
+          toast("Apiario: "+ap.nombre);
+          return;
+        }
+      }
+
+      var mapaTabs = [
+        [/\bcolmenas\b/, "colmenas"],
+        [/\bapiarios\b/, "apiarios"],
+        [/\brevisar\b|\bdictado\b/, "revisar"],
+        [/\bmapa\b/, "mapa"],
+        [/\bhistorial\b/, "historial"],
+        [/\bproduccion\b|\bestadisticas\b|\bingresos\b/, "produccion"]
+      ];
+      for(var i=0;i<mapaTabs.length;i++){
+        if(mapaTabs[i][0].test(f)){
+          cambiarTab(mapaTabs[i][1]);
+          toast("Abriendo "+mapaTabs[i][1]);
+          return;
+        }
+      }
+
+      toast('No entendí: "'+fraseOriginal+'"');
+    }
+
+    var escuchandoVoz = false;
+    btnVoz.addEventListener("click", function(){
+      if(escuchandoVoz) return;
+      var rec = new SRVoz();
+      rec.lang = "es-HN";
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      escuchandoVoz = true;
+      btnVoz.classList.add("escuchando");
+      rec.addEventListener("result", function(ev){
+        var frase = ev.results[0][0].transcript;
+        ejecutarComandoVoz(frase);
+      });
+      rec.addEventListener("end", function(){
+        escuchandoVoz = false;
+        btnVoz.classList.remove("escuchando");
+      });
+      rec.addEventListener("error", function(){
+        escuchandoVoz = false;
+        btnVoz.classList.remove("escuchando");
+      });
+      try{ rec.start(); }catch(e){ escuchandoVoz=false; btnVoz.classList.remove("escuchando"); }
+    });
+  })();
+
+  /* ============================================================
      11. INSTALACIÓN COMO APP (PWA)
      ============================================================ */
   if("serviceWorker" in navigator){
     window.addEventListener("load", function(){
-      navigator.serviceWorker.register("sw.js").catch(function(){ /* si falla, la app sigue funcionando en el navegador */ });
+      navigator.serviceWorker.register("sw.js").then(function(reg){
+        // Cada vez que se abre la app, revisa si hay una versión nueva publicada.
+        reg.update().catch(function(){});
+      }).catch(function(){ /* si falla, la app sigue funcionando en el navegador */ });
+    });
+    // En cuanto la versión nueva queda activa, recarga la página una sola vez
+    // para que se vea de inmediato — así no hace falta desinstalar y volver a
+    // instalar cada vez que se actualiza algo.
+    var yaSeRecargoPorActualizacion = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function(){
+      if(yaSeRecargoPorActualizacion) return;
+      yaSeRecargoPorActualizacion = true;
+      window.location.reload();
     });
   }
 
