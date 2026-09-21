@@ -176,6 +176,7 @@
     background:var(--accent); color:var(--accent-ink); border-color:var(--accent);
     animation:vozPulso 1s ease-in-out infinite;
   }
+  .voz-global-btn.desactivado{ opacity:.35; }
   @keyframes vozPulso{
     0%,100%{ box-shadow:0 0 0 0 var(--accent-soft); }
     50%{ box-shadow:0 0 0 6px transparent; }
@@ -1065,12 +1066,16 @@
       enfermedades:[], sanaExplicito:false
     };
 
-    if(/\bsin reina\b|\bno hay reina\b|\breina ausente\b|\bno se (vio|observ[oó]|encontr[oó]) (la )?reina\b|\bno se mir[oó] (la )?reina\b|\breina no (vista|localizada|encontrada)\b/.test(t)){
+    /* "reina" casi siempre se dicta como "abeja reina" (p.ej. "no hay abeja reina"),
+       así que la palabra "abeja" se admite opcional en cada patrón de aquí abajo;
+       antes, si se decía "abeja reina" en vez de solo "reina", no se reconocía nada
+       y la colmena quedaba en "sin dato" (semáforo en verde) aunque no hubiera reina. */
+    if(/\bsin (abeja )?reina\b|\bno hay (abeja )?reina\b|\b(abeja )?reina ausente\b|\bno se (vio|observ[oó]|encontr[oó]) (la )?(abeja )?reina\b|\bno se mir[oó] (la )?(abeja )?reina\b|\b(abeja )?reina no (vista|localizada|encontrada)\b|\bno (tiene|tienen) (abeja )?reina\b|\bno hay presencia de (abeja )?reina\b|\bperdi[oó] (la )?(abeja )?reina\b/.test(t)){
       r.reinaPresente = false;
-    } else if(/\breina (presente|vista|activa|localizada)\b|\bhay reina\b|\bse (vio|observ[oó]|encontr[oó]|mir[oó]) (la )?reina\b/.test(t)){
+    } else if(/\b(abeja )?reina (presente|vista|activa|localizada)\b|\bhay (abeja )?reina\b|\bse (vio|observ[oó]|encontr[oó]|mir[oó]) (la )?(abeja )?reina\b|\btiene(n)? (abeja )?reina\b/.test(t)){
       r.reinaPresente = true;
     }
-    if(/\breina virgen\b/.test(t)){
+    if(/\b(abeja )?reina virgen\b/.test(t)){
       r.reinaVirgen = true;
       if(r.reinaPresente===null) r.reinaPresente = true;
     }
@@ -2373,6 +2378,10 @@
       escuchando = true;
       $("#btnMic").classList.add("listening");
       $("#micStatus").textContent = "Escuchando… toca de nuevo para detener";
+      // mientras se dicta la revisión, el micrófono del encabezado se apaga
+      // visualmente para que no se use el comando de voz por accidente y así
+      // no se corte ni se pierda el dictado que ya está en curso.
+      if($("#btnVozGlobal")) $("#btnVozGlobal").classList.add("desactivado");
     };
     reconocimiento.onresult = function(ev){
       var interino = "";
@@ -2405,6 +2414,7 @@
         escuchando = false;
         $("#btnMic").classList.remove("listening");
         $("#micStatus").textContent = "Toca para dictar la revisión";
+        if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
         return;
       }
       // Se cortó solo (pausa o límite de tiempo de Android) — seguimos escuchando
@@ -2414,6 +2424,7 @@
         escuchando = false;
         $("#btnMic").classList.remove("listening");
         $("#micStatus").textContent = "Se detuvo el dictado. Toca el micrófono para continuar.";
+        if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
       }
     };
     try{ reconocimiento.start(); }
@@ -2859,6 +2870,9 @@
       // "colmena 2 del apiario zapote" / "colmena numero 2 de zapote" / "colmena 2"
       var mColmena = f.match(/colmena\s+(?:numero\s+)?(\d+)(?:\s+(?:del|de el|de)\s+apiario\s+([a-z0-9ñ ]+)|\s+(?:del|de)\s+([a-z0-9ñ ]+))?/);
       var mApiarioSolo = !mColmena && f.match(/apiario\s+([a-z0-9ñ ]+)/);
+      // si además de la colmena se pide "revisar"/"dictado", entra directo a dictar
+      // en vez de solo abrir la ficha de la colmena.
+      var pideDictado = /\brevisar\b|\bdictado\b|\bdictar\b|\binicia(r)?\b/.test(f);
 
       if(mColmena){
         var numero = parseInt(mColmena[1],10);
@@ -2869,9 +2883,15 @@
           : candidatos.find(function(x){ return x.apiarioId===apiarioActivo; }) || candidatos[0];
         if(c){
           apiarioActivo = c.apiarioId;
-          cambiarTab("colmenas");
-          toast("Colmena #"+c.numero+" — "+apiarioNombre(c.apiarioId));
-          abrirDetalleColmena(c.id);
+          if(pideDictado){
+            cambiarTab("revisar");
+            seleccionarColmenaRevision(c.id);
+            toast("Dictando colmena #"+c.numero+" — "+apiarioNombre(c.apiarioId));
+          }else{
+            cambiarTab("colmenas");
+            toast("Colmena #"+c.numero+" — "+apiarioNombre(c.apiarioId));
+            abrirDetalleColmena(c.id);
+          }
         }else{
           toast("No encontré la colmena #"+numero+(nombreApiario?(" en "+nombreApiario):""));
         }
@@ -2910,6 +2930,15 @@
     var escuchandoVoz = false;
     btnVoz.addEventListener("click", function(){
       if(escuchandoVoz) return;
+      // Si ya está dictando una revisión (el micrófono grande de "Revisar" está
+      // escuchando de forma continua en segundo plano), no se puede abrir un
+      // segundo micrófono al mismo tiempo: los dos compiten por el mismo audio,
+      // y por eso este comando terminaba mandando a otra pantalla y cortando el
+      // dictado que ya estaba en curso. En ese caso mejor no hacer nada y avisar.
+      if(typeof escuchando !== "undefined" && escuchando){
+        toast("Estás dictando la revisión — toca el micrófono grande para detenerlo antes de usar el comando de voz");
+        return;
+      }
       var rec = new SRVoz();
       rec.lang = "es-HN";
       rec.continuous = false;
