@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v9";
+var CACHE_NAME = "apicampo-cache-v10";
 
 var APP_SHELL = [
   "./manifest.json",
