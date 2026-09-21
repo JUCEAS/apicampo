@@ -737,7 +737,7 @@
         <p style="margin:0; font-size:13.5px; color:var(--muted);">El mapa necesita internet para cargar las calles y el terreno (se descargan de OpenStreetMap). Conéctate una vez y se guardará para consultarlo luego con menos señal.</p>
       </div>
       <div class="legend" style="margin:0; padding:10px 14px;">
-        <span><span class="sw"></span>Radio 3 km (pecoreo habitual)</span>
+        <span><span class="sw"></span>Radio 2.5 km (pecoreo habitual)</span>
         <span><span class="sw dash"></span>Radio 5 km (margen amplio)</span>
       </div>
     </div>
@@ -749,6 +749,7 @@
 
   <!-- ===================== TAB: HISTORIAL ===================== -->
   <main id="tab-historial" hidden>
+    <div class="wrap-chips" id="chipsHistorialApiario"></div>
     <div class="wrap-chips" id="chipsHistorialFiltro"></div>
     <div class="card" style="padding:4px 14px;">
       <div id="listaHistorial"></div>
@@ -1316,7 +1317,7 @@
   }
   function fechaCortita(ts){
     var d = new Date(ts);
-    return d.toLocaleDateString("es-HN",{day:"numeric",month:"short"});
+    return d.toLocaleDateString("es-HN",{day:"numeric",month:"short",year:"numeric"});
   }
   function diasDesde(ts){ return Math.floor((Date.now()-ts)/86400000); }
   function haceTiempo(ts){
@@ -2569,7 +2570,7 @@
       bounds.push(punto);
 
       var c5 = L.circle(punto, {radius:5000, color:"#D98C12", weight:1.3, fillOpacity:0.06, dashArray:"5 5"}).addTo(mapaLeaflet);
-      var c3 = L.circle(punto, {radius:3000, color:"#D98C12", weight:1.6, fillOpacity:0.12}).addTo(mapaLeaflet);
+      var c3 = L.circle(punto, {radius:2500, color:"#D98C12", weight:1.6, fillOpacity:0.12}).addTo(mapaLeaflet);
       var marker = L.circleMarker(punto, {radius:6, color:"#AE3A2C", weight:2, fillColor:"#AE3A2C", fillOpacity:1}).addTo(mapaLeaflet);
       marker.bindPopup("<b>"+a.nombre+"</b><br>"+a.lat.toFixed(5)+", "+a.lng.toFixed(5)+"<br>"+colmenasDe(a.id).length+" colmena(s)");
       mapaCapas.push(c5, c3, marker);
@@ -2595,7 +2596,7 @@
         var card = el("div",{class:"card"});
         card.innerHTML = '<p class="section-title" style="margin-bottom:6px;">'+a.nombre+'</p>'+
           '<p class="mono" style="font-size:13px; margin:0 0 8px;">'+a.lat.toFixed(5)+', '+a.lng.toFixed(5)+'</p>'+
-          '<p style="font-size:12.5px; color:var(--muted); margin:0;">Área de pecoreo a 3 km ≈ 2 827 ha. A 5 km, el área crece a unas 7 850 ha.</p>';
+          '<p style="font-size:12.5px; color:var(--muted); margin:0;">Área de pecoreo a 2.5 km ≈ 1 963 ha. A 5 km, el área crece a unas 7 850 ha.</p>';
         box.appendChild(card);
       }
       return;
@@ -2617,7 +2618,17 @@
      9. TAB HISTORIAL
      ============================================================ */
   var histFiltro = "todos";
+  var histApiario = "todos";
   function renderHistorial(){
+    var wrapAp = $("#chipsHistorialApiario");
+    wrapAp.innerHTML = "";
+    var opcionesApiario = [["todos","Todos los apiarios"]].concat(store.apiarios.map(function(a){ return [a.id, a.nombre]; }));
+    opcionesApiario.forEach(function(f){
+      var chip = el("button",{class:"chip"+(histApiario===f[0]?" active":""), text:f[1]});
+      chip.addEventListener("click", function(){ histApiario=f[0]; renderHistorial(); });
+      wrapAp.appendChild(chip);
+    });
+
     var wrap = $("#chipsHistorialFiltro");
     wrap.innerHTML = "";
     [["todos","Todos"],["atencion","Necesitan atención"],["sin_revisar","Sin revisar +15 días"]].forEach(function(f){
@@ -2630,9 +2641,18 @@
     var contenedor = $("#listaHistorial");
     contenedor.innerHTML = "";
 
+    if(histApiario!=="todos"){
+      lista = lista.filter(function(r){
+        var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
+        var apId = r.apiarioId || (c?c.apiarioId:null);
+        return apId===histApiario;
+      });
+    }
+
     var colmenasSinRevisar = [];
     if(histFiltro==="sin_revisar"){
-      store.colmenas.forEach(function(c){
+      var basecolmenas = histApiario==="todos" ? store.colmenas : colmenasDe(histApiario);
+      basecolmenas.forEach(function(c){
         if(estadoColmena(c.id)==="sin_revisar") colmenasSinRevisar.push(c);
       });
     }
