@@ -775,17 +775,22 @@
     <div class="card">
       <p class="section-title" style="margin-bottom:8px;">Supuestos de cálculo</p>
       <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
-        Es una proyección, no la cosecha real: toma los marcos marcados como "miel" en la última revisión de cada colmena y los multiplica por estos dos números. Ajústalos a tu experiencia — un marco Langstroth profundo bien operculado suele rondar 2.5 a 3 kg de miel.
+        Es una proyección, no la cosecha real: toma los marcos marcados como "miel" en la última revisión de cada colmena, calcula cuánta miel salen de ellos, y la convierte a botellas envasadas. Ajusta estos números a tu experiencia — un marco Langstroth profundo bien operculado suele rondar 2.5 a 3 kg de miel.
       </p>
-      <div class="row" style="gap:10px;">
-        <div class="field" style="flex:1;">
-          <label for="inKgMarco">Kg de miel por marco lleno</label>
-          <input type="text" id="inKgMarco" inputmode="decimal">
+      <div class="field">
+        <label for="inKgMarco">Kg de miel por marco lleno</label>
+        <input type="text" id="inKgMarco" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>Tamaño de botella que usas para envasar</label>
+        <div class="toggle-row" id="botellaTamanoToggle">
+          <button type="button" data-v="500">500 ml</button>
+          <button type="button" data-v="750">750 ml</button>
         </div>
-        <div class="field" style="flex:1;">
-          <label for="inPrecioLb">Precio por libra (L)</label>
-          <input type="text" id="inPrecioLb" inputmode="decimal">
-        </div>
+      </div>
+      <div class="field">
+        <label for="inPrecioBotella">Precio por botella (L)</label>
+        <input type="text" id="inPrecioBotella" inputmode="decimal">
       </div>
     </div>
 
@@ -1281,7 +1286,7 @@
       tratamientos: tratamientos,
       alimentaciones: alimentaciones,
       trabajos: [],
-      config: {kgPorMarco:2.5, precioPorLb:60},
+      config: {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120},
       usuarios: ["JUCEAS"],
       usuarioActual: "JUCEAS",
       esDemo:true
@@ -1293,7 +1298,17 @@
       var raw = localStorage.getItem(STORE_KEY);
       if(raw){
         var datos = JSON.parse(raw);
-        if(!datos.config) datos.config = {kgPorMarco:2.5, precioPorLb:60};
+        if(!datos.config) datos.config = {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120};
+        // versión anterior del prototipo calculaba en libras: se pasa a botellas,
+        // conservando el kg por marco (que sigue siendo válido) y con un precio
+        // de botella inicial que se puede ajustar en la pantalla de Miel.
+        if(datos.config.precioPorLb!==undefined && datos.config.precioPorBotella===undefined){
+          datos.config.botellaMl = 750;
+          datos.config.precioPorBotella = 120;
+          delete datos.config.precioPorLb;
+        }
+        if(!datos.config.botellaMl) datos.config.botellaMl = 750;
+        if(!datos.config.precioPorBotella) datos.config.precioPorBotella = 120;
         if(!datos.usuarios || !datos.usuarios.length) datos.usuarios = ["JUCEAS"];
         if(!datos.usuarioActual) datos.usuarioActual = datos.usuarios[0];
         if(!datos.tratamientos) datos.tratamientos = [];
@@ -1912,7 +1927,7 @@
       var p = proyeccionColmena(c);
       if(p && p.marcosMiel>0){
         var proyLine = el("p",{style:"font-size:12.5px; color:var(--good); font-weight:700; margin:2px 0 0;"});
-        proyLine.textContent = "Proyección: ≈"+fmtNum(p.kg,1)+" kg de miel · "+fmtL(p.ingreso);
+        proyLine.textContent = "Proyección: ≈"+fmtNum(p.botellas,1)+" botella"+(Math.round(p.botellas*10)===10?"":"s")+" ("+store.config.botellaMl+" ml) · "+fmtL(p.ingreso);
         body.appendChild(proyLine);
       }
     }
@@ -3149,17 +3164,18 @@
      9b. TAB PRODUCCIÓN
      ============================================================ */
   var prodApiarioFiltro = "todos";
-  var LB_POR_KG = 2.20462;
+  var KG_POR_LITRO_MIEL = 1.42; // densidad aproximada de la miel envasada
 
   function proyeccionColmena(c){
     var ult = ultimaRevision(c.id);
     if(!ult || !ult.marcos) return null;
     var marcosMiel = ult.marcos.filter(function(e){ return e==="miel"; }).length;
-    if(marcosMiel===0) return {marcosMiel:0, kg:0, lb:0, ingreso:0, fecha:ult.fecha};
+    if(marcosMiel===0) return {marcosMiel:0, kg:0, ml:0, botellas:0, ingreso:0, fecha:ult.fecha};
     var kg = marcosMiel * store.config.kgPorMarco;
-    var lb = kg * LB_POR_KG;
-    var ingreso = lb * store.config.precioPorLb;
-    return {marcosMiel:marcosMiel, kg:kg, lb:lb, ingreso:ingreso, fecha:ult.fecha};
+    var ml = (kg / KG_POR_LITRO_MIEL) * 1000;
+    var botellas = ml / store.config.botellaMl;
+    var ingreso = botellas * store.config.precioPorBotella;
+    return {marcosMiel:marcosMiel, kg:kg, ml:ml, botellas:botellas, ingreso:ingreso, fecha:ult.fecha};
   }
 
   function fmtNum(n, dec){
@@ -3169,9 +3185,21 @@
     return "L "+n.toLocaleString("es-HN", {minimumFractionDigits:0, maximumFractionDigits:0});
   }
 
+  function pintarBotellaTamanoToggle(){
+    $all("#botellaTamanoToggle button").forEach(function(b){ b.classList.toggle("on", parseInt(b.dataset.v,10)===store.config.botellaMl); });
+  }
+  $all("#botellaTamanoToggle button").forEach(function(b){
+    b.addEventListener("click", function(){
+      store.config.botellaMl = parseInt(b.dataset.v,10);
+      pintarBotellaTamanoToggle();
+      guardarConfigProduccion();
+    });
+  });
+
   function renderProduccion(){
     $("#inKgMarco").value = store.config.kgPorMarco;
-    $("#inPrecioLb").value = store.config.precioPorLb;
+    $("#inPrecioBotella").value = store.config.precioPorBotella;
+    pintarBotellaTamanoToggle();
 
     var wrap = $("#chipsApiarioProduccion");
     wrap.innerHTML = "";
@@ -3190,7 +3218,7 @@
       return a.numero-b.numero;
     });
 
-    var totalMarcos=0, totalKg=0, totalIngreso=0, colmenasConDatos=0;
+    var totalMarcos=0, totalBotellas=0, totalIngreso=0, colmenasConDatos=0;
     var lista = $("#listaProduccion");
     lista.innerHTML = "";
     var hayFilas = false;
@@ -3205,10 +3233,10 @@
         hayFilas = true;
         colmenasConDatos++;
         totalMarcos += p.marcosMiel;
-        totalKg += p.kg;
+        totalBotellas += p.botellas;
         totalIngreso += p.ingreso;
         var der = el("div",{class:"right"});
-        der.innerHTML = '<div class="kg">'+p.marcosMiel+' marco'+(p.marcosMiel===1?"":"s")+' · '+fmtNum(p.kg,1)+' kg</div><div class="ingreso">≈ '+fmtL(p.ingreso)+'</div>';
+        der.innerHTML = '<div class="kg">'+p.marcosMiel+' marco'+(p.marcosMiel===1?"":"s")+' · '+fmtNum(p.botellas,1)+' botella'+(Math.round(p.botellas*10)===10?"":"s")+'</div><div class="ingreso">≈ '+fmtL(p.ingreso)+'</div>';
         row.appendChild(der);
       } else {
         var der2 = el("div",{class:"right"});
@@ -3219,24 +3247,24 @@
     });
     $("#prodEmpty").hidden = colmenas.length>0;
 
-    var totalLb = totalKg*LB_POR_KG;
+    var tamanoTexto = store.config.botellaMl+" ml";
     var tilesWrap = $("#prodTotales");
     tilesWrap.innerHTML =
       '<div class="prod-tile"><span class="v">'+colmenasConDatos+'</span><span class="k">colmenas con miel</span></div>'+
-      '<div class="prod-tile"><span class="v">'+fmtNum(totalKg,1)+'</span><span class="k">kg estimados</span></div>'+
+      '<div class="prod-tile"><span class="v">'+fmtNum(totalBotellas,1)+'</span><span class="k">botellas de '+tamanoTexto+' estimadas</span></div>'+
       '<div class="prod-tile accent"><span class="v">'+fmtL(totalIngreso)+'</span><span class="k">ingreso estimado</span></div>';
   }
 
   function guardarConfigProduccion(){
     var kg = parseFloat($("#inKgMarco").value);
-    var precio = parseFloat($("#inPrecioLb").value);
+    var precio = parseFloat($("#inPrecioBotella").value);
     if(!isNaN(kg) && kg>0) store.config.kgPorMarco = kg;
-    if(!isNaN(precio) && precio>0) store.config.precioPorLb = precio;
+    if(!isNaN(precio) && precio>0) store.config.precioPorBotella = precio;
     guardar();
     renderProduccion();
   }
   $("#inKgMarco").addEventListener("change", guardarConfigProduccion);
-  $("#inPrecioLb").addEventListener("change", guardarConfigProduccion);
+  $("#inPrecioBotella").addEventListener("change", guardarConfigProduccion);
 
   /* ============================================================
      10. EXPORTAR
@@ -3434,4 +3462,3 @@
 
 })();
 </script>
-
