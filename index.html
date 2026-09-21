@@ -734,6 +734,7 @@
   <!-- ===================== TAB: MAPA ===================== -->
   <main id="tab-mapa" hidden>
     <div class="wrap-chips" id="chipsMapa"></div>
+    <button class="btn btn-line btn-block" id="btnMiUbicacion" style="margin:2px 0 8px;">📍 Mostrar mi ubicación en el mapa</button>
     <div class="card" style="padding:0; overflow:hidden;">
       <div id="mapaLeaflet" style="width:100%; height:320px;"></div>
       <div id="mapaOffline" hidden style="padding:16px;">
@@ -2751,6 +2752,33 @@
   }
   var mapaModo = "todos";
 
+  // Ubicación actual del teléfono, para compararla con los apiarios en el mapa
+  // y saber a qué distancia está. Se pide solo cuando el usuario toca el botón
+  // — no se guarda entre sesiones, porque cambia cada vez que te mueves.
+  var miUbicacion = null;
+  function actualizarMiUbicacion(){
+    var btn = $("#btnMiUbicacion");
+    if(!navigator.geolocation){ toast("Este navegador no puede obtener tu ubicación."); return; }
+    var textoOriginal = btn.textContent;
+    btn.textContent = "Buscando tu ubicación…";
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(function(pos){
+      miUbicacion = {
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy, ts: Date.now()
+      };
+      btn.textContent = "📍 Actualizar mi ubicación";
+      btn.disabled = false;
+      dibujarMapa();
+      renderMapaOverlapList();
+    }, function(err){
+      btn.textContent = textoOriginal;
+      btn.disabled = false;
+      toast("No se pudo obtener tu ubicación ("+(err&&err.message?err.message:"sin permiso")+").");
+    }, {enableHighAccuracy:true, timeout:10000});
+  }
+  $("#btnMiUbicacion").addEventListener("click", actualizarMiUbicacion);
+
   /* Mapa real con Leaflet + OpenStreetMap (gratis, sin cuenta ni tarjeta).
      Si el navegador no pudo cargar la librería (sin internet la primera vez),
      se avisa en #mapaOffline en vez de fallar en silencio. */
@@ -2779,7 +2807,7 @@
     mapaCapas.forEach(function(capa){ mapaLeaflet.removeLayer(capa); });
     mapaCapas = [];
 
-    if(apiariosVisibles.length===0){
+    if(apiariosVisibles.length===0 && !miUbicacion){
       mapaLeaflet.setView([14.0818,-87.2068], 12);
       return;
     }
@@ -2796,10 +2824,23 @@
       mapaCapas.push(c5, c3, marker);
     });
 
+    // Punto donde está el teléfono ahora mismo (si el usuario lo pidió con el
+    // botón "Mostrar mi ubicación"), para comparar contra los apiarios.
+    if(miUbicacion){
+      var puntoYo = [miUbicacion.lat, miUbicacion.lng];
+      bounds.push(puntoYo);
+      var marcadorYo = L.circleMarker(puntoYo, {radius:7, color:"#1C6DD0", weight:3, fillColor:"#5CA8F2", fillOpacity:0.95}).addTo(mapaLeaflet);
+      marcadorYo.bindPopup("<b>Tú estás aquí</b><br>"+miUbicacion.lat.toFixed(5)+", "+miUbicacion.lng.toFixed(5)+
+        (miUbicacion.accuracy ? ("<br>precisión ±"+Math.round(miUbicacion.accuracy)+" m") : ""));
+      mapaCapas.push(marcadorYo);
+    }
+
     if(bounds.length===1){
       mapaLeaflet.setView(bounds[0], 13);
-    } else {
+    } else if(bounds.length>1){
       mapaLeaflet.fitBounds(bounds, {padding:[30,30]});
+    } else {
+      mapaLeaflet.setView([14.0818,-87.2068], 12);
     }
 
     // el contenedor puede haber estado oculto (pestaña sin abrir) cuando Leaflet midió el tamaño
@@ -2810,6 +2851,21 @@
     var box = $("#mapaOverlapList");
     box.innerHTML = "";
     var apiariosVisibles = mapaModo==="todos" ? store.apiarios : store.apiarios.filter(function(a){return a.id===mapaModo;});
+
+    if(miUbicacion && apiariosVisibles.length){
+      var cardUbicacion = el("div",{class:"card", style:"background:var(--accent-soft); border-color:transparent;"});
+      var filas = apiariosVisibles.map(function(a){
+        var d = haversineKm(miUbicacion.lat, miUbicacion.lng, a.lat, a.lng);
+        var estado = d<=2.5 ? "dentro del radio habitual (2.5 km)" : (d<=5 ? "dentro del radio amplio (5 km)" : "fuera del radio de 5 km");
+        return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0 0 4px;"><b>'+a.nombre+'</b>: '+d.toFixed(2)+' km de tu ubicación — '+estado+'</p>';
+      }).join("");
+      cardUbicacion.innerHTML =
+        '<p class="section-title" style="margin-bottom:6px; color:var(--accent-ink);">Distancia desde tu ubicación</p>'+
+        filas+
+        '<p style="font-size:11px; color:var(--accent-ink); opacity:.8; margin:4px 0 0;">Ubicación tomada '+haceTiempo(miUbicacion.ts)+(miUbicacion.accuracy?(' · precisión ±'+Math.round(miUbicacion.accuracy)+' m'):'')+'.</p>';
+      box.appendChild(cardUbicacion);
+    }
+
     if(mapaModo!=="todos"){
       var a = apiariosVisibles[0];
       if(a){
