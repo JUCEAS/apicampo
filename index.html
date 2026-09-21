@@ -583,6 +583,7 @@
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <div id="app">
 
@@ -598,7 +599,7 @@
       </div>
     </div>
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
-    <span class="demo-pill">Prototipo</span>
+    <span class="demo-pill">v1.0</span>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -639,10 +640,11 @@
   <main id="tab-colmenas" hidden>
     <div class="wrap-chips" id="chipsApiarioColmenas"></div>
 
-    <div class="row between">
+    <div class="row between" style="flex-wrap:wrap; row-gap:8px;">
       <p class="section-title" id="tituloColmenas">Colmenas</p>
-      <div class="row" style="gap:6px;">
-        <button class="btn btn-line" id="btnImprimirQR" style="padding:8px 12px;">🖨 QR</button>
+      <div class="row" style="gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-line" id="btnImprimirQR" style="padding:8px 10px;">🖨 Imprimir</button>
+        <button class="btn btn-line" id="btnDescargarQR" style="padding:8px 10px;">⬇ PDF</button>
         <button class="btn btn-line" id="btnNuevaColmena" style="padding:8px 12px;">+ Nueva</button>
       </div>
     </div>
@@ -1634,6 +1636,7 @@
   });
 
   $("#btnImprimirQR").addEventListener("click", function(){ imprimirTodosLosQR(); });
+  $("#btnDescargarQR").addEventListener("click", function(){ descargarQRComoPDF(); });
 
   $("#btnNuevaColmena").addEventListener("click", function(){
     if(!apiarioActivo){ toast("Primero crea un apiario"); return; }
@@ -1700,6 +1703,100 @@
 
     // Pequeña pausa para que los QR terminen de dibujarse antes de imprimir.
     setTimeout(function(){ window.print(); }, 150);
+  }
+
+  /* Arma un archivo PDF de verdad (no solo la vista de impresión) con todos los
+     códigos QR, agrupados por apiario. Si el teléfono lo permite, abre
+     directamente el menú de compartir (para mandarlo por WhatsApp, correo, etc.);
+     si no, lo descarga a la carpeta de Descargas para compartirlo desde ahí. */
+  function descargarQRComoPDF(){
+    if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
+    if(!(window.jspdf && window.jspdf.jsPDF)){
+      toast("No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.");
+      return;
+    }
+
+    // Se dibujan los QR fuera de la pantalla visible (no en #printQRPage) para
+    // poder sacar la imagen de cada uno con toDataURL() y meterla en el PDF.
+    var cont = el("div",{style:"position:fixed; left:-9999px; top:0;"});
+    document.body.appendChild(cont);
+
+    var items = [];
+    store.apiarios.forEach(function(a){
+      var cs = colmenasDe(a.id).slice().sort(function(x,y){ return x.numero-y.numero; });
+      cs.forEach(function(c){
+        var box = el("div");
+        cont.appendChild(box);
+        try{
+          new QRCode(box, {text:qrPayload(c), width:220, height:220, correctLevel:QRCode.CorrectLevel.M});
+        }catch(e){}
+        var nombreTipo = c.tipo==="sencilla"?"Sencilla":(c.tipo==="nucleo"?"Núcleo":"Doble");
+        items.push({apiario:a.nombre, numero:c.numero, tipoTexto:nombreTipo, box:box});
+      });
+    });
+
+    // Pequeña pausa para que todos los QR terminen de dibujarse en su <canvas>.
+    setTimeout(function(){
+      try{
+        var jsPDFCtor = window.jspdf.jsPDF;
+        var doc = new jsPDFCtor({unit:"mm", format:"letter"});
+        var margin = 15, cols = 3, gap = 6;
+        var pageW = doc.internal.pageSize.getWidth();
+        var pageH = doc.internal.pageSize.getHeight();
+        var cellW = (pageW - margin*2 - gap*(cols-1)) / cols;
+        var qrSize = cellW - 6;
+        var rowH = qrSize + 16;
+        var x = margin, y = margin, col = 0;
+        var apiarioActual = null;
+
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(15);
+        doc.text("ApiCampo — Códigos QR", margin, y);
+        y += 9;
+
+        items.forEach(function(it){
+          if(it.apiario !== apiarioActual){
+            apiarioActual = it.apiario;
+            if(col!==0){ y += rowH; col = 0; x = margin; }
+            if(y + 12 > pageH - margin){ doc.addPage(); y = margin; }
+            doc.setFont("helvetica","bold");
+            doc.setFontSize(12);
+            doc.text(apiarioActual, margin, y);
+            y += 7;
+          }
+          if(y + rowH > pageH - margin){ doc.addPage(); y = margin; col = 0; x = margin; }
+          var canvas = it.box.querySelector("canvas");
+          if(canvas){
+            try{ doc.addImage(canvas.toDataURL("image/png"), "PNG", x, y, qrSize, qrSize); }catch(e){}
+          }
+          doc.setFont("helvetica","normal");
+          doc.setFontSize(9.5);
+          doc.text("Colmena #"+it.numero+" · "+it.tipoTexto, x, y+qrSize+5.5);
+          col++;
+          if(col>=cols){ col = 0; x = margin; y += rowH; }
+          else{ x += cellW + gap; }
+        });
+
+        document.body.removeChild(cont);
+
+        var nombreArchivo = "apicampo-qr.pdf";
+        var blob = doc.output("blob");
+
+        // En teléfonos que lo permiten, esto abre directo el menú de compartir
+        // del sistema (WhatsApp, correo, Bluetooth, etc.) con el PDF ya adjunto.
+        var archivo = null;
+        try{ archivo = new File([blob], nombreArchivo, {type:"application/pdf"}); }catch(e){}
+        if(archivo && navigator.canShare && navigator.canShare({files:[archivo]})){
+          navigator.share({files:[archivo], title:"Códigos QR — ApiCampo"}).catch(function(){});
+        }else{
+          doc.save(nombreArchivo);
+          toast("PDF descargado — ábrelo desde Descargas para compartirlo por WhatsApp o imprimirlo");
+        }
+      }catch(e){
+        if(cont.parentNode) document.body.removeChild(cont);
+        toast("No se pudo generar el PDF. Intenta de nuevo.");
+      }
+    }, 250);
   }
 
   function abrirDetalleColmena(colmenaId){
@@ -3031,3 +3128,4 @@
 
 })();
 </script>
+
