@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v11";
+var CACHE_NAME = "apicampo-cache-v12";
 
 var APP_SHELL = [
   "./manifest.json",
@@ -34,7 +34,9 @@ self.addEventListener("activate", function(event){
   event.waitUntil(
     caches.keys().then(function(nombres){
       return Promise.all(nombres.map(function(n){
-        if(n !== CACHE_NAME) return caches.delete(n);
+        // Solo borrar cachés viejas de ApiCampo: Encantos y otras apps viven en el
+        // mismo sitio (juceas.github.io) y sus cachés no se deben tocar.
+        if(n.indexOf("apicampo-cache") === 0 && n !== CACHE_NAME) return caches.delete(n);
       }));
     }).then(function(){ return self.clients.claim(); })
   );
