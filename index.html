@@ -1469,6 +1469,8 @@
     var a = store.apiarios.find(function(x){ return x.id===id; });
     return a ? a.nombre : "—";
   }
+  // Versión protegida para insertar dentro de HTML (innerHTML)
+  function apiarioNombreHtml(id){ return escaparHtml(apiarioNombre(id)); }
 
   /* ---- Confirmar / preguntar con un modal propio.
      window.confirm() y window.prompt() no muestran nada cuando la app está
@@ -1554,7 +1556,7 @@
       var card = el("div",{class:"card apiario-card"});
       card.innerHTML =
         '<div class="top">'+
-          '<div><h3>'+ap.nombre+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
+          '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
@@ -1963,8 +1965,8 @@
         var apId = r.apiarioId || c.apiarioId;
         var muestraApiario = store.apiarios.length>1 && apId!==c.apiarioId;
         row.innerHTML =
-          '<div class="top"><span class="who">'+fechaCorta(r.fecha)+(muestraApiario?(' · '+apiarioNombre(apId)):'')+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
-          '<div class="summary">'+resumenCampos(r.campos, r.marcos)+(r.revisadoPor?(' · revisó '+r.revisadoPor):'')+'</div>';
+          '<div class="top"><span class="who">'+fechaCorta(r.fecha)+(muestraApiario?(' · '+apiarioNombreHtml(apId)):'')+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
+          '<div class="summary">'+escaparHtml(resumenCampos(r.campos, r.marcos))+(r.revisadoPor?(' · revisó '+escaparHtml(r.revisadoPor)):'')+'</div>';
         row.addEventListener("click", function(){ abrirDetalleRevision(r); });
         hist.appendChild(row);
       });
@@ -2064,7 +2066,7 @@
      alimentar o tratar a todo el apiario de una vez, etc.
      ============================================================ */
   function escaparHtml(s){
-    return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   }
   var TRABAJO_TIPOS = ["Chapeo / limpieza de maleza","Reparación de estructura","Alimentación general del apiario","Tratamiento general del apiario","Traslado o acomodo de colmenas","Otro"];
   var trabajoApiarioActual = null;
@@ -2233,9 +2235,9 @@
       var v = calcularVencimiento(t.fecha, t.frecuenciaDias);
       var row = el("div",{class:"tx-row"});
       row.innerHTML =
-        '<div class="top"><span class="who">'+t.producto+'</span>'+tagVencimientoHtml(v)+'</div>'+
-        '<div class="when">'+fechaCorta(t.fecha)+' · '+t.enfermedad+'</div>'+
-        (t.dosis?('<div class="detail">Dosis: '+t.dosis+'</div>'):'')+
+        '<div class="top"><span class="who">'+escaparHtml(t.producto)+'</span>'+tagVencimientoHtml(v)+'</div>'+
+        '<div class="when">'+fechaCorta(t.fecha)+' · '+escaparHtml(t.enfermedad)+'</div>'+
+        (t.dosis?('<div class="detail">Dosis: '+escaparHtml(t.dosis)+'</div>'):'')+
         (t.duracionDias?('<div class="detail">Duración: '+t.duracionDias+' días</div>'):'');
       wrap.appendChild(row);
     });
@@ -2304,8 +2306,8 @@
       var v = calcularVencimiento(a.fecha, a.frecuenciaDias);
       var row = el("div",{class:"tx-row"});
       row.innerHTML =
-        '<div class="top"><span class="who">'+a.motivo+'</span>'+tagVencimientoHtml(v)+'</div>'+
-        '<div class="when">'+fechaCorta(a.fecha)+' · '+a.proporcion+(a.limon?" · con limón":"")+'</div>'+
+        '<div class="top"><span class="who">'+escaparHtml(a.motivo)+'</span>'+tagVencimientoHtml(v)+'</div>'+
+        '<div class="when">'+fechaCorta(a.fecha)+' · '+escaparHtml(a.proporcion)+(a.limon?" · con limón":"")+'</div>'+
         '<div class="detail">'+(a.litros?(a.litros+" L"):"")+(a.costoL?(" · "+fmtL(a.costoL)):"")+'</div>'+
         (a.duracionDias?('<div class="detail">Duración: '+a.duracionDias+' días</div>'):'');
       wrap.appendChild(row);
@@ -2496,7 +2498,7 @@
     FIELD_DEFS.forEach(function(def){
       var val = def.get(camposActuales);
       var box = el("div",{class:"parsed-field"+(val==="Sin dato"?" empty-val":"")});
-      box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+val+'</span>';
+      box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+escaparHtml(val)+'</span>';
       grid.appendChild(box);
     });
 
@@ -2870,7 +2872,7 @@
       var a = apiariosVisibles[0];
       if(a){
         var card = el("div",{class:"card"});
-        card.innerHTML = '<p class="section-title" style="margin-bottom:6px;">'+a.nombre+'</p>'+
+        card.innerHTML = '<p class="section-title" style="margin-bottom:6px;">'+escaparHtml(a.nombre)+'</p>'+
           '<p class="mono" style="font-size:13px; margin:0 0 8px;">'+a.lat.toFixed(5)+', '+a.lng.toFixed(5)+'</p>'+
           '<p style="font-size:12.5px; color:var(--muted); margin:0;">Área de pecoreo a 2.5 km ≈ 1 963 ha. A 5 km, el área crece a unas 7 850 ha.</p>';
         box.appendChild(card);
@@ -2968,7 +2970,7 @@
       colmenasSinRevisar.forEach(function(c){
         var row = el("div",{class:"hist-row"});
         var ult = ultimaRevision(c.id);
-        row.innerHTML = '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombre(c.apiarioId)+'</span>'+estadoBadgeHtml("sin_revisar")+'</div>'+
+        row.innerHTML = '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombreHtml(c.apiarioId)+'</span>'+estadoBadgeHtml("sin_revisar")+'</div>'+
           '<div class="summary">'+(ult? ("última revisión "+haceTiempo(ult.fecha)) : "nunca revisada")+'</div>';
         row.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
         contenedor.appendChild(row);
@@ -2988,8 +2990,8 @@
         var t = ev.data;
         var rowT = el("div",{class:"hist-row"});
         rowT.innerHTML =
-          '<div class="top"><span class="who">🛠 '+apiarioNombre(t.apiarioId)+' — '+escaparHtml(t.tipo)+'</span></div>'+
-          '<div class="when">'+fechaCorta(t.fecha)+' · '+haceTiempo(t.fecha)+(t.registradoPor?(' · registró '+t.registradoPor):'')+'</div>'+
+          '<div class="top"><span class="who">🛠 '+apiarioNombreHtml(t.apiarioId)+' — '+escaparHtml(t.tipo)+'</span></div>'+
+          '<div class="when">'+fechaCorta(t.fecha)+' · '+haceTiempo(t.fecha)+(t.registradoPor?(' · registró '+escaparHtml(t.registradoPor)):'')+'</div>'+
           (t.texto ? ('<div class="summary">'+escaparHtml(t.texto)+'</div>') : '');
         contenedor.appendChild(rowT);
         return;
@@ -3000,9 +3002,9 @@
       var apId = r.apiarioId || c.apiarioId;
       var row = el("div",{class:"hist-row"});
       row.innerHTML =
-        '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombre(apId)+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
-        '<div class="when">'+fechaCorta(r.fecha)+' · '+haceTiempo(r.fecha)+(r.revisadoPor?(' · revisó '+r.revisadoPor):'')+'</div>'+
-        '<div class="summary">'+resumenCampos(r.campos, r.marcos)+'</div>';
+        '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombreHtml(apId)+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
+        '<div class="when">'+fechaCorta(r.fecha)+' · '+haceTiempo(r.fecha)+(r.revisadoPor?(' · revisó '+escaparHtml(r.revisadoPor)):'')+'</div>'+
+        '<div class="summary">'+escaparHtml(resumenCampos(r.campos, r.marcos))+'</div>';
       row.addEventListener("click", function(){ abrirDetalleRevision(r); });
       contenedor.appendChild(row);
     });
@@ -3187,7 +3189,7 @@
     FIELD_DEFS.forEach(function(def){
       var val = def.get(r.campos);
       var box = el("div",{class:"parsed-field"+(val==="Sin dato"?" empty-val":"")});
-      box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+val+'</span>';
+      box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+escaparHtml(val)+'</span>';
       grid.appendChild(box);
     });
     body.appendChild(grid);
@@ -3274,21 +3276,18 @@
       return a.numero-b.numero;
     });
 
-    var totalMarcos=0, totalBotellas=0, totalIngreso=0, colmenasConDatos=0;
+    var totalBotellas=0, totalIngreso=0, colmenasConDatos=0;
     var lista = $("#listaProduccion");
     lista.innerHTML = "";
-    var hayFilas = false;
 
     colmenas.forEach(function(c){
       var p = proyeccionColmena(c);
       var row = el("div",{class:"prod-row"});
       var izq = el("div");
-      izq.innerHTML = '<div class="who">#'+c.numero+'</div><div class="apiario-name">'+apiarioNombre(c.apiarioId)+(c.tipo==="nucleo"?" · núcleo":"")+'</div>';
+      izq.innerHTML = '<div class="who">#'+c.numero+'</div><div class="apiario-name">'+apiarioNombreHtml(c.apiarioId)+(c.tipo==="nucleo"?" · núcleo":"")+'</div>';
       row.appendChild(izq);
       if(p && p.marcosMiel>0){
-        hayFilas = true;
         colmenasConDatos++;
-        totalMarcos += p.marcosMiel;
         totalBotellas += p.botellas;
         totalIngreso += p.ingreso;
         var der = el("div",{class:"right"});
