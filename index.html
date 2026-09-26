@@ -438,6 +438,23 @@
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     color:#fff; background:var(--critical); padding:1px 5px; border-radius:999px; margin-top:1px;
   }
+  /* Resumen de la última revisión, de un vistazo, sin tener que abrir el
+     historial: cría, población, temperamento, zánganos y reservas. Cada
+     colmena solo muestra las que de verdad se anotaron en su última visita. */
+  .hive-tile .tag-info{
+    font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700;
+    padding:1px 5px; border-radius:999px; margin-top:1px; white-space:nowrap;
+  }
+  .hive-tile .tag-cria{ color:#2E6B32; background:#DCEFDC; }
+  .hive-tile .tag-cria-sellada{ color:#7A5C00; background:#FDEBC8; }
+  .hive-tile .tag-poblacion-mala{ color:#fff; background:#AE3A2C; }
+  .hive-tile .tag-poblacion-media{ color:#5C4A1E; background:#EFE6C8; }
+  .hive-tile .tag-poblacion-buena{ color:#1B5E20; background:#D7EFD9; }
+  .hive-tile .tag-temperamento-agresiva{ color:#fff; background:#B4472F; }
+  .hive-tile .tag-temperamento-mansa{ color:#1B5E20; background:#D7EFD9; }
+  .hive-tile .tag-zanganos{ color:#5C5300; background:#F2ECB8; }
+  .hive-tile .tag-miel{ color:#7A5C00; background:#FFF3B0; }
+  .hive-tile .tag-polen{ color:#8A5A00; background:#FCE4B0; }
   .hive-tile .fecha-rev{
     font-family:"IBM Plex Mono",monospace; font-size:8.5px; font-weight:500;
     color:var(--muted); margin-top:1px;
@@ -1233,8 +1250,8 @@
     <h2>Registrar compra</h2>
     <p style="font-size:13px; color:var(--muted); margin:0;">Queda como pendiente ("por comprar") hasta que confirmes que ya la hiciste.</p>
     <div class="field">
-      <label>¿Qué compraste?</label>
-      <div class="wrap-chips" id="inversionCategoriaChips"></div>
+      <label for="selInversionCategoria">¿Qué compraste?</label>
+      <select id="selInversionCategoria" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px;"></select>
     </div>
     <div class="field" id="campoInversionDetalle" hidden>
       <label for="inInversionDetalle">Detalle (por ejemplo, tipo o marca del medicamento)</label>
@@ -1804,6 +1821,58 @@
     return "";
   }
 
+  /* Resumen visual de la última revisión: cría (con sus días si se
+     dictaron), cría sellada, población, temperamento, zánganos, miel y
+     polen — para identificar de un vistazo cómo está la colmena, sin tener
+     que abrir su historial. Cada etiqueta solo aparece si de verdad se
+     mencionó ese dato en la última visita; nada de "colmena real" (no se
+     inventa un dato solo para llenar la ficha). */
+  function resumenColmenaTagsHtml(colmenaId){
+    var ult = ultimaRevision(colmenaId);
+    if(!ult || !ult.campos) return "";
+    var c = ult.campos;
+    var partes = [];
+
+    if(c.sinCriaDelDia===false || c.posturaDias!=null || c.posturaEtapa){
+      var criaTxt = "🐣 cría";
+      if(c.posturaDias!=null) criaTxt += " "+c.posturaDias+"d";
+      else if(c.posturaEtapa) criaTxt += " ("+c.posturaEtapa+")";
+      partes.push('<span class="tag-info tag-cria" title="Cría del día en la última revisión">'+escaparHtml(criaTxt)+'</span>');
+    }
+    if(c.criaSellada===true){
+      var selladaTxt = "🔒 sellada"+(c.criaIntensidad?(" "+c.criaIntensidad):"");
+      partes.push('<span class="tag-info tag-cria-sellada" title="Cría sellada en la última revisión">'+escaparHtml(selladaTxt)+'</span>');
+    }
+    if(c.poblacion){
+      var mapaPobl = {
+        ninguna:["sin abejas","tag-poblacion-mala"],
+        baja:["población baja","tag-poblacion-mala"],
+        media:["población media","tag-poblacion-media"],
+        buena:["población buena","tag-poblacion-buena"]
+      };
+      var p = mapaPobl[c.poblacion];
+      if(p) partes.push('<span class="tag-info '+p[1]+'" title="Población en la última revisión">👥 '+escaparHtml(p[0])+'</span>');
+    }
+    if(c.temperamento==="agresiva"){
+      partes.push('<span class="tag-info tag-temperamento-agresiva" title="Temperamento en la última revisión">😠 agresiva</span>');
+    } else if(c.temperamento==="mansa"){
+      partes.push('<span class="tag-info tag-temperamento-mansa" title="Temperamento en la última revisión">😌 mansa</span>');
+    }
+    if(c.zanganos===true){
+      var zTxt = "♂ zánganos"+(c.zanganosIntensidad?(" "+c.zanganosIntensidad):"");
+      partes.push('<span class="tag-info tag-zanganos" title="Zánganos en la última revisión">'+escaparHtml(zTxt)+'</span>');
+    }
+    if(c.reservasMiel && c.reservasMiel!=="sin"){
+      var mielTxt = "🍯 miel"+(c.reservasMiel!=="mencionada"?(" "+c.reservasMiel):"");
+      partes.push('<span class="tag-info tag-miel" title="Reservas de miel en la última revisión">'+escaparHtml(mielTxt)+'</span>');
+    }
+    if(c.reservasPolen && c.reservasPolen!=="sin"){
+      var polenTxt = "🌼 polen"+(c.reservasPolen!=="mencionada"?(" "+c.reservasPolen):"");
+      partes.push('<span class="tag-info tag-polen" title="Reservas de polen en la última revisión">'+escaparHtml(polenTxt)+'</span>');
+    }
+    return partes.join("");
+  }
+
   /* Alimentación / tratamiento "activos": se guardan con una fecha de inicio y,
      si se llenó "Repetir cada (días)", esa cantidad de días marca cuánto dura
      vigente. Se usa, en este orden: la duración que se haya puesto en "¿Cuántos
@@ -2170,7 +2239,13 @@
     store.esDemo = false;
     fijarApiarioActivo(ap.id);
     $("#modalApiario").hidden = true;
+    apiarioEditando = null;
+    // Ya se guardó: se limpia el formulario y se regresa de forma explícita
+    // a la pantalla principal (Apiarios), sin depender de en qué pestaña
+    // estaba abierto el modal.
+    cambiarTab("apiarios");
     renderApiarios();
+    window.scrollTo(0,0);
     toast("Apiario agregado");
   });
 
@@ -2295,7 +2370,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile", "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
       grid.appendChild(tile);
     });
@@ -3278,7 +3353,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
+      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
       grid.appendChild(tile);
     });
@@ -4678,9 +4753,24 @@
 
   /* ============================================================
      9b. TAB INVERSIÓN — cuánto se ha comprado/gastado en el negocio
-     (marcos, cajas, tapaderas, pisos, cera, medicamento, azúcar...)
      ============================================================ */
-  var CATEGORIAS_INVERSION = ["Marcos","Cajas / alzas","Tapaderas (techos)","Pisos (bases)","Cera","Medicamento","Azúcar (alimentación)","Otro"];
+  // Lista de materiales típicos de un apiario, agrupada por tipo (basada en
+  // el equipo estándar de apicultura: protección personal, estructura de la
+  // colmena, herramientas de manejo, alimentación, sanidad/control de
+  // varroa, y cosecha/envasado de miel). Se muestra como una sola lista
+  // desplegable por categorías, en vez de una fila de fichas, para que la
+  // pantalla de "Registrar compra" quede compacta y ordenada.
+  var GRUPOS_INVERSION = [
+    { grupo:"Estructura de la colmena", items:["Cajas / alzas","Pisos (bases)","Techos (tapaderas)","Marcos","Cera estampada","Entretapas","Excluidor de reinas","Núcleos (cajas)"] },
+    { grupo:"Protección personal", items:["Careta / velo","Guantes","Overol / traje apícola","Botas"] },
+    { grupo:"Herramientas de manejo", items:["Ahumador","Combustible de ahumador","Palanca (cuña)","Cepillo para abejas"] },
+    { grupo:"Alimentación", items:["Azúcar (alimentación)","Jarabe / suplemento proteico","Alimentador (feeder)"] },
+    { grupo:"Sanidad y control de varroa", items:["Medicamento","Trampa / malla antivarroa"] },
+    { grupo:"Cosecha y envasado", items:["Extractor de miel","Desoperculador","Filtro para miel","Envases / botellas","Etiquetas"] },
+    { grupo:"Reinas y abejas", items:["Reina fecundada","Paquete de abejas"] },
+    { grupo:"Otro", items:["Otro"] }
+  ];
+  var CATEGORIAS_INVERSION = GRUPOS_INVERSION.reduce(function(acc,g){ return acc.concat(g.items); }, []);
   var inversionCategoriaSel = CATEGORIAS_INVERSION[0];
   var inversionFiltro = "todas";
   var inversionVista = "pendiente"; // "pendiente" = por comprar (proyección) · "historial" = ya confirmadas
@@ -4846,24 +4936,43 @@
       reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-soft-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtLdec(r.monto)+'</b></p>'; }).join("");
   }
 
+  // Llena el <select> de "¿Qué compraste?" con <optgroup> por tipo de
+  // material, para que la pantalla de registrar compra quede compacta
+  // (una sola lista desplegable) en vez de una fila larga de fichas.
+  function poblarSelectCategoriaInversion(seleccionado){
+    var sel = $("#selInversionCategoria");
+    sel.innerHTML = "";
+    GRUPOS_INVERSION.forEach(function(g){
+      var grupo = document.createElement("optgroup");
+      grupo.label = g.grupo;
+      g.items.forEach(function(item){
+        var opt = el("option",{text:item});
+        opt.value = item;
+        if(item===seleccionado) opt.selected = true;
+        grupo.appendChild(opt);
+      });
+      sel.appendChild(grupo);
+    });
+  }
+
   function abrirModalInversion(){
     $("#inInversionDetalle").value = "";
     $("#inInversionCantidad").value = "1";
     $("#inInversionPrecio").value = "";
     poblarSelectApiarioInversion(apiarioActivo || "");
     inversionCategoriaSel = CATEGORIAS_INVERSION[0];
-    var ref = crearChipsUnicos($("#inversionCategoriaChips"), CATEGORIAS_INVERSION, CATEGORIAS_INVERSION[0], function(v){
-      inversionCategoriaSel = v;
-      // "Medicamento" es la categoría donde de verdad importa anotar cuál —
-      // para las demás el campo queda oculto para no pedir de más.
-      $("#campoInversionDetalle").hidden = (v!=="Medicamento");
-    });
-    inversionCategoriaSel = ref.get();
+    poblarSelectCategoriaInversion(inversionCategoriaSel);
+    // "Medicamento" es la categoría donde de verdad importa anotar cuál —
+    // para las demás el campo queda oculto para no pedir de más.
     $("#campoInversionDetalle").hidden = (inversionCategoriaSel!=="Medicamento");
     actualizarTotalPreviewInversion();
     actualizarRepartoPreviewInversion();
     $("#modalInversion").hidden = false;
   }
+  $("#selInversionCategoria").addEventListener("change", function(){
+    inversionCategoriaSel = $("#selInversionCategoria").value;
+    $("#campoInversionDetalle").hidden = (inversionCategoriaSel!=="Medicamento");
+  });
   $("#btnNuevaInversion").addEventListener("click", abrirModalInversion);
   $("#btnCancelarInversion").addEventListener("click", function(){ $("#modalInversion").hidden = true; });
   $("#modalInversion").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
