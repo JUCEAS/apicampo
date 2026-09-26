@@ -2801,6 +2801,22 @@
     }catch(e){ return false; }
   }
 
+  /* Por defecto, Android puede borrar solo lo que está en Cache Storage si el
+     teléfono anda bajo de espacio — el modelo de voz (34MB) es justo el tipo
+     de archivo grande que se lleva primero. Pedir almacenamiento "persistente"
+     le dice al navegador que esta app no se debe vaciar así; Chrome puede
+     igual decir que no (por ejemplo si la app no está instalada/agregada a
+     la pantalla de inicio), pero no cuesta nada pedirlo. Se pide al abrir la
+     app y otra vez justo después de descargar el modelo. */
+  async function pedirAlmacenamientoPersistente(){
+    try{
+      if(navigator.storage && navigator.storage.persist){
+        var yaPersiste = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+        if(!yaPersiste) await navigator.storage.persist();
+      }
+    }catch(e){ /* si el navegador no lo soporta, seguimos igual */ }
+  }
+
   async function descargarModeloVoz(){
     if(voskDescargando || voskListo) return;
     if(!window.Vosk){
@@ -2824,17 +2840,30 @@
         if(total) actualizarBarraDescarga(recibido/total);
       }
       var blob = new Blob(partes, {type:"application/gzip"});
-      // Guardar en Cache Storage para que la próxima vez no haga falta
-      // volver a descargar (queda disponible aunque se cierre el navegador).
+      // Pedir espacio protegido ANTES de guardar (así, si el teléfono anda
+      // muy justo de espacio, Chrome decide con el archivo ya en camino en
+      // vez de con la caché recién puesta y en riesgo de ser la primera que
+      // se borre si igual dice que no).
+      await pedirAlmacenamientoPersistente();
+      // Guardar en Cache Storage para que la próxima vez no haga falta volver
+      // a descargar (queda disponible aunque se cierre el navegador) — y
+      // comprobar que de verdad quedó guardado antes de decir "listo": si el
+      // teléfono no tiene espacio, el guardado puede fallar en silencio.
+      var quedoGuardado = false;
       try{
         var cache = await caches.open(CACHE_MODELO_VOZ);
         await cache.put(MODELO_VOZ_URL, new Response(blob.slice(0), {headers:{"Content-Type":"application/gzip"}}));
-      }catch(e){ /* si falla el guardado, igual seguimos: ya quedó en memoria para esta sesión */ }
+        quedoGuardado = !!(await cache.match(MODELO_VOZ_URL));
+      }catch(e){ quedoGuardado = false; }
       await cargarVoskDesdeBlob(blob);
       voskDescargando = false;
       voskListo = true;
       renderVoskPrep();
-      toast("Dictado sin señal listo");
+      if(quedoGuardado){
+        toast("Dictado sin señal listo");
+      } else {
+        toast("Dictado sin señal listo por ahora, pero no se pudo guardar de forma permanente — libera espacio en el teléfono y vuelve a prepararlo.");
+      }
     }catch(e){
       voskDescargando = false;
       renderVoskPrep();
@@ -2957,6 +2986,9 @@
     hayModeloVozEnCache().then(function(listo){
       voskListo = listo;
       renderVoskPrep();
+      // Si ya estaba descargado de antes, reforzamos el pedido de espacio
+      // protegido cada vez que se abre la app (no cuesta nada repetirlo).
+      if(listo) pedirAlmacenamientoPersistente();
     });
     if(!SpeechRecognitionCtor){
       var hint = $("#micHint");
