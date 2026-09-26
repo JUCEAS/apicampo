@@ -1263,6 +1263,7 @@
     <div style="background:var(--accent-soft); border-radius:10px; padding:12px; text-align:center; margin-bottom:12px;">
       <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--accent-soft-ink); opacity:.8;">Le toca la próxima gira a</div>
       <div id="girasProximoNombre" style="font-family:'Fraunces',serif; font-size:20px; font-weight:700; color:var(--accent-soft-ink);">—</div>
+      <div id="girasProximaFecha" style="font-size:12px; color:var(--accent-soft-ink); opacity:.85; margin-top:2px;"></div>
     </div>
     <div class="row" style="gap:10px;">
       <div class="field" style="flex:1;">
@@ -1525,7 +1526,7 @@
       r.poblacion = "baja";
     } else if(/\bpoblaci[oó]n (intermedia|media|regular|moderada)\b|\b(intermedia|media|regular) poblaci[oó]n\b/.test(t)){
       r.poblacion = "media";
-    } else if(/\bbuena poblaci[oó]n\b|\bpoblaci[oó]n (buena|excelente)\b|\bmucha poblaci[oó]n\b|\bcolmena fuerte\b|\bbastantes abejas\b|\bpoblaci[oó]n abundante\b|\bpoblaci[oó]n alta\b|\balta poblaci[oó]n\b/.test(t)){
+    } else if(/\b(buena|excelente|mucha|bastante|abundante|fuerte|alta)\b[^.]{0,20}?poblaci[oó]n\b|\bpoblaci[oó]n\b[^.]{0,20}?\b(buena|excelente|mucha|bastante|abundante|fuerte|alta)\b|\bcolmena fuerte\b|\bbastantes abejas\b/.test(t)){
       r.poblacion = "buena";
     }
 
@@ -1866,6 +1867,23 @@
     if(total===10) return '<span class="tipo-tag tipo-sencilla">sencilla</span>';
     return '';
   }
+  /* Conteo de colmenas por tipo en un apiario ("2 dobles · 1 sencilla · 1
+     núcleo"), para verlo de un vistazo en la tarjeta del apiario sin tener
+     que entrar a la lista de colmenas. */
+  function resumenTiposColmenas(apiarioId){
+    var lista = colmenasDe(apiarioId);
+    var dobles=0, sencillas=0, nucleos=0;
+    lista.forEach(function(c){
+      if(c.tipo==="nucleo"){ nucleos++; return; }
+      var total = c.marcosTotales || (c.tipo==="sencilla"?10:19);
+      if(total>10) dobles++; else if(total===10) sencillas++;
+    });
+    var partes = [];
+    if(dobles) partes.push(dobles+" doble"+(dobles>1?"s":""));
+    if(sencillas) partes.push(sencillas+" sencilla"+(sencillas>1?"s":""));
+    if(nucleos) partes.push(nucleos+" núcleo"+(nucleos>1?"s":""));
+    return partes.join(" · ");
+  }
   function fueReforzadaUltimaVisita(colmenaId){
     var ult = ultimaRevision(colmenaId);
     return !!(ult && ult.campos && ult.campos.reforzada);
@@ -2130,14 +2148,17 @@
       var card = el("div",{class:"card apiario-card"+(esActivo?" trabajando":"")});
       var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
       var proximaGira = esSociedad ? calcularProximoTurnoGira(ap) : null;
+      var proximaGiraFecha = esSociedad ? fechaProximaGiraEstimada(ap) : null;
+      var resumenTipos = resumenTiposColmenas(ap.id);
       card.innerHTML =
         (esActivo ? '<span class="trabajando-tag">📍 Trabajando aquí</span>' : '')+
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
+          (resumenTipos ? '<div class="mono" style="font-size:11px; color:var(--muted); text-align:right; white-space:nowrap;" title="Colmenas por tipo">'+escaparHtml(resumenTipos)+'</div>' : '')+
         '</div>'+
         (ap.senasa ? '<div class="coords mono" style="margin-top:-2px;" title="Número de registro SENASA">SENASA: '+escaparHtml(ap.senasa)+'</div>' : '')+
         (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
-        (proximaGira ? '<p style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">🚐 Próxima gira: <b>'+escaparHtml(proximaGira.nombre)+'</b></p>' : '')+
+        (proximaGira ? '<p style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">🚐 Próxima gira: <b>'+escaparHtml(proximaGira.nombre)+'</b>'+(proximaGiraFecha ? ' · aprox. '+fechaCorta(proximaGiraFecha) : '')+'</p>' : '')+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
@@ -2373,6 +2394,22 @@
     return elegibles[(idx+1)%elegibles.length];
   }
 
+  /* Fecha estimada de la próxima gira: no hay una fecha programada de
+     antemano (cada gira se anota después de hacerla), así que se calcula
+     a partir del ritmo real con que se han estado haciendo — el promedio
+     de los intervalos entre las últimas giras registradas, sumado a la
+     fecha de la última. Con menos de 2 giras registradas no hay suficiente
+     historial para estimar nada, así que se devuelve null y no se muestra. */
+  function fechaProximaGiraEstimada(ap){
+    var giras = (ap.giras||[]).slice().sort(function(a,b){ return b.fecha-a.fecha; });
+    if(giras.length<2) return null;
+    var muestras = giras.slice(0, Math.min(giras.length,5));
+    var intervalos = [];
+    for(var i=0;i<muestras.length-1;i++){ intervalos.push(muestras[i].fecha - muestras[i+1].fecha); }
+    var promedio = intervalos.reduce(function(a,b){ return a+b; },0) / intervalos.length;
+    return giras[0].fecha + promedio;
+  }
+
   function poblarSelectGiraSocio(ap, seleccionado){
     var sel = $("#selGiraSocio");
     sel.innerHTML = "";
@@ -2432,6 +2469,8 @@
     $("#girasTitulo").textContent = "Turnos de gira — "+ap.nombre;
     var proximo = calcularProximoTurnoGira(ap);
     $("#girasProximoNombre").textContent = proximo ? proximo.nombre : "—";
+    var fechaEstimada = fechaProximaGiraEstimada(ap);
+    $("#girasProximaFecha").textContent = fechaEstimada ? ("aprox. "+fechaCorta(fechaEstimada)) : "";
     $("#inGiraFecha").value = new Date().toISOString().slice(0,10);
     if(proximo){
       poblarSelectGiraSocio(ap, proximo.id);
