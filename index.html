@@ -28,6 +28,7 @@
     --accent:#D98C12;
     --accent-ink:#5C3B00;
     --accent-soft:#F6DFA6;
+    --accent-soft-ink:#5C3B00;
     --good:#3F7A34;
     --good-soft:#DCEBD2;
     --warn:#B4700A;
@@ -56,6 +57,7 @@
       --accent:#E8A33D;
       --accent-ink:#2A1900;
       --accent-soft:#4A3313;
+      --accent-soft-ink:#F5CE8C;
       --good:#7FBB6A;
       --good-soft:#23361E;
       --warn:#E0A33F;
@@ -84,6 +86,7 @@
     --accent:#E8A33D;
     --accent-ink:#2A1900;
     --accent-soft:#4A3313;
+    --accent-soft-ink:#F5CE8C;
     --good:#7FBB6A;
     --good-soft:#23361E;
     --warn:#E0A33F;
@@ -117,7 +120,7 @@
   }
   .mono{ font-family:"IBM Plex Mono",ui-monospace,monospace; }
   button{ font-family:inherit; }
-  a{ color:var(--accent-ink); }
+  a{ color:var(--accent-soft-ink); }
 
   /* ---------- App shell ---------- */
   #app{
@@ -165,11 +168,28 @@
     font-size:11px;
     font-weight:600;
     background:var(--accent-soft);
-    color:var(--accent-ink);
+    color:var(--accent-soft-ink);
     padding:4px 9px;
     border-radius:999px;
     white-space:nowrap;
   }
+  .apiario-activo-pill{
+    flex:none;
+    font-family:inherit;
+    font-size:11.5px;
+    font-weight:700;
+    background:var(--accent-soft);
+    color:var(--accent-soft-ink);
+    border:none;
+    padding:6px 10px;
+    border-radius:999px;
+    white-space:nowrap;
+    max-width:130px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    cursor:pointer;
+  }
+  .apiario-activo-pill[hidden]{ display:none; }
   .voz-global-btn{
     flex:none; width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
     background:var(--surface-2); font-size:16px; line-height:1; cursor:pointer;
@@ -220,7 +240,7 @@
     cursor:pointer;
   }
   nav.tabbar button svg{ width:21px; height:21px; }
-  nav.tabbar button.active{ color:var(--accent-ink); background:var(--accent-soft); }
+  nav.tabbar button.active{ color:var(--accent-soft-ink); background:var(--accent-soft); }
 
   /* ---------- Generic components ---------- */
   .card{
@@ -370,7 +390,7 @@
   .stat-mini b{ color:var(--ink); }
   .badge-sociedad{
     display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
-    color:var(--accent-ink); background:var(--accent-soft); padding:3px 9px; border-radius:999px;
+    color:var(--accent-soft-ink); background:var(--accent-soft); padding:3px 9px; border-radius:999px;
     margin-top:4px;
   }
 
@@ -397,7 +417,7 @@
   .hive-tile.selected{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
   .hive-tile .tipo-tag{
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-    color:var(--accent-ink); background:var(--accent-soft); padding:1px 5px; border-radius:999px; margin-top:1px;
+    color:var(--accent-soft-ink); background:var(--accent-soft); padding:1px 5px; border-radius:999px; margin-top:1px;
   }
   /* núcleo, doble y sencilla usan colores bien distintos entre sí para que se
      reconozcan a simple vista */
@@ -460,7 +480,7 @@
   }
   .mic-status{ font-size:13px; color:var(--muted); font-weight:600; }
   .vosk-btn{
-    width:100%; border:1px solid var(--line); background:var(--surface-2); color:var(--accent-ink);
+    width:100%; border:1px solid var(--line); background:var(--surface-2); color:var(--accent-soft-ink);
     font-weight:600; font-size:13px; padding:9px 10px; border-radius:12px; cursor:pointer;
     display:flex; align-items:center; justify-content:center; gap:8px;
   }
@@ -542,7 +562,7 @@
   .type-toggle button.on span{ color:var(--accent-ink); opacity:0.85; }
   .socio-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
   .socio-row .socio-num{
-    flex:none; width:22px; height:22px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink);
+    flex:none; width:22px; height:22px; border-radius:999px; background:var(--accent-soft); color:var(--accent-soft-ink);
     font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
   }
   .socio-row input{
@@ -590,7 +610,7 @@
   .prod-tile .v{ font-family:"Fraunces",serif; font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
   .prod-tile .k{ font-size:10.5px; color:var(--muted); font-weight:600; }
   .prod-tile.accent{ background:var(--accent-soft); }
-  .prod-tile.accent .v{ color:var(--accent-ink); }
+  .prod-tile.accent .v{ color:var(--accent-soft-ink); }
   .prod-row{
     display:flex; justify-content:space-between; align-items:center; gap:10px;
     padding:10px 0; border-bottom:1px solid var(--line);
@@ -648,6 +668,7 @@
         <div class="sub" id="topbarSub">Registro de colmenas por dictado</div>
       </div>
     </div>
+    <button class="apiario-activo-pill" id="topbarApiarioActivo" hidden title="Cambiar el apiario en el que estás trabajando"></button>
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <span class="demo-pill">v1.0</span>
   </header>
@@ -663,8 +684,8 @@
     <div id="warnOverlap"></div>
 
     <div class="card" id="cardInstalar" hidden style="background:var(--accent-soft); border-color:transparent;">
-      <p class="section-title" style="margin-bottom:6px; color:var(--accent-ink);">Instala ApiCampo en tu teléfono</p>
-      <p style="font-size:12.5px; color:var(--accent-ink); line-height:1.5; margin:0 0 10px;">
+      <p class="section-title" style="margin-bottom:6px; color:var(--accent-soft-ink);">Instala ApiCampo en tu teléfono</p>
+      <p style="font-size:12.5px; color:var(--accent-soft-ink); line-height:1.5; margin:0 0 10px;">
         Se agrega un ícono a tu pantalla de inicio y abre como una app, sin barra del navegador — y ya queda lista para usarse sin internet.
       </p>
       <button class="btn btn-primary btn-block" id="btnInstalarApp">Instalar app</button>
@@ -688,8 +709,6 @@
 
   <!-- ===================== TAB: COLMENAS ===================== -->
   <main id="tab-colmenas" hidden>
-    <div class="wrap-chips" id="chipsApiarioColmenas"></div>
-
     <div class="row between" style="flex-wrap:wrap; row-gap:8px;">
       <p class="section-title" id="tituloColmenas">Colmenas</p>
       <div class="row" style="gap:6px; flex-wrap:wrap;">
@@ -716,8 +735,6 @@
       <span style="font-size:12px; color:var(--muted); font-weight:600;">Revisando como</span>
       <div class="wrap-chips" id="chipsUsuario" style="justify-content:flex-end;"></div>
     </div>
-
-    <div class="wrap-chips" id="chipsApiarioRevisar"></div>
 
     <div class="card">
       <div class="row between">
@@ -1187,8 +1204,8 @@
     <h2 id="girasTitulo">Turnos de gira</h2>
     <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Quién lleva el gasto de transporte en cada visita a este apiario, por turnos entre los socios.</p>
     <div style="background:var(--accent-soft); border-radius:10px; padding:12px; text-align:center; margin-bottom:12px;">
-      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--accent-ink); opacity:.8;">Le toca la próxima gira a</div>
-      <div id="girasProximoNombre" style="font-family:'Fraunces',serif; font-size:20px; font-weight:700; color:var(--accent-ink);">—</div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--accent-soft-ink); opacity:.8;">Le toca la próxima gira a</div>
+      <div id="girasProximoNombre" style="font-family:'Fraunces',serif; font-size:20px; font-weight:700; color:var(--accent-soft-ink);">—</div>
     </div>
     <div class="row" style="gap:10px;">
       <div class="field" style="flex:1;">
@@ -1888,7 +1905,38 @@
   /* ============================================================
      4. ESTADO DE NAVEGACIÓN
      ============================================================ */
-  var apiarioActivo = store.apiarios[0] ? store.apiarios[0].id : null;
+  // El "apiario de trabajo" se recuerda entre pantallas (y entre sesiones):
+  // una vez que lo eliges en la pestaña Apiarios, el resto de la app lo usa
+  // automáticamente en sus formularios y filtros, para no tener que volver
+  // a elegirlo cada vez ni arriesgarte a anotar algo en el apiario que no es.
+  var apiarioActivo = (store.apiarioActivo && store.apiarios.some(function(a){ return a.id===store.apiarioActivo; }))
+    ? store.apiarioActivo
+    : (store.apiarios[0] ? store.apiarios[0].id : null);
+  store.apiarioActivo = apiarioActivo;
+
+  function fijarApiarioActivo(id){
+    apiarioActivo = id;
+    store.apiarioActivo = id;
+    guardar();
+    // Los filtros de Mapa, Historial y Producción/Inversión también saltan
+    // al apiario recién elegido, para que cambiar de apiario de trabajo se
+    // sienta como cambiar de contexto en toda la app, no solo en Colmenas.
+    mapaModo = id || "todos";
+    histApiario = id || "todos";
+    prodApiarioFiltro = id || "todos";
+    actualizarBannerApiarioActivo();
+  }
+
+  // Pequeño indicador siempre visible de en qué apiario se está trabajando,
+  // con un toque directo a la pestaña Apiarios para cambiarlo.
+  function actualizarBannerApiarioActivo(){
+    var el = $("#topbarApiarioActivo");
+    if(!el) return;
+    if(!apiarioActivo || !store.apiarios.length){ el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = "📍 "+apiarioNombre(apiarioActivo)+" · cambiar";
+  }
+
   var colmenaEnRevision = null;
   var camposActuales = parseInspeccion("");
 
@@ -1905,6 +1953,7 @@
       inversion: "Cuánto has comprado e invertido"
     };
     $("#topbarSub").textContent = subs[tab]||"";
+    actualizarBannerApiarioActivo();
     if(tab==="colmenas") renderColmenas();
     if(tab==="revisar") renderRevisarColmenas();
     if(tab==="mapa") renderMapa();
@@ -1915,6 +1964,9 @@
   $all("nav.tabbar button").forEach(function(b){
     b.addEventListener("click", function(){ cambiarTab(b.dataset.tab); });
   });
+  // El indicador del apiario activo siempre lleva de vuelta a la pestaña
+  // Apiarios, que es donde se cambia de apiario de trabajo.
+  $("#topbarApiarioActivo").addEventListener("click", function(){ cambiarTab("apiarios"); });
 
   /* ============================================================
      5. TAB APIARIOS
@@ -1939,10 +1991,10 @@
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
-      var b1 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver colmenas"});
-      b1.addEventListener("click", function(){ apiarioActivo = ap.id; cambiarTab("colmenas"); });
+      var b1 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Trabajar aquí"});
+      b1.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("colmenas"); });
       var b2 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver en mapa"});
-      b2.addEventListener("click", function(){ apiarioActivo = ap.id; cambiarTab("mapa"); });
+      b2.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("mapa"); });
       var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
       b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       b3.addEventListener("click", function(){ eliminarApiario(ap); });
@@ -2116,8 +2168,7 @@
     var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[]};
     store.apiarios.push(ap);
     store.esDemo = false;
-    guardar();
-    apiarioActivo = ap.id;
+    fijarApiarioActivo(ap.id);
     $("#modalApiario").hidden = true;
     renderApiarios();
     toast("Apiario agregado");
@@ -2226,8 +2277,7 @@
     confirmarApp("¿Borrar todos los datos de este prototipo y volver a los de ejemplo?").then(function(ok){
       if(!ok) return;
       store = seed();
-      guardar();
-      apiarioActivo = store.apiarios[0] ? store.apiarios[0].id : null;
+      fijarApiarioActivo(store.apiarios[0] ? store.apiarios[0].id : null);
       renderApiarios();
       toast("Datos reiniciados");
     });
@@ -2236,21 +2286,7 @@
   /* ============================================================
      6. TAB COLMENAS
      ============================================================ */
-  function renderChipsApiario(containerSel, onPick){
-    var wrap = $(containerSel);
-    wrap.innerHTML = "";
-    store.apiarios.forEach(function(ap){
-      var chip = el("button",{class:"chip"+(ap.id===apiarioActivo?" active":""), text:ap.nombre});
-      chip.addEventListener("click", function(){ apiarioActivo = ap.id; onPick(); });
-      wrap.appendChild(chip);
-    });
-  }
-
   function renderColmenas(){
-    renderChipsApiario("#chipsApiarioColmenas", function(){
-      $("#topbarSub").textContent = apiarioNombre(apiarioActivo);
-      renderColmenas();
-    });
     $("#tituloColmenas").textContent = apiarioActivo ? ("Colmenas — "+apiarioNombre(apiarioActivo)) : "Colmenas";
     var grid = $("#hiveGrid");
     grid.innerHTML = "";
@@ -2676,7 +2712,7 @@
     var goBtn = el("button",{class:"btn btn-primary btn-block", text:"Iniciar revisión por dictado"});
     goBtn.addEventListener("click", function(){
       $("#modalDetalle").hidden = true;
-      apiarioActivo = c.apiarioId;
+      fijarApiarioActivo(c.apiarioId);
       colmenaEnRevision = c.id;
       cambiarTab("revisar");
       seleccionarColmenaRevision(c.id);
@@ -2792,7 +2828,7 @@
       store.apiarios = store.apiarios.filter(function(a){ return a.id!==ap.id; });
       store.esDemo = false;
       guardar();
-      if(apiarioActivo===ap.id) apiarioActivo = store.apiarios[0] ? store.apiarios[0].id : null;
+      if(apiarioActivo===ap.id) fijarApiarioActivo(store.apiarios[0] ? store.apiarios[0].id : null);
       renderApiarios();
       toast("Apiario \""+ap.nombre+"\" eliminado");
     });
@@ -3235,7 +3271,6 @@
 
   function renderRevisarColmenas(){
     renderChipsUsuario();
-    renderChipsApiario("#chipsApiarioRevisar", function(){ renderRevisarColmenas(); });
     var grid = $("#hiveGridRevisar");
     grid.innerHTML = "";
     var lista = colmenasDe(apiarioActivo).sort(function(a,b){ return a.numero-b.numero; });
@@ -3900,7 +3935,7 @@
     var c = store.colmenas.find(function(x){ return x.apiarioId===apId && x.numero===num; });
     if(!c) return;
     cerrarScan();
-    apiarioActivo = apId;
+    fijarApiarioActivo(apId);
     renderRevisarColmenas();
     seleccionarColmenaRevision(c.id);
     toast("Colmena #"+num+" identificada por QR");
@@ -3923,7 +3958,9 @@
     dibujarMapa();
     renderMapaOverlapList();
   }
-  var mapaModo = "todos";
+  // Arranca mostrando el apiario de trabajo actual (no "todos"), para no
+  // tener que volver a elegirlo cada vez que se entra al mapa.
+  var mapaModo = apiarioActivo || "todos";
 
   // Ubicación actual del teléfono, para compararla con los apiarios en el mapa
   // y saber a qué distancia está. Se pide solo cuando el usuario toca el botón
@@ -4030,12 +4067,12 @@
       var filas = apiariosVisibles.map(function(a){
         var d = haversineKm(miUbicacion.lat, miUbicacion.lng, a.lat, a.lng);
         var estado = d<=2.5 ? "dentro del radio habitual (2.5 km)" : (d<=5 ? "dentro del radio amplio (5 km)" : "fuera del radio de 5 km");
-        return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0 0 4px;"><b>'+escaparHtml(a.nombre)+'</b>: '+d.toFixed(2)+' km de tu ubicación — '+estado+'</p>';
+        return '<p style="font-size:12.5px; color:var(--accent-soft-ink); margin:0 0 4px;"><b>'+escaparHtml(a.nombre)+'</b>: '+d.toFixed(2)+' km de tu ubicación — '+estado+'</p>';
       }).join("");
       cardUbicacion.innerHTML =
-        '<p class="section-title" style="margin-bottom:6px; color:var(--accent-ink);">Distancia desde tu ubicación</p>'+
+        '<p class="section-title" style="margin-bottom:6px; color:var(--accent-soft-ink);">Distancia desde tu ubicación</p>'+
         filas+
-        '<p style="font-size:11px; color:var(--accent-ink); opacity:.8; margin:4px 0 0;">Ubicación tomada '+haceTiempo(miUbicacion.ts)+(miUbicacion.accuracy?(' · precisión ±'+Math.round(miUbicacion.accuracy)+' m'):'')+'.</p>';
+        '<p style="font-size:11px; color:var(--accent-soft-ink); opacity:.8; margin:4px 0 0;">Ubicación tomada '+haceTiempo(miUbicacion.ts)+(miUbicacion.accuracy?(' · precisión ±'+Math.round(miUbicacion.accuracy)+' m'):'')+'.</p>';
       box.appendChild(cardUbicacion);
     }
 
@@ -4067,7 +4104,7 @@
      9. TAB HISTORIAL
      ============================================================ */
   var histFiltro = "todos";
-  var histApiario = "todos";
+  var histApiario = apiarioActivo || "todos";
 
   /* Aplica los mismos filtros (apiario + estado) que se ven en pantalla, para
      que tanto la lista como el PDF descargado muestren exactamente lo mismo. */
@@ -4402,7 +4439,7 @@
   /* ============================================================
      9b. TAB PRODUCCIÓN
      ============================================================ */
-  var prodApiarioFiltro = "todos";
+  var prodApiarioFiltro = apiarioActivo || "todos";
   var KG_POR_LITRO_MIEL = 1.42; // densidad aproximada de la miel envasada
 
   function proyeccionColmena(c){
@@ -4518,14 +4555,14 @@
     var reparto = apiarioId ? calcularRepartoSocios(apiarioId, botellas) : null;
     if(!reparto){ box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
-    box.innerHTML = '<p style="font-size:12.5px; font-weight:700; color:var(--accent-ink); margin:0 0 4px;">👥 Se reparte entre '+reparto.length+' socios</p>'+
-      reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtNum(r.monto,2)+' botella'+(r.monto===1?"":"s")+'</b></p>'; }).join("");
+    box.innerHTML = '<p style="font-size:12.5px; font-weight:700; color:var(--accent-soft-ink); margin:0 0 4px;">👥 Se reparte entre '+reparto.length+' socios</p>'+
+      reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-soft-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtNum(r.monto,2)+' botella'+(r.monto===1?"":"s")+'</b></p>'; }).join("");
   }
 
   function inicializarFormCosecha(){
     if(!$("#inCosechaFecha").value){ $("#inCosechaFecha").value = new Date().toISOString().slice(0,10); }
     var actual = $("#selCosechaApiario").value;
-    poblarSelectApiarioCosecha(actual || (prodApiarioFiltro!=="todos" ? prodApiarioFiltro : ""));
+    poblarSelectApiarioCosecha(actual || (prodApiarioFiltro!=="todos" ? prodApiarioFiltro : (apiarioActivo||"")));
     actualizarRepartoPreviewCosecha();
   }
   $("#selCosechaApiario").addEventListener("change", actualizarRepartoPreviewCosecha);
@@ -4805,15 +4842,15 @@
     var reparto = apiarioId ? calcularRepartoSocios(apiarioId, total) : null;
     if(!reparto){ box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
-    box.innerHTML = '<p style="font-size:12.5px; font-weight:700; color:var(--accent-ink); margin:0 0 4px;">👥 Se divide entre '+reparto.length+' socios</p>'+
-      reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtLdec(r.monto)+'</b></p>'; }).join("");
+    box.innerHTML = '<p style="font-size:12.5px; font-weight:700; color:var(--accent-soft-ink); margin:0 0 4px;">👥 Se divide entre '+reparto.length+' socios</p>'+
+      reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-soft-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtLdec(r.monto)+'</b></p>'; }).join("");
   }
 
   function abrirModalInversion(){
     $("#inInversionDetalle").value = "";
     $("#inInversionCantidad").value = "1";
     $("#inInversionPrecio").value = "";
-    poblarSelectApiarioInversion("");
+    poblarSelectApiarioInversion(apiarioActivo || "");
     inversionCategoriaSel = CATEGORIAS_INVERSION[0];
     var ref = crearChipsUnicos($("#inversionCategoriaChips"), CATEGORIAS_INVERSION, CATEGORIAS_INVERSION[0], function(v){
       inversionCategoriaSel = v;
@@ -5205,7 +5242,7 @@
         var c = candidatos.length===1 ? candidatos[0]
           : candidatos.find(function(x){ return x.apiarioId===apiarioActivo; }) || candidatos[0];
         if(c){
-          apiarioActivo = c.apiarioId;
+          fijarApiarioActivo(c.apiarioId);
           if(pideDictado){
             cambiarTab("revisar");
             seleccionarColmenaRevision(c.id);
@@ -5224,7 +5261,7 @@
       if(mApiarioSolo){
         var ap = buscarApiarioPorTexto(mApiarioSolo[1]);
         if(ap){
-          apiarioActivo = ap.id;
+          fijarApiarioActivo(ap.id);
           cambiarTab("colmenas");
           toast("Apiario: "+ap.nombre);
           return;

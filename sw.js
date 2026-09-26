@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v15";
+var CACHE_NAME = "apicampo-cache-v16";
 
 /* Caché aparte para el modelo de voz offline (~34MB): no lleva número de
    versión de la app, así que NO se borra cuando la app se actualiza (ver
