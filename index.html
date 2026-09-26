@@ -4893,6 +4893,7 @@
     $("#listaInventario").hidden = (inversionVista!=="inventario");
 
     if(inversionVista==="inventario"){
+      $("#inversionRepartoSocios").innerHTML = "";
       renderInventario();
       return;
     }
@@ -4968,10 +4969,13 @@
       cont.appendChild(row);
     });
 
-    var confirmadasParaReparto = store.inversiones.filter(function(i){
-      return i.confirmada && (inversionFiltro==="todas" || i.categoria===inversionFiltro);
-    });
-    renderRepartoSociosResumen(confirmadasParaReparto);
+    // El resumen de reparto por socio siempre refleja lo que se está viendo
+    // en pantalla en este momento (la misma "lista" de arriba): si estás en
+    // "Por comprar", muestra lo que le tocará a cada socio de las compras
+    // pendientes; en cuanto una compra se confirma, desaparece de "Por
+    // comprar" y por lo tanto también de este resumen (ya no "queda pegado").
+    // En "Historial" el resumen muestra, en cambio, lo ya confirmado.
+    renderRepartoSociosResumen(lista);
   }
 
   /* ---- Inventario: cuánto de lo comprado (ya confirmado) sigue en existencia ---- */
