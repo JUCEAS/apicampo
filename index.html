@@ -368,6 +368,11 @@
   .apiario-card .coords{ font-size:12px; color:var(--muted); }
   .stat-mini{ display:flex; gap:14px; font-size:12.5px; color:var(--muted); }
   .stat-mini b{ color:var(--ink); }
+  .badge-sociedad{
+    display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+    color:var(--accent-ink); background:var(--accent-soft); padding:3px 9px; border-radius:999px;
+    margin-top:4px;
+  }
 
   /* ---------- Colmena grid ---------- */
   .hive-grid{
@@ -535,6 +540,16 @@
   .type-toggle button span{ font-size:11px; font-weight:500; color:var(--muted); }
   .type-toggle button.on{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
   .type-toggle button.on span{ color:var(--accent-ink); opacity:0.85; }
+  .socio-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .socio-row .socio-num{
+    flex:none; width:22px; height:22px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink);
+    font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .socio-row input{
+    flex:1; min-width:0; padding:9px 10px; border-radius:10px; border:1px solid var(--line);
+    font-size:13px; font-family:inherit; background:var(--surface-2); color:var(--ink);
+  }
+  .socio-row input.socio-tel{ flex:0 0 34%; }
 
   /* ---------- Mapa ---------- */
   .map-caption{ font-size:12px; color:var(--muted); line-height:1.5; }
@@ -854,6 +869,7 @@
       <div id="listaInversion"></div>
       <div class="empty" id="inversionEmpty" hidden>Todavía no has registrado ninguna compra.</div>
     </div>
+    <div id="inversionRepartoSocios"></div>
   </main>
 
   <nav class="tabbar">
@@ -908,6 +924,19 @@
     </div>
     <button class="btn btn-line btn-block" id="btnUsarUbicacion">Usar mi ubicación actual</button>
     <div id="ubicacionMsg" style="font-size:12px; color:var(--muted);"></div>
+    <div class="field">
+      <label>¿Quién financia este apiario?</label>
+      <div class="type-toggle" id="modoPropiedadToggle">
+        <button type="button" data-modo="individual">Individual<span>un solo dueño</span></button>
+        <button type="button" data-modo="sociedad">En sociedad<span>varios socios</span></button>
+      </div>
+    </div>
+    <div class="field" id="camposSocios" hidden>
+      <label>Socios</label>
+      <div id="listaSociosForm"></div>
+      <button type="button" class="btn btn-line btn-block" id="btnAgregarSocio" style="margin-top:2px;">+ Agregar socio</button>
+      <p style="font-size:12px; color:var(--muted); margin:8px 0 0;">Cada compra o gasto de este apiario se dividirá en partes iguales entre todos los socios registrados aquí.</p>
+    </div>
     <div class="row" style="gap:10px; margin-top:4px;">
       <button class="btn btn-line" style="flex:1;" id="btnCancelarApiario">Cancelar</button>
       <button class="btn btn-primary" style="flex:1;" id="btnGuardarApiario">Guardar apiario</button>
@@ -1141,6 +1170,7 @@
         <option value="">General (todos / ninguno en particular)</option>
       </select>
     </div>
+    <div id="inversionRepartoPreview" hidden style="background:var(--accent-soft); border-radius:10px; padding:10px 12px;"></div>
     <div class="row" style="gap:10px;">
       <button class="btn btn-line" style="flex:1;" id="btnCancelarInversion">Cancelar</button>
       <button class="btn btn-primary" style="flex:1;" id="btnGuardarInversion">Guardar compra</button>
@@ -1439,8 +1469,11 @@
     ];
     return {
       apiarios:[
-        {id:ap1, nombre:"Apiario El Zapote", lat:14.0818, lng:-87.2068, creado:hoy-60*dia},
-        {id:ap2, nombre:"Apiario La Ceiba", lat:14.1450, lng:-87.1500, creado:hoy-40*dia}
+        {id:ap1, nombre:"Apiario El Zapote", lat:14.0818, lng:-87.2068, creado:hoy-60*dia, modoPropiedad:"individual", socios:[]},
+        {id:ap2, nombre:"Apiario La Ceiba", lat:14.1450, lng:-87.1500, creado:hoy-40*dia, modoPropiedad:"sociedad", socios:[
+          {id:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)", telefono:"9999-0001"},
+          {id:"soc_ceiba_2", nombre:"Socio 2 (ejemplo)", telefono:"9999-0002"}
+        ]}
       ],
       colmenas: colmenasAp1.concat(colmenasAp2),
       revisiones: revisiones,
@@ -1477,6 +1510,10 @@
         if(!datos.alimentaciones) datos.alimentaciones = [];
         if(!datos.trabajos) datos.trabajos = [];
         if(!datos.inversiones) datos.inversiones = [];
+        (datos.apiarios||[]).forEach(function(ap){
+          if(!ap.modoPropiedad) ap.modoPropiedad = "individual";
+          if(!ap.socios) ap.socios = [];
+        });
         (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
         (datos.revisiones||[]).forEach(function(r){
           if(!r.apiarioId){
@@ -1729,10 +1766,12 @@
     store.apiarios.forEach(function(ap){
       var n = colmenasDe(ap.id).length;
       var card = el("div",{class:"card apiario-card"});
+      var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
       card.innerHTML =
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
+        (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
@@ -1746,7 +1785,7 @@
       actions.appendChild(b1); actions.appendChild(b2); actions.appendChild(b3);
       card.appendChild(actions);
       var actions2 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
-      var b5 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"📍 Editar ubicación"});
+      var b5 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"✏️ Editar apiario"});
       b5.addEventListener("click", function(){ abrirModalEditarApiario(ap); });
       var b4 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"🛠 Registrar trabajo"});
       b4.addEventListener("click", function(){ abrirModalTrabajo(ap); });
@@ -1785,22 +1824,74 @@
   // lugar porque todavía no se estaba físicamente en el apiario, y luego hay
   // que corregir las coordenadas ya estando ahí).
   var apiarioEditando = null;
+  var modoPropiedadSel = "individual";
+  var sociosForm = []; // copia de trabajo mientras el modal está abierto: [{id,nombre,telefono}]
+
+  function nuevoSocioVacio(){ return {id:uid("soc"), nombre:"", telefono:""}; }
+
+  function renderSociosForm(){
+    var wrap = $("#listaSociosForm");
+    wrap.innerHTML = "";
+    sociosForm.forEach(function(s, i){
+      var row = el("div",{class:"socio-row"});
+      var num = el("span",{class:"socio-num", text:String(i+1)});
+      var inNombre = el("input",{type:"text", placeholder:"Nombre del socio"});
+      inNombre.value = s.nombre;
+      inNombre.addEventListener("input", function(){ s.nombre = inNombre.value; });
+      var inTel = el("input",{class:"socio-tel", type:"text", inputmode:"tel", placeholder:"Teléfono"});
+      inTel.value = s.telefono;
+      inTel.addEventListener("input", function(){ s.telefono = inTel.value; });
+      var btnDel = el("button",{type:"button", class:"icon-btn", style:"flex:none; color:var(--critical);", title:"Quitar socio", "aria-label":"Quitar socio"});
+      btnDel.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      btnDel.addEventListener("click", function(){ sociosForm.splice(i,1); renderSociosForm(); });
+      row.appendChild(num); row.appendChild(inNombre); row.appendChild(inTel); row.appendChild(btnDel);
+      wrap.appendChild(row);
+    });
+  }
+
+  function actualizarModoPropiedadUI(){
+    $all("#modoPropiedadToggle button").forEach(function(b){ b.classList.toggle("on", b.dataset.modo===modoPropiedadSel); });
+    $("#camposSocios").hidden = (modoPropiedadSel!=="sociedad");
+  }
+  $all("#modoPropiedadToggle button").forEach(function(b){
+    b.addEventListener("click", function(){
+      modoPropiedadSel = b.dataset.modo;
+      if(modoPropiedadSel==="sociedad" && sociosForm.length<2){
+        while(sociosForm.length<2) sociosForm.push(nuevoSocioVacio());
+        renderSociosForm();
+      }
+      actualizarModoPropiedadUI();
+    });
+  });
+  $("#btnAgregarSocio").addEventListener("click", function(){
+    sociosForm.push(nuevoSocioVacio());
+    renderSociosForm();
+  });
 
   function abrirModalNuevoApiario(){
     apiarioEditando = null;
     $("#modalApiarioTitulo").textContent = "Nuevo apiario";
     $("#btnGuardarApiario").textContent = "Guardar apiario";
     $("#inNombreApiario").value=""; $("#inLat").value=""; $("#inLng").value=""; $("#ubicacionMsg").textContent="";
+    modoPropiedadSel = "individual";
+    sociosForm = [];
+    renderSociosForm();
+    actualizarModoPropiedadUI();
     $("#modalApiario").hidden = false;
   }
   function abrirModalEditarApiario(ap){
     apiarioEditando = ap;
-    $("#modalApiarioTitulo").textContent = "Editar ubicación — "+ap.nombre;
+    $("#modalApiarioTitulo").textContent = "Editar apiario — "+ap.nombre;
     $("#btnGuardarApiario").textContent = "Guardar cambios";
     $("#inNombreApiario").value = ap.nombre;
     $("#inLat").value = ap.lat;
     $("#inLng").value = ap.lng;
     $("#ubicacionMsg").textContent = "";
+    modoPropiedadSel = ap.modoPropiedad || "individual";
+    sociosForm = (ap.socios||[]).map(function(s){ return {id:s.id, nombre:s.nombre, telefono:s.telefono}; });
+    if(modoPropiedadSel==="sociedad" && sociosForm.length<2){ while(sociosForm.length<2) sociosForm.push(nuevoSocioVacio()); }
+    renderSociosForm();
+    actualizarModoPropiedadUI();
     $("#modalApiario").hidden = false;
   }
 
@@ -1825,21 +1916,33 @@
     if(!nombre){ toast("Ponle un nombre al apiario"); return; }
     if(isNaN(lat)||isNaN(lng)){ toast("Falta la latitud o longitud"); return; }
 
+    var socios = [];
+    if(modoPropiedadSel==="sociedad"){
+      var sociosValidos = sociosForm.filter(function(s){ return s.nombre && s.nombre.trim(); });
+      if(sociosValidos.length<2){ toast("Un apiario en sociedad necesita al menos 2 socios con nombre"); return; }
+      var sinTelefono = sociosValidos.some(function(s){ return !s.telefono || !s.telefono.trim(); });
+      if(sinTelefono){ toast("Falta el teléfono de algún socio"); return; }
+      socios = sociosValidos.map(function(s){ return {id:s.id, nombre:s.nombre.trim(), telefono:s.telefono.trim()}; });
+    }
+
     if(apiarioEditando){
       apiarioEditando.nombre = nombre;
       apiarioEditando.lat = lat;
       apiarioEditando.lng = lng;
+      apiarioEditando.modoPropiedad = modoPropiedadSel;
+      apiarioEditando.socios = socios;
       store.esDemo = false;
       guardar();
       $("#modalApiario").hidden = true;
       renderApiarios();
       if(mapaLeaflet) dibujarMapa(); // por si el mapa ya estaba abierto con las coordenadas viejas
+      renderInversion();
       toast("Ubicación de "+nombre+" actualizada");
       apiarioEditando = null;
       return;
     }
 
-    var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now()};
+    var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios};
     store.apiarios.push(ap);
     store.esDemo = false;
     guardar();
@@ -4154,11 +4257,39 @@
     var sel = $("#selInversionApiario");
     sel.innerHTML = '<option value="">General (todos / ninguno en particular)</option>';
     store.apiarios.forEach(function(ap){
-      var opt = el("option",{text:ap.nombre});
+      var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
+      var opt = el("option",{text: ap.nombre + (esSociedad ? (" (sociedad · "+ap.socios.length+")") : "")});
       opt.value = ap.id;
       if(ap.id===seleccionado) opt.selected = true;
       sel.appendChild(opt);
     });
+  }
+
+  // Calcula cómo se divide un monto entre los socios de un apiario (partes
+  // iguales, ajustando centavos de redondeo en el último socio para que la
+  // suma exacta siempre cuadre con el total).
+  function calcularRepartoSocios(apiarioId, total){
+    var ap = store.apiarios.find(function(a){ return a.id===apiarioId; });
+    if(!ap || ap.modoPropiedad!=="sociedad" || !ap.socios || ap.socios.length<2) return null;
+    var n = ap.socios.length;
+    var base = Math.floor((total/n)*100)/100;
+    var reparto = ap.socios.map(function(s){ return {socioId:s.id, nombre:s.nombre, monto:base}; });
+    var acumulado = base*(n-1);
+    reparto[n-1].monto = Math.round((total-acumulado)*100)/100;
+    return reparto;
+  }
+
+  function actualizarRepartoPreviewInversion(){
+    var cant = parseFloat($("#inInversionCantidad").value) || 0;
+    var precio = parseFloat($("#inInversionPrecio").value) || 0;
+    var total = cant*precio;
+    var apiarioId = $("#selInversionApiario").value || null;
+    var box = $("#inversionRepartoPreview");
+    var reparto = apiarioId ? calcularRepartoSocios(apiarioId, total) : null;
+    if(!reparto){ box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false;
+    box.innerHTML = '<p style="font-size:12.5px; font-weight:700; color:var(--accent-ink); margin:0 0 4px;">👥 Se divide entre '+reparto.length+' socios</p>'+
+      reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtLdec(r.monto)+'</b></p>'; }).join("");
   }
 
   function abrirModalInversion(){
@@ -4176,13 +4307,15 @@
     inversionCategoriaSel = ref.get();
     $("#campoInversionDetalle").hidden = (inversionCategoriaSel!=="Medicamento");
     actualizarTotalPreviewInversion();
+    actualizarRepartoPreviewInversion();
     $("#modalInversion").hidden = false;
   }
   $("#btnNuevaInversion").addEventListener("click", abrirModalInversion);
   $("#btnCancelarInversion").addEventListener("click", function(){ $("#modalInversion").hidden = true; });
   $("#modalInversion").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
-  $("#inInversionCantidad").addEventListener("input", actualizarTotalPreviewInversion);
-  $("#inInversionPrecio").addEventListener("input", actualizarTotalPreviewInversion);
+  $("#inInversionCantidad").addEventListener("input", function(){ actualizarTotalPreviewInversion(); actualizarRepartoPreviewInversion(); });
+  $("#inInversionPrecio").addEventListener("input", function(){ actualizarTotalPreviewInversion(); actualizarRepartoPreviewInversion(); });
+  $("#selInversionApiario").addEventListener("change", actualizarRepartoPreviewInversion);
 
   $("#btnGuardarInversion").addEventListener("click", function(){
     var cantidad = parseFloat($("#inInversionCantidad").value);
@@ -4191,10 +4324,13 @@
     if(isNaN(precio) || precio<0){ toast("Escribe un precio unitario válido"); return; }
     var apiarioId = $("#selInversionApiario").value || null;
     var detalle = $("#inInversionDetalle").value.trim();
+    var total = cantidad*precio;
+    var reparto = apiarioId ? calcularRepartoSocios(apiarioId, total) : null;
     store.inversiones.push({
       id: uid("inv"), categoria: inversionCategoriaSel, detalle: detalle,
-      cantidad: cantidad, precioUnitario: precio, total: cantidad*precio,
-      apiarioId: apiarioId, fecha: Date.now(), registradoPor: store.usuarioActual
+      cantidad: cantidad, precioUnitario: precio, total: total,
+      apiarioId: apiarioId, fecha: Date.now(), registradoPor: store.usuarioActual,
+      reparto: reparto
     });
     store.esDemo = false;
     guardar();
@@ -4237,8 +4373,9 @@
       var row = el("div",{class:"prod-row"});
       var izq = el("div");
       var apNombre = inv.apiarioId ? apiarioNombre(inv.apiarioId) : "General";
+      var repartoTxt = (inv.reparto && inv.reparto.length) ? (' · ÷ '+inv.reparto.length+' socios ('+fmtLdec(inv.reparto[0].monto)+' c/u aprox.)') : '';
       izq.innerHTML = '<div class="who">'+escaparHtml(inv.categoria)+(inv.detalle?(" · "+escaparHtml(inv.detalle)):"")+'</div>'+
-        '<div class="apiario-name">'+escaparHtml(apNombre)+' · '+fechaCorta(inv.fecha)+'</div>';
+        '<div class="apiario-name">'+escaparHtml(apNombre)+' · '+fechaCorta(inv.fecha)+escaparHtml(repartoTxt)+'</div>';
       row.appendChild(izq);
       var der = el("div",{class:"right"});
       der.innerHTML = '<div class="kg">'+fmtNum(inv.cantidad,inv.cantidad%1===0?0:2)+' × '+fmtLdec(inv.precioUnitario)+'</div><div class="ingreso">'+fmtL(inv.total)+'</div>';
@@ -4257,6 +4394,42 @@
       row.style.alignItems = "center";
       row.appendChild(btnBorrar);
       cont.appendChild(row);
+    });
+
+    renderRepartoSociosResumen(lista);
+  }
+
+  // Resumen: cuánto le corresponde pagar a cada socio, agrupado por apiario
+  // en sociedad, sumando su parte en cada compra de la lista mostrada.
+  function renderRepartoSociosResumen(lista){
+    var wrap = $("#inversionRepartoSocios");
+    var porApiario = {}; // apiarioId -> {ap, porSocio:{socioId:{nombre,monto}}, total}
+    lista.forEach(function(inv){
+      if(!inv.reparto || !inv.reparto.length || !inv.apiarioId) return;
+      var ap = store.apiarios.find(function(a){ return a.id===inv.apiarioId; });
+      if(!ap) return;
+      if(!porApiario[ap.id]) porApiario[ap.id] = {ap:ap, porSocio:{}, total:0};
+      var grupo = porApiario[ap.id];
+      grupo.total += inv.total;
+      inv.reparto.forEach(function(r){
+        if(!grupo.porSocio[r.socioId]) grupo.porSocio[r.socioId] = {nombre:r.nombre, monto:0};
+        grupo.porSocio[r.socioId].monto += r.monto;
+      });
+    });
+    var grupos = Object.keys(porApiario).map(function(id){ return porApiario[id]; });
+    if(!grupos.length){ wrap.innerHTML = ""; return; }
+    wrap.innerHTML = '<p class="section-title" style="margin:14px 0 8px;">Cuánto le toca a cada socio</p>';
+    grupos.forEach(function(g){
+      var card = el("div",{class:"card", style:"margin-bottom:10px;"});
+      var socios = Object.keys(g.porSocio).map(function(id){ return g.porSocio[id]; });
+      var telsPorNombre = {};
+      (g.ap.socios||[]).forEach(function(s){ telsPorNombre[s.nombre] = s.telefono; });
+      card.innerHTML = '<p class="who" style="margin:0 0 8px;">'+escaparHtml(g.ap.nombre)+' · total '+fmtL(g.total)+'</p>'+
+        socios.map(function(s){
+          var tel = telsPorNombre[s.nombre] ? (' · '+escaparHtml(telsPorNombre[s.nombre])) : '';
+          return '<p style="font-size:13px; margin:0 0 4px; display:flex; justify-content:space-between; gap:8px;"><span>'+escaparHtml(s.nombre)+tel+'</span><b>'+fmtL(s.monto)+'</b></p>';
+        }).join("");
+      wrap.appendChild(card);
     });
   }
 
