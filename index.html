@@ -2896,16 +2896,37 @@
       }
       // Se cortó solo (pausa o límite de tiempo de Android) — seguimos escuchando
       // sin que el usuario tenga que volver a tocar el botón.
-      try{ iniciarSesionReconocimiento(); }
-      catch(e){
-        escuchando = false;
-        $("#btnMic").classList.remove("listening");
-        $("#micStatus").textContent = "Se detuvo el dictado. Toca el micrófono para continuar.";
-        if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
-      }
+      //
+      // Importante: NO se reinicia al instante. En Android, si se llama a
+      // start() apenas termina la sesión anterior, el sistema a veces todavía
+      // no alcanzó a liberarla — y el reinicio falla en silencio (sin
+      // avisar), dejando el micrófono "pegado" como si se hubiera apagado
+      // solo después de un par de frases. Una pausa breve antes de reiniciar
+      // evita justo eso.
+      var sesionQueTermino = reconocimiento;
+      setTimeout(function(){
+        // Si mientras tanto se tocó "detener", o ya se inició otra sesión
+        // distinta (p. ej. cambió a modo sin conexión), no reiniciar esta.
+        if(detenerManual || reconocimiento!==sesionQueTermino) return;
+        try{ iniciarSesionReconocimiento(); }
+        catch(e){
+          escuchando = false;
+          $("#btnMic").classList.remove("listening");
+          $("#micStatus").textContent = "Se detuvo el dictado. Toca el micrófono para continuar.";
+          if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
+        }
+      }, 300);
     };
     try{ reconocimiento.start(); }
-    catch(e){ $("#micStatus").textContent = "No se pudo iniciar el micrófono."; }
+    catch(e){
+      // Si el reinicio falla aquí (ver nota arriba), se avisa con claridad y
+      // se apaga el estado visual — en vez de quedar "escuchando" sin
+      // escuchar de verdad.
+      escuchando = false;
+      $("#btnMic").classList.remove("listening");
+      $("#micStatus").textContent = "Se detuvo el dictado. Toca el micrófono para continuar.";
+      if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
+    }
   }
 
   /* ---- Motor "offline" (Vosk — corre en el teléfono, sin internet) ----
