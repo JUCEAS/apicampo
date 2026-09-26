@@ -418,11 +418,22 @@
     cursor:pointer;
   }
   .hive-tile .num{ font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:14px; }
-  .hive-tile .dot{ width:8px; height:8px; border-radius:50%; }
-  .hive-tile[data-estado="ok"] .dot{ background:var(--good); }
-  .hive-tile[data-estado="atencion"] .dot{ background:var(--warn); }
-  .hive-tile[data-estado="critico"] .dot{ background:var(--critical); }
-  .hive-tile[data-estado="sin_revisar"] .dot{ background:var(--muted); }
+  /* El punto de estado no depende solo del color (daltonismo): cada estado
+     también trae su propio símbolo dentro del punto, así se distingue por
+     forma además de por color. */
+  .hive-tile .dot{
+    width:13px; height:13px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:8px; font-weight:900; line-height:1; font-family:"Inter",sans-serif;
+  }
+  .hive-tile[data-estado="ok"] .dot{ background:var(--good); color:#fff; }
+  .hive-tile[data-estado="atencion"] .dot{ background:var(--warn); color:#3A2900; }
+  .hive-tile[data-estado="critico"] .dot{ background:var(--critical); color:#fff; }
+  .hive-tile[data-estado="sin_revisar"] .dot{ background:var(--muted); color:#fff; }
+  .hive-tile[data-estado="ok"] .dot::after{ content:"✓"; }
+  .hive-tile[data-estado="atencion"] .dot::after{ content:"!"; }
+  .hive-tile[data-estado="critico"] .dot::after{ content:"✕"; }
+  .hive-tile[data-estado="sin_revisar"] .dot::after{ content:"?"; }
   .hive-tile.selected{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
   .hive-tile .tipo-tag{
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
@@ -464,6 +475,9 @@
   .hive-tile .tag-zanganos{ color:#5C5300; background:#F2ECB8; }
   .hive-tile .tag-miel{ color:#7A5C00; background:#FFF3B0; }
   .hive-tile .tag-polen{ color:#8A5A00; background:#FCE4B0; }
+  .hive-tile .tag-varroa-ok{ color:#2E6B32; background:#DCEFDC; }
+  .hive-tile .tag-varroa-atencion{ color:#5C4A1E; background:#EFE6C8; }
+  .hive-tile .tag-varroa-critico{ color:#fff; background:#B4472F; }
   .hive-tile .fecha-rev{
     font-family:"IBM Plex Mono",monospace; font-size:8.5px; font-weight:500;
     color:var(--muted); margin-top:1px;
@@ -757,10 +771,10 @@
     <div class="empty" id="hiveEmpty" hidden>Este apiario todavía no tiene colmenas registradas.</div>
 
     <div class="legend">
-      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:5px;"></span>Bien</span>
-      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:5px;"></span>Atención</span>
-      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--critical);margin-right:5px;"></span>Crítico</span>
-      <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:5px;"></span>Sin revisar +15 días</span>
+      <span><span class="dot" style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:var(--good);color:#fff;font-size:8px;font-weight:900;margin-right:5px;">✓</span>Bien</span>
+      <span><span class="dot" style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:var(--warn);color:#3A2900;font-size:8px;font-weight:900;margin-right:5px;">!</span>Atención</span>
+      <span><span class="dot" style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:var(--critical);color:#fff;font-size:8px;font-weight:900;margin-right:5px;">✕</span>Crítico</span>
+      <span><span class="dot" style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:var(--muted);color:#fff;font-size:8px;font-weight:900;margin-right:5px;">?</span>Sin revisar +15 días</span>
     </div>
   </main>
 
@@ -812,6 +826,10 @@
       <div>
         <p class="section-title" style="margin-bottom:8px;">Enfermedades o plagas observadas</p>
         <div class="wrap-chips" id="diseaseChips"></div>
+        <div class="row" style="align-items:center; gap:8px; margin-top:8px;">
+          <label for="inVarroaPorcentaje" style="font-size:12.5px; color:var(--muted); white-space:nowrap;">Varroa — % de infestación (opcional):</label>
+          <input type="number" id="inVarroaPorcentaje" min="0" max="100" step="0.1" placeholder="ej: 5" style="width:80px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
+        </div>
       </div>
 
       <div>
@@ -1003,6 +1021,10 @@
     <div class="field">
       <label for="inNombreApiario">Nombre</label>
       <input type="text" id="inNombreApiario" placeholder="Ej: Apiario Los Laureles">
+    </div>
+    <div class="field">
+      <label for="inSenasaApiario">Número de registro SENASA (opcional)</label>
+      <input type="text" id="inSenasaApiario" placeholder="Ej: SEN-2026-00123">
     </div>
     <div class="row" style="gap:10px;">
       <div class="field" style="flex:1;">
@@ -1405,7 +1427,8 @@
       sinAlimento:false,
       reforzada:false, reforzadaDias:null,
       temperamento:null, espacio:null,
-      enfermedades:[], sanaExplicito:false
+      enfermedades:[], sanaExplicito:false,
+      varroaPorcentaje:null
     };
 
     /* "reina" casi siempre se dicta como "abeja reina" (p.ej. "no hay abeja reina"),
@@ -1542,6 +1565,22 @@
       [/\btropilaelaps\b/, "Tropilaelaps"]
     ];
     mapaEnf.forEach(function(par){ if(par[0].test(t)) r.enfermedades.push(par[1]); });
+
+    /* Porcentaje de infestación de varroa (opcional): solo se llena si se
+       dicta un número junto a "varroa"/"infestación" — ej. "varroa del 8 por
+       ciento", "8% de varroa", "infestación de 5 por ciento". Si se dicta,
+       también se marca "Varroa" en enfermedades aunque no se haya usado esa
+       palabra exacta cerca del número. */
+    var mVarroaPct = t.match(/varroa[^.]{0,20}?(\d+(?:[.,]\d+)?)\s*(?:por ciento|porciento|%)/)
+      || t.match(/(\d+(?:[.,]\d+)?)\s*(?:por ciento|porciento|%)[^.]{0,20}?varroa/)
+      || t.match(/infestaci[oó]n(?: de varroa)?[^.]{0,10}?(\d+(?:[.,]\d+)?)\s*(?:por ciento|porciento|%)/);
+    if(mVarroaPct){
+      var pctVarroa = parseFloat(mVarroaPct[1].replace(",", "."));
+      if(!isNaN(pctVarroa)){
+        r.varroaPorcentaje = pctVarroa;
+        if(r.enfermedades.indexOf("Varroa")===-1) r.enfermedades.push("Varroa");
+      }
+    }
 
     /* "plaga"/"plagas" en general (sin nombrar cuál) — igual sirve para que
        el semáforo marque atención aunque no se diga el nombre exacto. */
@@ -1702,6 +1741,7 @@
       if(!ap.modoPropiedad) ap.modoPropiedad = "individual";
       if(!ap.socios) ap.socios = [];
       if(!ap.giras) ap.giras = [];
+      if(ap.senasa===undefined) ap.senasa = "";
       ap.socios.forEach(function(s){ if(s.sinGiras===undefined) s.sinGiras = false; });
     });
     if(!datos.cosechas) datos.cosechas = [];
@@ -1800,6 +1840,13 @@
     // sin reina o colmena sin abejas/perdida: se trata como crítico, no como "atención",
     // porque sin reina la colmena no puede sostenerse por sí sola.
     if(campos.reinaPresente===false || campos.sinCriaDelDia || campos.poblacion==="ninguna") return "critico";
+    // Umbrales orientativos de infestación de varroa (referencia general, no
+    // sustituye el criterio del apicultor): 6% o más se trata como crítico,
+    // 3% o más como atención.
+    if(campos.varroaPorcentaje!=null){
+      if(campos.varroaPorcentaje>=6) return "critico";
+      if(campos.varroaPorcentaje>=3) return "atencion";
+    }
     if(campos.enfermedades.length>0 || campos.espacio==="falta") return "atencion";
     if(campos.poblacion==="baja") return "atencion";
     if(campos.sinAlimento || campos.reservasMiel==="sin" || campos.reservasPolen==="sin") return "atencion";
@@ -1889,6 +1936,10 @@
       var polenTxt = "🌼 polen"+(c.reservasPolen!=="mencionada"?(" "+c.reservasPolen):"");
       partes.push('<span class="tag-info tag-polen" title="Reservas de polen en la última revisión">'+escaparHtml(polenTxt)+'</span>');
     }
+    if(c.varroaPorcentaje!=null){
+      var claseVarroa = c.varroaPorcentaje>=6 ? "tag-varroa-critico" : (c.varroaPorcentaje>=3 ? "tag-varroa-atencion" : "tag-varroa-ok");
+      partes.push('<span class="tag-info '+claseVarroa+'" title="Porcentaje de infestación de varroa en la última revisión">🦟 varroa '+c.varroaPorcentaje+'%</span>');
+    }
     return partes.join("");
   }
 
@@ -1934,6 +1985,13 @@
     };
     var v = map[estado]||map.sin_revisar;
     return '<span class="badge '+v[1]+'">'+v[0]+'</span>';
+  }
+  /* Texto del estado para el título (tooltip) del punto de semáforo en la
+     ficha de la colmena — el símbolo dentro del punto ya lo distingue sin
+     depender del color, esto añade el texto completo al pasar el mouse/dedo. */
+  function estadoTituloDot(estado){
+    var map = { ok:"Bien", atencion:"Atención", critico:"Crítico", sin_revisar:"Sin revisar +15 días" };
+    return map[estado]||map.sin_revisar;
   }
 
   function toast(msg){
@@ -2077,6 +2135,7 @@
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
+        (ap.senasa ? '<div class="coords mono" style="margin-top:-2px;" title="Número de registro SENASA">SENASA: '+escaparHtml(ap.senasa)+'</div>' : '')+
         (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
         (proximaGira ? '<p style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">🚐 Próxima gira: <b>'+escaparHtml(proximaGira.nombre)+'</b></p>' : '')+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
@@ -2200,7 +2259,7 @@
     apiarioEditando = null;
     $("#modalApiarioTitulo").textContent = "Nuevo apiario";
     $("#btnGuardarApiario").textContent = "Guardar apiario";
-    $("#inNombreApiario").value=""; $("#inLat").value=""; $("#inLng").value=""; $("#ubicacionMsg").textContent="";
+    $("#inNombreApiario").value=""; $("#inSenasaApiario").value=""; $("#inLat").value=""; $("#inLng").value=""; $("#ubicacionMsg").textContent="";
     modoPropiedadSel = "individual";
     sociosForm = [];
     renderSociosForm();
@@ -2212,6 +2271,7 @@
     $("#modalApiarioTitulo").textContent = "Editar apiario — "+ap.nombre;
     $("#btnGuardarApiario").textContent = "Guardar cambios";
     $("#inNombreApiario").value = ap.nombre;
+    $("#inSenasaApiario").value = ap.senasa || "";
     $("#inLat").value = ap.lat;
     $("#inLng").value = ap.lng;
     $("#ubicacionMsg").textContent = "";
@@ -2239,6 +2299,7 @@
   });
   $("#btnGuardarApiario").addEventListener("click", function(){
     var nombre = $("#inNombreApiario").value.trim();
+    var senasa = $("#inSenasaApiario").value.trim();
     var lat = parseFloat($("#inLat").value);
     var lng = parseFloat($("#inLng").value);
     if(!nombre){ toast("Ponle un nombre al apiario"); return; }
@@ -2255,6 +2316,7 @@
 
     if(apiarioEditando){
       apiarioEditando.nombre = nombre;
+      apiarioEditando.senasa = senasa;
       apiarioEditando.lat = lat;
       apiarioEditando.lng = lng;
       apiarioEditando.modoPropiedad = modoPropiedadSel;
@@ -2270,7 +2332,7 @@
       return;
     }
 
-    var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[]};
+    var ap = {id:uid("ap"), nombre:nombre, senasa:senasa, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[]};
     store.apiarios.push(ap);
     store.esDemo = false;
     fijarApiarioActivo(ap.id);
@@ -2422,7 +2484,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile", "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
+      tile.innerHTML = '<span class="dot" title="'+estadoTituloDot(estado)+'"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
       grid.appendChild(tile);
     });
@@ -3405,7 +3467,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
-      tile.innerHTML = '<span class="dot"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
+      tile.innerHTML = '<span class="dot" title="'+estadoTituloDot(estado)+'"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
       grid.appendChild(tile);
     });
@@ -3533,7 +3595,19 @@
       });
       wrap.appendChild(chip);
     });
+    var inVarroa = $("#inVarroaPorcentaje");
+    if(inVarroa) inVarroa.value = (camposActuales.varroaPorcentaje!=null) ? camposActuales.varroaPorcentaje : "";
   }
+  $("#inVarroaPorcentaje").addEventListener("input", function(){
+    var v = $("#inVarroaPorcentaje").value;
+    if(v===""){ camposActuales.varroaPorcentaje = null; return; }
+    var n = parseFloat(v);
+    camposActuales.varroaPorcentaje = isNaN(n) ? null : n;
+    if(camposActuales.varroaPorcentaje!=null && camposActuales.enfermedades.indexOf("Varroa")===-1){
+      camposActuales.enfermedades.push("Varroa");
+      renderDiseaseChips();
+    }
+  });
 
   $("#txtDictado").addEventListener("input", function(){
     var texto = $("#txtDictado").value;
