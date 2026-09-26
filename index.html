@@ -2988,6 +2988,36 @@
   var voskScriptNode = null;
   var voskMicStream = null;
 
+  /* Correcciones conocidas del modelo de voz sin internet: es un modelo
+     "small" (chico, ~34MB) genérico de español, no entrenado con
+     vocabulario de apicultura, así que a veces confunde una palabra técnica
+     con la palabra en español "de uso común" que más se le parece por
+     sonido (por ejemplo "cría del día" → "querida"). Además, muchos modelos
+     de reconocimiento de voz en español vienen entrenados con el acento de
+     España, donde la "z"/"c" y la "s" suenan distinto — pero en Honduras
+     (como en casi toda Latinoamérica) suenan igual ("seseo"), así que
+     palabras con z/c a veces se transcriben con s ("zángano" → "sángano").
+     Esta lista corrige, después de la transcripción y antes de guardar el
+     texto, los casos que ya sabemos que confunde. Se puede ir ampliando
+     según vayan apareciendo más palabras mal reconocidas en el campo. */
+  var CORRECCIONES_DICTADO_OFFLINE = [
+    [/\bquerida\b/gi, "cría del día"],
+    [/\bqueridas\b/gi, "crías del día"],
+    [/\bs[aá]nganos\b/gi, "zánganos"],
+    [/\bs[aá]ngano\b/gi, "zángano"],
+    [/\bsangano\b/gi, "zángano"],
+    [/\bsanganos\b/gi, "zánganos"]
+  ];
+
+  function corregirDictadoOffline(texto){
+    if(!texto) return texto;
+    var corregido = texto;
+    CORRECCIONES_DICTADO_OFFLINE.forEach(function(par){
+      corregido = corregido.replace(par[0], par[1]);
+    });
+    return corregido;
+  }
+
   function renderVoskPrep(){
     var cont = $("#voskPrep");
     if(!cont) return;
@@ -3137,10 +3167,11 @@
     voskRecognizer = new modelo.KaldiRecognizer(voskAudioCtx.sampleRate);
     voskRecognizer.on("partialresult", function(msg){
       var parcial = (msg && msg.result && msg.result.partial) ? msg.result.partial : "";
-      actualizarCuadroDictado(parcial);
+      actualizarCuadroDictado(corregirDictadoOffline(parcial));
     });
     voskRecognizer.on("result", function(msg){
       var texto = (msg && msg.result && msg.result.text) ? msg.result.text.trim() : "";
+      texto = corregirDictadoOffline(texto);
       if(texto){ dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + texto; }
       actualizarCuadroDictado("");
     });
