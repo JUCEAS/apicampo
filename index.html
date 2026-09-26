@@ -419,12 +419,19 @@
   }
   .hive-tile .fecha-rev.sin{ font-style:italic; opacity:.75; }
 
-  /* ---------- Página de impresión de QR (solo visible al imprimir) ---------- */
+  /* ---------- Página de impresión de QR (solo visible al imprimir) ----------
+     2 columnas (antes 3): cada tarjeta queda más grande — más fácil de
+     recortar, pegar en la caja y escanear desde un poco de distancia. */
   #printQRPage{ display:none; }
-  .qr-print-item{ break-inside:avoid; text-align:center; padding:8px; border:1px solid #ccc; border-radius:6px; }
-  .qr-print-item .qr-print-titulo{ font-family:"Inter",sans-serif; font-weight:700; font-size:13px; margin:0 0 4px; color:#111; }
-  .qr-print-item .qr-print-sub{ font-family:"Inter",sans-serif; font-size:10.5px; margin:4px 0 0; color:#444; }
-  .qr-print-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .qr-print-item{ break-inside:avoid; text-align:center; padding:10px; border:1px solid #ccc; border-radius:6px; }
+  .qr-print-item .qr-print-apiario{ font-family:"Inter",sans-serif; font-weight:700; font-size:13px; margin:0 0 6px; color:#111; text-transform:uppercase; letter-spacing:.02em; }
+  .qr-print-item .qr-print-sub{ font-family:"Inter",sans-serif; font-size:10px; margin:2px 0 0; color:#666; }
+  .qr-print-item .qr-print-numero-label{ font-family:"Inter",sans-serif; font-weight:700; font-size:12px; margin:8px 0 0; color:#111; letter-spacing:.06em; }
+  .qr-print-item .qr-print-numero-grande{
+    font-family:"Inter",sans-serif; font-weight:700; color:#111;
+    line-height:1; margin:2px 0 0; white-space:nowrap;
+  }
+  .qr-print-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
   @media print{
     body > *:not(#printQRPage){ display:none !important; }
     #printQRPage{ display:block !important; }
@@ -1810,9 +1817,31 @@
 
   function qrPayload(colmena){ return "COLMENA|"+colmena.apiarioId+"|"+colmena.numero; }
 
+  // Tamaño del código QR en la vista de impresión del navegador. Se genera al
+  // doble de lo que se ve en pantalla (ver "width"/"height" abajo) para que
+  // salga nítido si se imprime o se agranda — no solo del tamaño exacto en
+  // que se muestra.
+  var QR_PRINT_PX = 170;
+
+  /* Reduce el tamaño de letra de un elemento hasta que quepa en el ancho
+     disponible (el ancho del propio código QR) — así el número de colmena
+     sale bien grande cuando tiene 1 o 2 dígitos, y se ajusta solo si tiene
+     más dígitos, sin desbordar la tarjeta. */
+  function ajustarNumeroGrande(elemento, anchoObjetivo, tamMax, tamMin){
+    var f = tamMax;
+    elemento.style.fontSize = f+"px";
+    while(f>tamMin && elemento.scrollWidth > anchoObjetivo){
+      f -= 2;
+      elemento.style.fontSize = f+"px";
+    }
+  }
+
   /* Arma una página con todos los códigos QR de todas las colmenas (agrupados
      por apiario) y abre el diálogo de impresión del navegador. Así no hay que
-     ir colmena por colmena para conseguir cada QR. */
+     ir colmena por colmena para conseguir cada QR. Cada tarjeta lleva, aparte
+     del código: el nombre del apiario arriba, y "COLMENA" + el número bien
+     grande abajo — para que sirva sola una vez recortada, sin depender del
+     encabezado del grupo. */
   function imprimirTodosLosQR(){
     if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
     var page = $("#printQRPage");
@@ -1826,17 +1855,21 @@
       var grid = el("div",{class:"qr-print-grid"});
       cs.forEach(function(c){
         var item = el("div",{class:"qr-print-item"});
-        item.appendChild(el("p",{class:"qr-print-titulo", text:"Colmena #"+c.numero}));
-        var qrBox = el("div");
+        item.appendChild(el("p",{class:"qr-print-apiario", text:a.nombre}));
+        var qrBox = el("div",{style:"display:flex; justify-content:center;"});
         item.appendChild(qrBox);
         var nombreTipo = c.tipo==="sencilla"?"Sencilla":(c.tipo==="nucleo"?"Núcleo":"Doble");
         item.appendChild(el("p",{class:"qr-print-sub", text:nombreTipo}));
+        item.appendChild(el("p",{class:"qr-print-numero-label", text:"COLMENA"}));
+        var numGrande = el("p",{class:"qr-print-numero-grande", text:String(c.numero)});
+        item.appendChild(numGrande);
         grid.appendChild(item);
         try{
-          new QRCode(qrBox, {text:qrPayload(c), width:110, height:110, correctLevel:QRCode.CorrectLevel.M});
+          new QRCode(qrBox, {text:qrPayload(c), width:QR_PRINT_PX, height:QR_PRINT_PX, correctLevel:QRCode.CorrectLevel.M});
         }catch(e){
           qrBox.textContent = "#"+c.numero;
         }
+        ajustarNumeroGrande(numGrande, QR_PRINT_PX, 90, 20);
       });
       page.appendChild(grid);
     });
@@ -1849,6 +1882,23 @@
      códigos QR, agrupados por apiario. Si el teléfono lo permite, abre
      directamente el menú de compartir (para mandarlo por WhatsApp, correo, etc.);
      si no, lo descarga a la carpeta de Descargas para compartirlo desde ahí. */
+  // Ancho de texto (en mm) que ocupa un texto con la fuente ya puesta en el
+  // documento, a un tamaño de letra dado — se usa para calcular qué tan
+  // grande puede ir el número de colmena sin salirse del ancho del QR.
+  function anchoTextoPDF(doc, texto, fontSize){
+    return doc.getStringUnitWidth(texto) * fontSize / doc.internal.scaleFactor;
+  }
+  // Busca, de mayor a menor, el tamaño de letra más grande que quepa en el
+  // ancho disponible — así el número sale "abarcando prácticamente el ancho
+  // del código" en vez de un tamaño fijo que a veces se vea chico y a veces
+  // se pase.
+  function ajustarFuenteAlAncho(doc, texto, anchoObjetivo, fontMax, fontMin){
+    for(var f=fontMax; f>=fontMin; f-=1){
+      if(anchoTextoPDF(doc, texto, f) <= anchoObjetivo) return f;
+    }
+    return fontMin;
+  }
+
   function descargarQRComoPDF(){
     if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
     if(!(window.jspdf && window.jspdf.jsPDF)){
@@ -1858,6 +1908,9 @@
 
     // Se dibujan los QR fuera de la pantalla visible (no en #printQRPage) para
     // poder sacar la imagen de cada uno con toDataURL() y meterla en el PDF.
+    // Se generan a 480x480 px — bastante más resolución de la que se ve en el
+    // papel — para que salgan nítidos aunque se impriman grandes; el tamaño
+    // final en la hoja lo define "qrSize" (en mm), no estos píxeles.
     var cont = el("div",{style:"position:fixed; left:-9999px; top:0;"});
     document.body.appendChild(cont);
 
@@ -1868,7 +1921,7 @@
         var box = el("div");
         cont.appendChild(box);
         try{
-          new QRCode(box, {text:qrPayload(c), width:220, height:220, correctLevel:QRCode.CorrectLevel.M});
+          new QRCode(box, {text:qrPayload(c), width:480, height:480, correctLevel:QRCode.CorrectLevel.M});
         }catch(e){}
         var nombreTipo = c.tipo==="sencilla"?"Sencilla":(c.tipo==="nucleo"?"Núcleo":"Doble");
         items.push({apiario:a.nombre, numero:c.numero, tipoTexto:nombreTipo, box:box});
@@ -1880,12 +1933,35 @@
       try{
         var jsPDFCtor = window.jspdf.jsPDF;
         var doc = new jsPDFCtor({unit:"mm", format:"letter"});
-        var margin = 15, cols = 3, gap = 6;
+        // 2 columnas (antes 3): cada código sale bastante más grande en el
+        // papel — más fácil de recortar, pegar en la caja y escanear.
+        // 2 columnas x 2 filas = 4 tarjetas por hoja. El QR no ocupa toda la
+        // celda (queda centrado, con margen a los lados) para dejar lugar a
+        // que quepan 2 filas por página — sigue bastante más grande que el
+        // diseño original de 3 columnas / 6 por hoja.
+        var margin = 15, cols = 2, gap = 10;
         var pageW = doc.internal.pageSize.getWidth();
         var pageH = doc.internal.pageSize.getHeight();
         var cellW = (pageW - margin*2 - gap*(cols-1)) / cols;
-        var qrSize = cellW - 6;
-        var rowH = qrSize + 16;
+        var qrSize = 62;
+
+        // Tamaño del número grande: el más grande que quepa en el 92% del
+        // ancho del QR para el número MÁS ANCHO que haya (así todos los
+        // números del documento quedan del mismo tamaño, prolijo, y ninguno
+        // se sale de su tarjeta).
+        doc.setFont("helvetica","bold");
+        var anchoNumeroObjetivo = qrSize*0.92;
+        var fontNumero = items.reduce(function(min, it){
+          var f = ajustarFuenteAlAncho(doc, String(it.numero), anchoNumeroObjetivo, 60, 14);
+          return Math.min(min, f);
+        }, 60);
+        var altoNumeroMM = fontNumero * 0.3528 * 1.15;
+
+        var alturaApiarioLinea = 6;   // nombre del apiario arriba del QR
+        var alturaSubLinea = 5;       // "Sencilla/Doble/Núcleo"
+        var alturaEtiquetaColmena = 5.5; // "COLMENA"
+        var rowH = alturaApiarioLinea + qrSize + alturaSubLinea + alturaEtiquetaColmena + altoNumeroMM + 6;
+
         var x = margin, y = margin, col = 0;
         var apiarioActual = null;
 
@@ -1905,13 +1981,40 @@
             y += 7;
           }
           if(y + rowH > pageH - margin){ doc.addPage(); y = margin; col = 0; x = margin; }
+
+          var cx = x + cellW/2; // centro horizontal de la CELDA (el QR ya no ocupa todo su ancho)
+          var qrX = x + (cellW-qrSize)/2; // centra el propio código dentro de la celda
+          var yCursor = y;
+
+          // Nombre del apiario, arriba del código (para que la tarjeta sirva
+          // sola una vez recortada, sin depender del título del grupo).
+          doc.setFont("helvetica","bold");
+          doc.setFontSize(10);
+          doc.text(apiarioActual, cx, yCursor+4, {align:"center"});
+          yCursor += alturaApiarioLinea;
+
           var canvas = it.box.querySelector("canvas");
           if(canvas){
-            try{ doc.addImage(canvas.toDataURL("image/png"), "PNG", x, y, qrSize, qrSize); }catch(e){}
+            try{ doc.addImage(canvas.toDataURL("image/png"), "PNG", qrX, yCursor, qrSize, qrSize); }catch(e){}
           }
+          yCursor += qrSize;
+
           doc.setFont("helvetica","normal");
-          doc.setFontSize(9.5);
-          doc.text("Colmena #"+it.numero+" · "+it.tipoTexto, x, y+qrSize+5.5);
+          doc.setFontSize(9);
+          doc.text(it.tipoTexto, cx, yCursor+4, {align:"center"});
+          yCursor += alturaSubLinea;
+
+          // "COLMENA" chico + el número bien grande, abarcando casi todo el
+          // ancho del código — lo que se pidió para que se lea de lejos.
+          doc.setFont("helvetica","bold");
+          doc.setFontSize(9);
+          doc.text("COLMENA", cx, yCursor+4, {align:"center"});
+          yCursor += alturaEtiquetaColmena;
+
+          doc.setFont("helvetica","bold");
+          doc.setFontSize(fontNumero);
+          doc.text(String(it.numero), cx, yCursor+altoNumeroMM*0.8, {align:"center"});
+
           col++;
           if(col>=cols){ col = 0; x = margin; y += rowH; }
           else{ x += cellW + gap; }
