@@ -2585,6 +2585,17 @@
 
   $("#txtDictado").addEventListener("input", function(){
     var texto = $("#txtDictado").value;
+    // Importante: esto solo se dispara con una edición real de la persona
+    // (escribiendo o borrando a mano) — nunca cuando actualizarCuadroDictado()
+    // pone el texto por código. Si no se avisara aquí, un resultado de voz que
+    // llega justo después (el micrófono sigue escuchando, o Android manda un
+    // último resultado tras detenerlo) volvía a escribir todo el cuadro desde
+    // el dictado original y borraba la corrección que la persona acababa de
+    // hacer — daba la sensación de "no me deja borrar ni una palabra". Al
+    // tomar el texto editado como la nueva base, lo próximo que se dicte se
+    // agrega después de la corrección en vez de reemplazarla.
+    dictadoBase = texto && !/\s$/.test(texto) ? texto+" " : texto;
+    dictadoAcumulado = "";
     camposActuales = parseInspeccion(texto);
     var marcosDichos = parseMarcosDesdeTexto(texto, marcosActuales.length);
     Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
