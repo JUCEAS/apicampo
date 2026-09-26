@@ -255,6 +255,17 @@
   .chip.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
   .chip.ghost{ background:transparent; }
 
+  .chip-user{ display:inline-flex; align-items:stretch; }
+  .chip-user .chip{ border-top-right-radius:0; border-bottom-right-radius:0; padding-right:9px; }
+  .chip-user .chip-x{
+    border:1px solid var(--line); border-left:none;
+    background:var(--surface-2); color:var(--muted);
+    border-top-right-radius:999px; border-bottom-right-radius:999px;
+    cursor:pointer; font-size:15px; font-weight:700; line-height:1;
+    padding:7px 10px 7px 6px;
+  }
+  .chip-user .chip.active + .chip-x{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+
   .btn{
     border:none;
     border-radius:12px;
@@ -2432,9 +2443,15 @@
     var wrap = $("#chipsUsuario");
     wrap.innerHTML = "";
     store.usuarios.forEach(function(nombre){
+      var cont = el("span",{class:"chip-user"});
       var chip = el("button",{class:"chip"+(store.usuarioActual===nombre?" active":""), text:nombre});
       chip.addEventListener("click", function(){ store.usuarioActual = nombre; guardar(); renderChipsUsuario(); });
-      wrap.appendChild(chip);
+      var x = el("button",{class:"chip-x", text:"×"});
+      x.setAttribute("aria-label", "Quitar a "+nombre);
+      x.addEventListener("click", function(e){ e.stopPropagation(); quitarUsuario(nombre); });
+      cont.appendChild(chip);
+      cont.appendChild(x);
+      wrap.appendChild(cont);
     });
     var add = el("button",{class:"chip ghost", text:"+ persona"});
     add.addEventListener("click", function(){
@@ -2449,6 +2466,26 @@
       });
     });
     wrap.appendChild(add);
+  }
+
+  /* Quitar a alguien de la lista de personas que revisan. Esto NO toca el
+     historial: las revisiones ya guardadas conservan el nombre de quien las
+     hizo (campo "revisadoPor"), tal como quedó registrado ese día — solo deja
+     de aparecer como opción para revisiones nuevas. */
+  function quitarUsuario(nombre){
+    if(store.usuarios.length<=1){
+      toast("Tiene que quedar al menos una persona en la lista");
+      return;
+    }
+    confirmarApp('¿Quitar a "'+nombre+'" de la lista de personas que revisan? Sus revisiones ya guardadas quedan igual en el historial, con su nombre.').then(function(ok){
+      if(!ok) return;
+      var idx = store.usuarios.indexOf(nombre);
+      if(idx!==-1) store.usuarios.splice(idx,1);
+      if(store.usuarioActual===nombre) store.usuarioActual = store.usuarios[0];
+      guardar();
+      renderChipsUsuario();
+      toast("Se quitó a "+nombre);
+    });
   }
 
   function renderRevisarColmenas(){
