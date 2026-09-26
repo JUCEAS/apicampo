@@ -1140,12 +1140,15 @@
        así que la palabra "abeja" se admite opcional en cada patrón de aquí abajo;
        antes, si se decía "abeja reina" en vez de solo "reina", no se reconocía nada
        y la colmena quedaba en "sin dato" (semáforo en verde) aunque no hubiera reina. */
-    if(/\bsin (abeja )?reina\b|\bno hay (abeja )?reina\b|\b(abeja )?reina ausente\b|\bno se (vio|observ[oó]|encontr[oó]|localiz[oó]|logr[oó] ver) (la )?(abeja )?reina\b|\bno se mir[oó] (la )?(abeja )?reina\b|\b(abeja )?reina no (vista|localizada|encontrada)\b|\bno (tiene|tienen|tenemos) (abeja )?reina\b|\bno hay presencia de (abeja )?reina\b|\bausencia de (abeja )?reina\b|\bperdi[oó] (la )?(abeja )?reina\b|\bestamos sin (abeja )?reina\b|\bno logramos (ver|encontrar|localizar) (la )?(abeja )?reina\b|\bno localizamos (la )?(abeja )?reina\b|\bno encontramos (la )?(abeja )?reina\b|\bno hab[ií]a (abeja )?reina\b/.test(t)){
+    /* Todo lo relacionado a "reina" acepta singular y plural (reina/reinas,
+       abeja/abejas), porque el dictado de voz a veces agrega o quita la "s"
+       aunque la persona diga lo mismo. */
+    if(/\bsin (abejas? )?reinas?\b|\bno hay (abejas? )?reinas?\b|\b(abejas? )?reinas? ausente(s)?\b|\bno se (vio|vieron|observ[oó]|encontr[oó]|localiz[oó]|logr[oó] ver) (la |las )?(abejas? )?reinas?\b|\bno se mir[oó] (la )?(abejas? )?reinas?\b|\b(abejas? )?reinas? no (vista|vistas|localizada(s)?|encontrada(s)?)\b|\bno (tiene|tienen|tenemos) (abejas? )?reinas?\b|\bno hay presencia de (abejas? )?reinas?\b|\bausencia de (abejas? )?reinas?\b|\bperdi[oó] (la )?(abejas? )?reinas?\b|\bestamos sin (abejas? )?reinas?\b|\bno logramos (ver|encontrar|localizar) (la |las )?(abejas? )?reinas?\b|\bno localizamos (la |las )?(abejas? )?reinas?\b|\bno encontramos (la |las )?(abejas? )?reinas?\b|\bno hab[ií]a(n)? (abejas? )?reinas?\b/.test(t)){
       r.reinaPresente = false;
-    } else if(/\b(abeja )?reina (presente|vista|activa|localizada|fecundada|encontrada)\b|\bhay (abeja )?reina\b|\bse (vio|observ[oó]|encontr[oó]|mir[oó]|localiz[oó]) (la )?(abeja )?reina\b|\btiene(n)? (abeja )?reina\b|\blogramos (ver|encontrar|localizar) (la )?(abeja )?reina\b|\blocalizamos (la )?(abeja )?reina\b|\bencontramos (la )?(abeja )?reina\b/.test(t)){
+    } else if(/\b(abejas? )?reinas? (presente(s)?|vista(s)?|activa(s)?|localizada(s)?|fecundada(s)?|encontrada(s)?)\b|\bhay (abejas? )?reinas?\b|\bse (vio|vieron|observ[oó]|encontr[oó]|mir[oó]|localiz[oó]) (la |las )?(abejas? )?reinas?\b|\btiene(n)? (abejas? )?reinas?\b|\blogramos (ver|encontrar|localizar) (la |las )?(abejas? )?reinas?\b|\blocalizamos (la |las )?(abejas? )?reinas?\b|\bencontramos (la |las )?(abejas? )?reinas?\b/.test(t)){
       r.reinaPresente = true;
     }
-    if(/\b(abeja )?reina virgen\b/.test(t)){
+    if(/\b(abejas? )?reinas? virgen(es)?\b/.test(t)){
       r.reinaVirgen = true;
       if(r.reinaPresente===null) r.reinaPresente = true;
     }
@@ -1155,16 +1158,23 @@
        — se nota antes que verla físicamente. Si se dice esto y no hubo ya un
        "reina presente" explícito, se toma como la misma señal de "sin reina"
        (semáforo en rojo), aunque no se haya mencionado la palabra "reina". */
-    if(/\bsin cr[ií]a del d[ií]a\b|\bno hay cr[ií]a del d[ií]a\b|\bsin postura del d[ií]a\b|\bno hay postura del d[ií]a\b|\bsin cr[ií]a de hoy\b|\bno hay cr[ií]a de hoy\b|\bsin postura de hoy\b|\bno hay postura de hoy\b|\bsin huevos?\b|\bno hay huevos?\b|\bno se (vio|observ[oó]|encontr[oó]) (cr[ií]a|postura) (del d[ií]a|de hoy|fresca)\b/.test(t)){
+    /* Acepta "cría"/"crías" y "postura"/"posturas", tanto negado ("sin",
+       "no hay", "no existe", "no tenemos") como afirmado ("hay", "tenemos",
+       "sí tenemos", "si tenemos") — necesitamos ambos casos para que la
+       ficha no se quede en blanco cuando SÍ hay cría/postura del día. */
+    if(/\bsin cr[ií]as? del d[ií]a\b|\bno hay cr[ií]as? del d[ií]a\b|\bno (tenemos|tiene(n)?) cr[ií]as? del d[ií]a\b|\bno existe(n)? cr[ií]as? del d[ií]a\b|\bsin posturas? del d[ií]a\b|\bno hay posturas? del d[ií]a\b|\bno (tenemos|tiene(n)?) posturas? del d[ií]a\b|\bno existe(n)? posturas? del d[ií]a\b|\bsin cr[ií]as? de hoy\b|\bno hay cr[ií]as? de hoy\b|\bsin posturas? de hoy\b|\bno hay posturas? de hoy\b|\bsin huevos?\b|\bno hay huevos?\b|\bno se (vio|observ[oó]|encontr[oó]) (cr[ií]as?|posturas?) (del d[ií]a|de hoy|fresca)\b/.test(t)){
       r.sinCriaDelDia = true;
       if(r.reinaPresente===null) r.reinaPresente = false;
+    } else if(/\b(s[ií] )?(tenemos|hay|tiene(n)?) cr[ií]as? del d[ií]a\b|\b(s[ií] )?(tenemos|hay|tiene(n)?) posturas? del d[ií]a\b|\bcr[ií]as? del d[ií]a\b|\bposturas? del d[ií]a\b/.test(t)){
+      r.sinCriaDelDia = false;
+      if(r.reinaPresente===null) r.reinaPresente = true;
     }
 
     if(/\bopercul/.test(t)) r.posturaEtapa = "operculada";
     else if(/\blarva/.test(t)) r.posturaEtapa = "larva";
     else if(/\bhuevo/.test(t)) r.posturaEtapa = "huevo";
 
-    var mDias = t.match(/postura de (\w+) d[ií]as?/);
+    var mDias = t.match(/posturas? de (\w+) d[ií]as?/);
     if(mDias){
       var n = palabraANumero(mDias[1]);
       if(n!==null) r.posturaDias = n;
@@ -1173,17 +1183,17 @@
     /* Nivel de postura (independiente de la etapa): "postura baja", "poca
        postura", "buena postura"... esto es lo que el usuario dicta más
        seguido para dejar constancia de cómo va la puesta de la reina. */
-    if(/\bpostura baja\b|\bbaja postura\b|\bpoca postura\b|\bpostura escasa\b|\bpostura pobre\b/.test(t)){
+    if(/\bposturas? baja(s)?\b|\bbaja(s)? posturas?\b|\bpoca(s)? posturas?\b|\bposturas? escasa(s)?\b|\bposturas? pobre(s)?\b|\bnivel de postura baja\b/.test(t)){
       r.posturaNivel = "baja";
-    } else if(/\bpostura (buena|abundante|alta)\b|\bbuena postura\b|\bmucha postura\b|\bpostura abundante\b/.test(t)){
+    } else if(/\bposturas? (buena(s)?|abundante(s)?|alta(s)?|excelente(s)?)\b|\bbuena(s)? posturas?\b|\bmucha(s)? posturas?\b|\bposturas? abundante(s)?\b/.test(t)){
       r.posturaNivel = "buena";
     }
 
-    if(/\bcr[ií]a (sellada|opercul\w*)\b/.test(t)){
+    if(/\bcr[ií]as? (sellada(s)?|opercul\w*)\b/.test(t)){
       r.criaSellada = true;
-      if(/\b(abundante|mucha|bastante)\b.*cr[ií]a (sellada|opercul\w*)|cr[ií]a (sellada|opercul\w*)\b.*\b(abundante|mucha|bastante)\b/.test(t)) r.criaIntensidad="abundante";
-      else if(/\b(poca|escasa)\b.*cr[ií]a (sellada|opercul\w*)|cr[ií]a (sellada|opercul\w*)\b.*\b(poca|escasa)\b/.test(t)) r.criaIntensidad="poca";
-    } else if(/\bsin cr[ií]a\b|\bno hay cr[ií]a\b|\bno (tiene(n)?|tenemos) cr[ií]a( sellada)?\b|\bno existe cr[ií]a( sellada)?\b/.test(t)){
+      if(/\b(abundante(s)?|mucha(s)?|bastante(s)?)\b.*cr[ií]as? (sellada(s)?|opercul\w*)|cr[ií]as? (sellada(s)?|opercul\w*)\b.*\b(abundante(s)?|mucha(s)?|bastante(s)?)\b/.test(t)) r.criaIntensidad="abundante";
+      else if(/\b(poca(s)?|escasa(s)?)\b.*cr[ií]as? (sellada(s)?|opercul\w*)|cr[ií]as? (sellada(s)?|opercul\w*)\b.*\b(poca(s)?|escasa(s)?)\b/.test(t)) r.criaIntensidad="poca";
+    } else if(/\bsin cr[ií]as?\b|\bno hay cr[ií]as?\b|\bno (tiene(n)?|tenemos) cr[ií]as?( sellada(s)?)?\b|\bno existe(n)? cr[ií]as?( sellada(s)?)?\b/.test(t)){
       r.criaSellada = false;
     }
 
@@ -1196,36 +1206,47 @@
       }
     }
 
-    if(/\bsin miel\b|\bno hay miel\b|\bno tiene(n)? miel\b|\bno tenemos miel\b/.test(t)){
+    if(/\bsin miel\b|\bno hay miel\b|\bno tiene(n)? miel\b|\bno tenemos miel\b|\bno existe miel\b/.test(t)){
       r.reservasMiel="sin";
-    } else if(/\bmiel\b/.test(t)){
+    } else if(/\b(s[ií] )?(tenemos|hay|tiene(n)?) miel\b|\bmiel\b/.test(t)){
       if(/\b(abundante|mucha|buena)\b.*miel|miel\b.*\b(abundante|mucha|buena)\b/.test(t)) r.reservasMiel="abundante";
       else if(/\b(poca|escasa)\b.*miel|miel\b.*\b(poca|escasa)\b/.test(t)) r.reservasMiel="poca";
       else r.reservasMiel="mencionada";
     }
-    if(/\bsin polen\b|\bno hay polen\b|\bno tiene(n)? polen\b|\bno tenemos polen\b/.test(t)){
+    if(/\bsin polen\b|\bno hay polen\b|\bno tiene(n)? polen\b|\bno tenemos polen\b|\bno existe polen\b/.test(t)){
       r.reservasPolen="sin";
-    } else if(/\bpolen\b/.test(t)){
+    } else if(/\b(s[ií] )?(tenemos|hay|tiene(n)?) polen\b|\bpolen\b/.test(t)){
       if(/\b(abundante|mucha|buena)\b.*polen|polen\b.*\b(abundante|mucha|buena)\b/.test(t)) r.reservasPolen="abundante";
       else if(/\b(poca|escasa)\b.*polen|polen\b.*\b(poca|escasa)\b/.test(t)) r.reservasPolen="poca";
       else r.reservasPolen="mencionada";
     }
-    if(/\bsin alimento\b|\bsin alimentaci[oó]n\b|\bno tiene(n)? alimento\b|\bno tiene(n)? alimentaci[oó]n\b|\bsin reservas\b|\bfalta(n)? reservas\b/.test(t)){
+    if(/\bsin alimento\b|\bsin alimentaci[oó]n\b|\bno tiene(n)? alimento\b|\bno tienen alimento\b|\bno tiene(n)? alimentaci[oó]n\b|\bsin reservas\b|\bfalta(n)? reservas\b/.test(t)){
       r.sinAlimento = true;
     }
 
-    if(/\bsin abejas\b|\bcolmena vac[ií]a\b|\bcolmena muerta\b|\bcolmena perdida\b|\bse (muri[oó]|perdi[oó])( la colmena)?\b/.test(t)){
+    if(/\bsin abejas\b|\bcolmena vac[ií]a\b|\bcolmena muerta\b|\bcolmena perdida\b|\bse (muri[oó]|perdi[oó])( la colmena)?\b|\bno tenemos poblaci[oó]n\b|\bno hay poblaci[oó]n\b/.test(t)){
       r.poblacion = "ninguna";
     } else if(/\bbaja (de )?poblaci[oó]n\b|\bpoblaci[oó]n baja\b|\bpoca poblaci[oó]n\b|\bpocas abejas\b|\bcolmena d[eé]bil\b|\bcolmena despoblada\b/.test(t)){
       r.poblacion = "baja";
     } else if(/\bpoblaci[oó]n (intermedia|media|regular|moderada)\b|\b(intermedia|media|regular) poblaci[oó]n\b/.test(t)){
       r.poblacion = "media";
-    } else if(/\bbuena poblaci[oó]n\b|\bpoblaci[oó]n buena\b|\bmucha poblaci[oó]n\b|\bcolmena fuerte\b|\bbastantes abejas\b|\bpoblaci[oó]n abundante\b|\bpoblaci[oó]n alta\b|\balta poblaci[oó]n\b/.test(t)){
+    } else if(/\bbuena poblaci[oó]n\b|\bpoblaci[oó]n (buena|excelente)\b|\bmucha poblaci[oó]n\b|\bcolmena fuerte\b|\bbastantes abejas\b|\bpoblaci[oó]n abundante\b|\bpoblaci[oó]n alta\b|\balta poblaci[oó]n\b/.test(t)){
       r.poblacion = "buena";
     }
 
-    if(/\b(mansa|mansas|tranquilas?|d[oó]ciles?|pasivas?)\b/.test(t)) r.temperamento="mansa";
-    else if(/\b(agresivas?|nerviosas?|bravas?)\b/.test(t)) r.temperamento="agresiva";
+    /* Temperamento: singular y plural, y también la negación (si dice "no
+       son mansas" o "no son dóciles" es agresividad, no mansedumbre).
+       "positivas" se admite como alias de "pasivas" porque a veces el
+       dictado de voz confunde esa palabra. */
+    if(/\bno son (mansas?|d[oó]ciles?|pasivas?|tranquilas?)\b|\bno (es|son) tan (mansas?|d[oó]ciles?|pasivas?)\b/.test(t)){
+      r.temperamento = "agresiva";
+    } else if(/\bno son agresivas?\b|\bno (es|son) tan agresivas?\b/.test(t)){
+      r.temperamento = "mansa";
+    } else if(/\b(mansas?|tranquilas?|d[oó]ciles?|pasivas?|positivas?)\b/.test(t)){
+      r.temperamento = "mansa";
+    } else if(/\b(agresivas?|nerviosas?|bravas?)\b/.test(t)){
+      r.temperamento = "agresiva";
+    }
 
     if(/\bfalta (de )?espacio\b|\bnecesita alza\b|\bsin espacio\b/.test(t)) r.espacio="falta";
 
@@ -1249,6 +1270,15 @@
       [/\btropilaelaps\b/, "Tropilaelaps"]
     ];
     mapaEnf.forEach(function(par){ if(par[0].test(t)) r.enfermedades.push(par[1]); });
+
+    /* "plaga"/"plagas" en general (sin nombrar cuál) — igual sirve para que
+       el semáforo marque atención aunque no se diga el nombre exacto. */
+    if(/\bno tenemos plagas?\b|\bno hay plagas?\b|\bsin plagas?\b|\bno tiene(n)? plagas?\b/.test(t)){
+      r.sanaExplicito = true;
+    } else if(/\b(s[ií] )?(tenemos|hay|tiene(n)?) plagas?\b/.test(t) && r.enfermedades.indexOf("Plaga (sin especificar)")===-1){
+      r.enfermedades.push("Plaga (sin especificar)");
+    }
+
     if(/\b(sana|saludable)\b|\bsin enfermedad(es)?\b|\bno se (observ[oó]|vio|encontr[oó]) (ninguna )?enfermedad/.test(t)) r.sanaExplicito = true;
 
     return r;
