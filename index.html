@@ -857,6 +857,36 @@
       El rendimiento promedio nacional en Honduras ronda 17 kg por colmena al año, y puede subir a 25–30 kg con buen manejo
       (Secretaría de Agricultura y Ganadería). Esa es una cosecha anual completa, distinta de este cálculo por marcos de una sola revisión — úsalo solo como referencia.
     </p>
+
+    <div class="card" style="margin-top:14px;">
+      <p class="section-title" style="margin-bottom:8px;">Registrar cosecha real</p>
+      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
+        Lo de arriba es una proyección. Aquí anotas lo que de verdad envasaste — y si el apiario es en sociedad, se reparte solo en partes iguales entre los socios.
+      </p>
+      <div class="field">
+        <label for="selCosechaApiario">Apiario</label>
+        <select id="selCosechaApiario" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px;"></select>
+      </div>
+      <div class="row" style="gap:10px;">
+        <div class="field" style="flex:1;">
+          <label for="inCosechaFecha">Fecha</label>
+          <input type="date" id="inCosechaFecha">
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="inCosechaBotellas">Botellas cosechadas</label>
+          <input type="text" id="inCosechaBotellas" inputmode="decimal">
+        </div>
+      </div>
+      <div id="cosechaRepartoPreview" hidden style="background:var(--accent-soft); border-radius:10px; padding:10px 12px; margin-bottom:10px;"></div>
+      <button class="btn btn-primary btn-block" id="btnGuardarCosecha">Guardar cosecha</button>
+    </div>
+
+    <div class="prod-tiles" id="cosechaTotales"></div>
+    <div class="card" style="padding:4px 14px;">
+      <div id="listaCosecha"></div>
+      <div class="empty" id="cosechaEmpty" hidden>Todavía no has registrado ninguna cosecha real.</div>
+    </div>
+    <div id="cosechaRepartoSocios"></div>
   </main>
 
   <main id="tab-inversion" hidden>
@@ -1137,6 +1167,35 @@
       <button class="btn btn-line" style="flex:1;" id="btnCancelarTrabajo">Cancelar</button>
       <button class="btn btn-primary" style="flex:1;" id="btnGuardarTrabajo">Guardar trabajo</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal: turnos de gira (transporte entre socios) -->
+<div class="modal-backdrop" id="modalGiras" hidden>
+  <div class="modal">
+    <h2 id="girasTitulo">Turnos de gira</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Quién lleva el gasto de transporte en cada visita a este apiario, por turnos entre los socios.</p>
+    <div style="background:var(--accent-soft); border-radius:10px; padding:12px; text-align:center; margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--accent-ink); opacity:.8;">Le toca la próxima gira a</div>
+      <div id="girasProximoNombre" style="font-family:'Fraunces',serif; font-size:20px; font-weight:700; color:var(--accent-ink);">—</div>
+    </div>
+    <div class="row" style="gap:10px;">
+      <div class="field" style="flex:1;">
+        <label for="inGiraFecha">Fecha de la gira</label>
+        <input type="date" id="inGiraFecha">
+      </div>
+      <div class="field" style="flex:1;">
+        <label for="selGiraSocio">¿Quién la hizo?</label>
+        <select id="selGiraSocio" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px;"></select>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" id="btnGuardarGira" style="margin-bottom:14px;">Registrar gira</button>
+    <p class="section-title" style="margin:0 0 6px;">Orden de turnos</p>
+    <p id="girasOrden" style="font-size:13px; color:var(--muted); margin:0 0 14px;"></p>
+    <p class="section-title" style="margin:0 0 6px;">Historial</p>
+    <div id="girasHistorial"></div>
+    <div class="empty" id="girasEmpty" hidden>Todavía no se ha registrado ninguna gira.</div>
+    <button class="btn btn-line btn-block" id="btnCerrarGiras" style="margin-top:12px;">Cerrar</button>
   </div>
 </div>
 
@@ -1469,10 +1528,12 @@
     ];
     return {
       apiarios:[
-        {id:ap1, nombre:"Apiario El Zapote", lat:14.0818, lng:-87.2068, creado:hoy-60*dia, modoPropiedad:"individual", socios:[]},
+        {id:ap1, nombre:"Apiario El Zapote", lat:14.0818, lng:-87.2068, creado:hoy-60*dia, modoPropiedad:"individual", socios:[], giras:[]},
         {id:ap2, nombre:"Apiario La Ceiba", lat:14.1450, lng:-87.1500, creado:hoy-40*dia, modoPropiedad:"sociedad", socios:[
           {id:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)", telefono:"9999-0001"},
           {id:"soc_ceiba_2", nombre:"Socio 2 (ejemplo)", telefono:"9999-0002"}
+        ], giras:[
+          {id:"gira1", fecha:hoy-6*dia, socioId:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)"}
         ]}
       ],
       colmenas: colmenasAp1.concat(colmenasAp2),
@@ -1481,6 +1542,7 @@
       alimentaciones: alimentaciones,
       trabajos: [],
       inversiones: [],
+      cosechas: [],
       config: {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120},
       usuarios: ["JUCEAS"],
       usuarioActual: "JUCEAS",
@@ -1513,7 +1575,9 @@
         (datos.apiarios||[]).forEach(function(ap){
           if(!ap.modoPropiedad) ap.modoPropiedad = "individual";
           if(!ap.socios) ap.socios = [];
+          if(!ap.giras) ap.giras = [];
         });
+        if(!datos.cosechas) datos.cosechas = [];
         (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
         (datos.revisiones||[]).forEach(function(r){
           if(!r.apiarioId){
@@ -1767,11 +1831,13 @@
       var n = colmenasDe(ap.id).length;
       var card = el("div",{class:"card apiario-card"});
       var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
+      var proximaGira = esSociedad ? calcularProximoTurnoGira(ap) : null;
       card.innerHTML =
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
         (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
+        (proximaGira ? '<p style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">🚐 Próxima gira: <b>'+escaparHtml(proximaGira.nombre)+'</b></p>' : '')+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
@@ -1791,6 +1857,13 @@
       b4.addEventListener("click", function(){ abrirModalTrabajo(ap); });
       actions2.appendChild(b5); actions2.appendChild(b4);
       card.appendChild(actions2);
+      if(esSociedad){
+        var actions3 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
+        var b6 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"🚐 Turnos de gira"});
+        b6.addEventListener("click", function(){ abrirModalGiras(ap); });
+        actions3.appendChild(b6);
+        card.appendChild(actions3);
+      }
       wrap.appendChild(card);
     });
     renderOverlapWarning();
@@ -1942,7 +2015,7 @@
       return;
     }
 
-    var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios};
+    var ap = {id:uid("ap"), nombre:nombre, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[]};
     store.apiarios.push(ap);
     store.esDemo = false;
     guardar();
@@ -1950,6 +2023,105 @@
     $("#modalApiario").hidden = true;
     renderApiarios();
     toast("Apiario agregado");
+  });
+
+  /* ---- Turnos de gira (transporte por sociedad) ---- */
+  var girasApiarioActual = null;
+
+  // Ronda de turnos: cada quien financia el transporte de su gira, en el
+  // mismo orden en que aparecen los socios. Se calcula a partir de quién
+  // hizo la última gira registrada — así no hay que anotar "de quién es el
+  // turno", el propio historial lo dice.
+  function calcularProximoTurnoGira(ap){
+    if(!ap.socios || ap.socios.length<2) return null;
+    var giras = (ap.giras||[]).slice().sort(function(a,b){ return b.fecha-a.fecha; });
+    if(!giras.length) return ap.socios[0];
+    var idx = ap.socios.findIndex(function(s){ return s.id===giras[0].socioId; });
+    if(idx===-1) return ap.socios[0];
+    return ap.socios[(idx+1)%ap.socios.length];
+  }
+
+  function poblarSelectGiraSocio(ap, seleccionado){
+    var sel = $("#selGiraSocio");
+    sel.innerHTML = "";
+    ap.socios.forEach(function(s){
+      var opt = el("option",{text:s.nombre});
+      opt.value = s.id;
+      if(s.id===seleccionado) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderGirasOrden(ap, proximo){
+    var n = ap.socios.length;
+    var startIdx = ap.socios.findIndex(function(s){ return s.id===proximo.id; });
+    var orden = [];
+    for(var i=0;i<n;i++){ orden.push(ap.socios[(startIdx+i)%n].nombre); }
+    $("#girasOrden").textContent = orden.join(" → ") + " → (vuelve a "+orden[0]+")";
+  }
+
+  function renderGirasHistorial(ap){
+    var lista = (ap.giras||[]).slice().sort(function(a,b){ return b.fecha-a.fecha; });
+    var cont = $("#girasHistorial");
+    cont.innerHTML = "";
+    $("#girasEmpty").hidden = lista.length>0;
+    lista.forEach(function(g){
+      var row = el("div",{class:"prod-row"});
+      var izq = el("div");
+      izq.innerHTML = '<div class="who">'+escaparHtml(g.nombre)+'</div><div class="apiario-name">'+fechaCorta(g.fecha)+'</div>';
+      row.appendChild(izq);
+      var btnBorrar = el("button",{class:"icon-btn", style:"color:var(--critical); flex:none; margin-left:6px;", title:"Eliminar", "aria-label":"Eliminar gira"});
+      btnBorrar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      btnBorrar.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        confirmarApp("¿Eliminar este turno de gira?").then(function(ok){
+          if(!ok) return;
+          ap.giras = ap.giras.filter(function(x){ return x.id!==g.id; });
+          store.esDemo = false;
+          guardar();
+          abrirModalGiras(ap);
+          renderApiarios();
+        });
+      });
+      row.style.alignItems = "center";
+      row.appendChild(btnBorrar);
+      cont.appendChild(row);
+    });
+  }
+
+  function abrirModalGiras(ap){
+    girasApiarioActual = ap;
+    $("#girasTitulo").textContent = "Turnos de gira — "+ap.nombre;
+    var proximo = calcularProximoTurnoGira(ap);
+    $("#girasProximoNombre").textContent = proximo ? proximo.nombre : "—";
+    $("#inGiraFecha").value = new Date().toISOString().slice(0,10);
+    if(proximo){
+      poblarSelectGiraSocio(ap, proximo.id);
+      renderGirasOrden(ap, proximo);
+    } else {
+      $("#selGiraSocio").innerHTML = "";
+      $("#girasOrden").textContent = "";
+    }
+    renderGirasHistorial(ap);
+    $("#modalGiras").hidden = false;
+  }
+  $("#btnCerrarGiras").addEventListener("click", function(){ $("#modalGiras").hidden = true; girasApiarioActual = null; });
+  $("#modalGiras").addEventListener("click", function(e){ if(e.target===this){ this.hidden = true; girasApiarioActual = null; } });
+  $("#btnGuardarGira").addEventListener("click", function(){
+    if(!girasApiarioActual) return;
+    var fecha = $("#inGiraFecha").value;
+    var socioId = $("#selGiraSocio").value;
+    if(!fecha){ toast("Elige la fecha"); return; }
+    if(!socioId){ toast("Elige quién hizo la gira"); return; }
+    var socio = girasApiarioActual.socios.find(function(s){ return s.id===socioId; });
+    if(!socio) return;
+    if(!girasApiarioActual.giras) girasApiarioActual.giras = [];
+    girasApiarioActual.giras.push({id:uid("gira"), fecha:new Date(fecha+"T12:00:00").getTime(), socioId:socio.id, nombre:socio.nombre});
+    store.esDemo = false;
+    guardar();
+    abrirModalGiras(girasApiarioActual);
+    renderApiarios();
+    toast("Gira registrada");
   });
 
   $("#btnReset").addEventListener("click", function(){
@@ -4222,6 +4394,140 @@
       '<div class="prod-tile"><span class="v">'+colmenasConDatos+'</span><span class="k">colmenas con miel</span></div>'+
       '<div class="prod-tile"><span class="v">'+fmtNum(totalBotellas,1)+'</span><span class="k">botellas de '+tamanoTexto+' estimadas</span></div>'+
       '<div class="prod-tile accent"><span class="v">'+fmtL(totalIngreso)+'</span><span class="k">ingreso estimado</span></div>';
+
+    inicializarFormCosecha();
+    renderCosecha();
+  }
+
+  /* ---- Cosecha real (envasada) y reparto en botellas entre socios ---- */
+  function poblarSelectApiarioCosecha(seleccionado){
+    var sel = $("#selCosechaApiario");
+    sel.innerHTML = "";
+    if(!store.apiarios.length){ sel.innerHTML = '<option value="">Agrega un apiario primero</option>'; return; }
+    store.apiarios.forEach(function(ap){
+      var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
+      var opt = el("option",{text: ap.nombre + (esSociedad ? (" (sociedad · "+ap.socios.length+")") : "")});
+      opt.value = ap.id;
+      if(ap.id===seleccionado) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function actualizarRepartoPreviewCosecha(){
+    var botellas = parseFloat($("#inCosechaBotellas").value) || 0;
+    var apiarioId = $("#selCosechaApiario").value || null;
+    var box = $("#cosechaRepartoPreview");
+    var reparto = apiarioId ? calcularRepartoSocios(apiarioId, botellas) : null;
+    if(!reparto){ box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false;
+    box.innerHTML = '<p style="font-size:12.5px; font-weight:700; color:var(--accent-ink); margin:0 0 4px;">👥 Se reparte entre '+reparto.length+' socios</p>'+
+      reparto.map(function(r){ return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0; display:flex; justify-content:space-between;"><span>'+escaparHtml(r.nombre)+'</span><b>'+fmtNum(r.monto,2)+' botella'+(r.monto===1?"":"s")+'</b></p>'; }).join("");
+  }
+
+  function inicializarFormCosecha(){
+    if(!$("#inCosechaFecha").value){ $("#inCosechaFecha").value = new Date().toISOString().slice(0,10); }
+    var actual = $("#selCosechaApiario").value;
+    poblarSelectApiarioCosecha(actual || (prodApiarioFiltro!=="todos" ? prodApiarioFiltro : ""));
+    actualizarRepartoPreviewCosecha();
+  }
+  $("#selCosechaApiario").addEventListener("change", actualizarRepartoPreviewCosecha);
+  $("#inCosechaBotellas").addEventListener("input", actualizarRepartoPreviewCosecha);
+  $("#btnGuardarCosecha").addEventListener("click", function(){
+    var apiarioId = $("#selCosechaApiario").value;
+    var botellas = parseFloat($("#inCosechaBotellas").value);
+    var fecha = $("#inCosechaFecha").value;
+    if(!apiarioId){ toast("Elige un apiario"); return; }
+    if(!botellas || botellas<=0){ toast("Escribe cuántas botellas cosechaste"); return; }
+    if(!fecha){ toast("Elige la fecha"); return; }
+    var reparto = calcularRepartoSocios(apiarioId, botellas);
+    store.cosechas.push({
+      id: uid("cos"), apiarioId: apiarioId, fecha: new Date(fecha+"T12:00:00").getTime(),
+      botellas: botellas, ingreso: botellas*store.config.precioPorBotella,
+      registradoPor: store.usuarioActual, reparto: reparto
+    });
+    store.esDemo = false;
+    guardar();
+    $("#inCosechaBotellas").value = "";
+    renderProduccion();
+    toast("Cosecha registrada");
+  });
+
+  function cosechasFiltradas(){
+    var lista = store.cosechas.slice().sort(function(a,b){ return b.fecha-a.fecha; });
+    if(prodApiarioFiltro==="todos") return lista;
+    return lista.filter(function(c){ return c.apiarioId===prodApiarioFiltro; });
+  }
+
+  function renderCosecha(){
+    var lista = cosechasFiltradas();
+    var totalBotellasReal = lista.reduce(function(s,c){ return s+c.botellas; }, 0);
+    var totalIngresoReal = lista.reduce(function(s,c){ return s+c.ingreso; }, 0);
+    var tilesWrap = $("#cosechaTotales");
+    tilesWrap.innerHTML =
+      '<div class="prod-tile accent"><span class="v">'+fmtNum(totalBotellasReal,1)+'</span><span class="k">botellas cosechadas (real)</span></div>'+
+      '<div class="prod-tile"><span class="v">'+fmtL(totalIngresoReal)+'</span><span class="k">ingreso real estimado</span></div>';
+
+    var cont = $("#listaCosecha");
+    cont.innerHTML = "";
+    $("#cosechaEmpty").hidden = lista.length>0;
+    lista.forEach(function(c){
+      var row = el("div",{class:"prod-row"});
+      var izq = el("div");
+      var repartoTxt = (c.reparto && c.reparto.length) ? (' · ÷ '+c.reparto.length+' socios ('+fmtNum(c.reparto[0].monto,2)+' c/u aprox.)') : '';
+      izq.innerHTML = '<div class="who">'+escaparHtml(apiarioNombre(c.apiarioId))+'</div><div class="apiario-name">'+fechaCorta(c.fecha)+escaparHtml(repartoTxt)+'</div>';
+      row.appendChild(izq);
+      var der = el("div",{class:"right"});
+      der.innerHTML = '<div class="kg">'+fmtNum(c.botellas,1)+' botella'+(Math.round(c.botellas*10)===10?"":"s")+'</div><div class="ingreso">≈ '+fmtL(c.ingreso)+'</div>';
+      row.appendChild(der);
+      var btnBorrar = el("button",{class:"icon-btn", style:"color:var(--critical); flex:none; margin-left:6px;", title:"Eliminar", "aria-label":"Eliminar cosecha"});
+      btnBorrar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      btnBorrar.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        confirmarApp("¿Eliminar esta cosecha?").then(function(ok){
+          if(!ok) return;
+          store.cosechas = store.cosechas.filter(function(x){ return x.id!==c.id; });
+          guardar();
+          renderProduccion();
+        });
+      });
+      row.style.alignItems = "center";
+      row.appendChild(btnBorrar);
+      cont.appendChild(row);
+    });
+
+    renderRepartoBotellasResumen(lista);
+  }
+
+  function renderRepartoBotellasResumen(lista){
+    var wrap = $("#cosechaRepartoSocios");
+    var porApiario = {};
+    lista.forEach(function(c){
+      if(!c.reparto || !c.reparto.length) return;
+      var ap = store.apiarios.find(function(a){ return a.id===c.apiarioId; });
+      if(!ap) return;
+      if(!porApiario[ap.id]) porApiario[ap.id] = {ap:ap, porSocio:{}, total:0};
+      var grupo = porApiario[ap.id];
+      grupo.total += c.botellas;
+      c.reparto.forEach(function(r){
+        if(!grupo.porSocio[r.socioId]) grupo.porSocio[r.socioId] = {nombre:r.nombre, monto:0};
+        grupo.porSocio[r.socioId].monto += r.monto;
+      });
+    });
+    var grupos = Object.keys(porApiario).map(function(id){ return porApiario[id]; });
+    if(!grupos.length){ wrap.innerHTML = ""; return; }
+    wrap.innerHTML = '<p class="section-title" style="margin:14px 0 8px;">Botellas que le tocan a cada socio</p>';
+    grupos.forEach(function(g){
+      var card = el("div",{class:"card", style:"margin-bottom:10px;"});
+      var socios = Object.keys(g.porSocio).map(function(id){ return g.porSocio[id]; });
+      var telsPorNombre = {};
+      (g.ap.socios||[]).forEach(function(s){ telsPorNombre[s.nombre] = s.telefono; });
+      card.innerHTML = '<p class="who" style="margin:0 0 8px;">'+escaparHtml(g.ap.nombre)+' · total '+fmtNum(g.total,1)+' botellas</p>'+
+        socios.map(function(s){
+          var tel = telsPorNombre[s.nombre] ? (' · '+escaparHtml(telsPorNombre[s.nombre])) : '';
+          return '<p style="font-size:13px; margin:0 0 4px; display:flex; justify-content:space-between; gap:8px;"><span>'+escaparHtml(s.nombre)+tel+'</span><b>'+fmtNum(s.monto,1)+' botella'+(Math.round(s.monto*10)===10?"":"s")+'</b></p>';
+        }).join("");
+      wrap.appendChild(card);
+    });
   }
 
   function guardarConfigProduccion(){
