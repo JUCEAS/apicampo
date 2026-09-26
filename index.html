@@ -812,12 +812,16 @@
     </div>
 
     <div class="card">
-      <p class="section-title" style="margin-bottom:8px;">Llevar los datos a la computadora</p>
+      <p class="section-title" style="margin-bottom:8px;">Respaldo y restauración</p>
       <p style="font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
-        En la app real, esto se sube solo a la nube en cuanto haya internet y aparece automáticamente en tu computadora.
-        Aquí, en este prototipo, puedes copiar el registro completo como texto.
+        Todo lo que registras vive únicamente en este teléfono. Si lo pierdes, se daña o desinstalas la app sin haber
+        descargado un respaldo, esos datos no se pueden recuperar — descarga uno seguido (por ejemplo, cada vez que
+        cambias de apiario o después de una gira grande) y guárdalo en tu correo o en la nube.
       </p>
-      <button class="btn btn-line btn-block" id="btnExportar">Ver / copiar todos los datos</button>
+      <button class="btn btn-primary btn-block" id="btnDescargarRespaldo" style="margin-bottom:8px;">⬇ Descargar respaldo (archivo .json)</button>
+      <button class="btn btn-line btn-block" id="btnRestaurarRespaldo" style="margin-bottom:8px;">⬆ Restaurar desde un respaldo</button>
+      <input type="file" id="inRestaurarArchivo" accept="application/json,.json" hidden>
+      <button class="btn btn-line btn-block" id="btnExportar">Ver / copiar todos los datos como texto</button>
     </div>
   </main>
 
@@ -1050,16 +1054,17 @@
   <div class="modal" id="modalHistBody"></div>
 </div>
 
-<!-- Modal: exportar -->
+<!-- Modal: exportar / restaurar como texto -->
 <div class="modal-backdrop" id="modalExport" hidden>
   <div class="modal">
     <h2>Todos tus datos</h2>
-    <p style="font-size:12.5px; color:var(--muted); margin:0;">Toca "Copiar" y pega este texto donde quieras guardarlo.</p>
-    <textarea class="export-area mono" id="exportText" readonly></textarea>
+    <p style="font-size:12.5px; color:var(--muted); margin:0;">Toca "Copiar" y pega este texto donde quieras guardarlo. Si necesitas restaurar unos datos guardados así, pégalos aquí encima y toca "Restaurar desde este texto".</p>
+    <textarea class="export-area mono" id="exportText"></textarea>
     <div class="row" style="gap:10px;">
       <button class="btn btn-line" style="flex:1;" id="btnCerrarExport">Cerrar</button>
       <button class="btn btn-primary" style="flex:1;" id="btnCopiarExport">Copiar</button>
     </div>
+    <button class="btn btn-line btn-block" id="btnRestaurarTexto" style="margin-top:8px; color:var(--critical); border-color:var(--critical);">Restaurar desde este texto</button>
   </div>
 </div>
 
@@ -1578,49 +1583,59 @@
     };
   }
 
+  // Rellena los campos que versiones anteriores de ApiCampo todavía no
+  // tenían, para que abrir datos viejos (o un respaldo restaurado) nunca
+  // rompa la app. La usan tanto cargar() (localStorage) como la
+  // restauración desde un archivo de respaldo.
+  function normalizarDatos(datos){
+    if(!datos.config) datos.config = {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120};
+    // versión anterior del prototipo calculaba en libras: se pasa a botellas,
+    // conservando el kg por marco (que sigue siendo válido) y con un precio
+    // de botella inicial que se puede ajustar en la pantalla de Miel.
+    if(datos.config.precioPorLb!==undefined && datos.config.precioPorBotella===undefined){
+      datos.config.botellaMl = 750;
+      datos.config.precioPorBotella = 120;
+      delete datos.config.precioPorLb;
+    }
+    if(!datos.config.botellaMl) datos.config.botellaMl = 750;
+    if(!datos.config.precioPorBotella) datos.config.precioPorBotella = 120;
+    if(!datos.usuarios || !datos.usuarios.length) datos.usuarios = ["JUCEAS"];
+    if(!datos.usuarioActual) datos.usuarioActual = datos.usuarios[0];
+    if(!datos.apiarios) datos.apiarios = [];
+    if(!datos.colmenas) datos.colmenas = [];
+    if(!datos.revisiones) datos.revisiones = [];
+    if(!datos.tratamientos) datos.tratamientos = [];
+    if(!datos.alimentaciones) datos.alimentaciones = [];
+    if(!datos.trabajos) datos.trabajos = [];
+    if(!datos.inversiones) datos.inversiones = [];
+    (datos.apiarios||[]).forEach(function(ap){
+      if(!ap.modoPropiedad) ap.modoPropiedad = "individual";
+      if(!ap.socios) ap.socios = [];
+      if(!ap.giras) ap.giras = [];
+    });
+    if(!datos.cosechas) datos.cosechas = [];
+    // Las compras registradas antes de que existiera el paso de
+    // "confirmar compra" se tratan como ya realizadas (así no
+    // desaparecen de golpe del historial ni parecen "pendientes").
+    (datos.inversiones||[]).forEach(function(i){
+      if(i.confirmada===undefined){ i.confirmada = true; i.fechaCompra = i.fecha; }
+      if(i.fechaUso===undefined) i.fechaUso = null;
+    });
+    (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
+    (datos.revisiones||[]).forEach(function(r){
+      if(!r.apiarioId){
+        var col = (datos.colmenas||[]).find(function(x){ return x.id===r.colmenaId; });
+        r.apiarioId = col ? col.apiarioId : null;
+      }
+    });
+    return datos;
+  }
+
   function cargar(){
     try{
       var raw = localStorage.getItem(STORE_KEY);
       if(raw){
-        var datos = JSON.parse(raw);
-        if(!datos.config) datos.config = {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120};
-        // versión anterior del prototipo calculaba en libras: se pasa a botellas,
-        // conservando el kg por marco (que sigue siendo válido) y con un precio
-        // de botella inicial que se puede ajustar en la pantalla de Miel.
-        if(datos.config.precioPorLb!==undefined && datos.config.precioPorBotella===undefined){
-          datos.config.botellaMl = 750;
-          datos.config.precioPorBotella = 120;
-          delete datos.config.precioPorLb;
-        }
-        if(!datos.config.botellaMl) datos.config.botellaMl = 750;
-        if(!datos.config.precioPorBotella) datos.config.precioPorBotella = 120;
-        if(!datos.usuarios || !datos.usuarios.length) datos.usuarios = ["JUCEAS"];
-        if(!datos.usuarioActual) datos.usuarioActual = datos.usuarios[0];
-        if(!datos.tratamientos) datos.tratamientos = [];
-        if(!datos.alimentaciones) datos.alimentaciones = [];
-        if(!datos.trabajos) datos.trabajos = [];
-        if(!datos.inversiones) datos.inversiones = [];
-        (datos.apiarios||[]).forEach(function(ap){
-          if(!ap.modoPropiedad) ap.modoPropiedad = "individual";
-          if(!ap.socios) ap.socios = [];
-          if(!ap.giras) ap.giras = [];
-        });
-        if(!datos.cosechas) datos.cosechas = [];
-        // Las compras registradas antes de que existiera el paso de
-        // "confirmar compra" se tratan como ya realizadas (así no
-        // desaparecen de golpe del historial ni parecen "pendientes").
-        (datos.inversiones||[]).forEach(function(i){
-          if(i.confirmada===undefined){ i.confirmada = true; i.fechaCompra = i.fecha; }
-          if(i.fechaUso===undefined) i.fechaUso = null;
-        });
-        (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
-        (datos.revisiones||[]).forEach(function(r){
-          if(!r.apiarioId){
-            var col = (datos.colmenas||[]).find(function(x){ return x.id===r.colmenaId; });
-            r.apiarioId = col ? col.apiarioId : null;
-          }
-        });
-        return datos;
+        return normalizarDatos(JSON.parse(raw));
       }
     }catch(e){}
     return seed();
@@ -4876,6 +4891,78 @@
       try{ document.execCommand("copy"); copiado = true; }catch(e){}
     }
     toast(copiado ? "Copiado" : "Selecciona el texto y cópialo manualmente");
+  });
+
+  /* ---- Respaldo (descarga .json) y restauración (archivo o texto pegado) ---- */
+  function nombreArchivoRespaldo(){
+    var d = new Date();
+    var f = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    return "apicampo-respaldo-"+f+".json";
+  }
+
+  $("#btnDescargarRespaldo").addEventListener("click", function(){
+    try{
+      var contenido = JSON.stringify(store, null, 2);
+      var blob = new Blob([contenido], {type:"application/json"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = nombreArchivoRespaldo();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      toast("Respaldo descargado — guárdalo en tu correo o en la nube");
+    }catch(e){
+      toast("No se pudo descargar. Usa \"Ver / copiar todos los datos\" como alternativa.");
+    }
+  });
+
+  // Chequeo básico de que el JSON de verdad es un respaldo de ApiCampo,
+  // antes de reemplazar con él todo lo que hay guardado en este teléfono.
+  function esRespaldoValido(datos){
+    return !!datos && typeof datos==="object" && !Array.isArray(datos)
+      && Array.isArray(datos.apiarios) && Array.isArray(datos.colmenas);
+  }
+
+  function restaurarDesdeTexto(texto){
+    var datos;
+    try{
+      datos = JSON.parse(texto);
+    }catch(e){
+      toast("Ese texto no es un respaldo válido de ApiCampo (no se pudo leer como JSON)");
+      return;
+    }
+    if(!esRespaldoValido(datos)){
+      toast("Ese archivo no tiene la forma de un respaldo de ApiCampo");
+      return;
+    }
+    var nApiarios = datos.apiarios.length, nColmenas = datos.colmenas.length;
+    confirmarApp(
+      "Vas a reemplazar TODO lo que hay guardado en este teléfono ("+store.apiarios.length+" apiario(s), "+store.colmenas.length+" colmena(s)) "+
+      "con este respaldo ("+nApiarios+" apiario(s), "+nColmenas+" colmena(s)). Esto no se puede deshacer. ¿Continuar?"
+    ).then(function(ok){
+      if(!ok) return;
+      store = normalizarDatos(datos);
+      store.esDemo = false;
+      guardar();
+      toast("Datos restaurados");
+      setTimeout(function(){ location.reload(); }, 600);
+    });
+  }
+
+  $("#btnRestaurarRespaldo").addEventListener("click", function(){ $("#inRestaurarArchivo").click(); });
+  $("#inRestaurarArchivo").addEventListener("change", function(e){
+    var archivo = e.target.files && e.target.files[0];
+    if(!archivo) return;
+    var lector = new FileReader();
+    lector.onload = function(){ restaurarDesdeTexto(String(lector.result||"")); };
+    lector.onerror = function(){ toast("No se pudo leer el archivo"); };
+    lector.readAsText(archivo);
+    e.target.value = ""; // para poder elegir el mismo archivo otra vez si hace falta
+  });
+  $("#btnRestaurarTexto").addEventListener("click", function(){
+    restaurarDesdeTexto($("#exportText").value);
   });
 
   /* ============================================================
