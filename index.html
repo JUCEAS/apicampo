@@ -905,8 +905,29 @@
     <h2>Nueva colmena</h2>
     <p style="font-size:13px; color:var(--muted); margin:0;">Se agregará al apiario seleccionado.</p>
     <div class="field">
+      <label>¿Cuántas colmenas vas a crear?</label>
+      <div class="type-toggle" id="modoColmenaToggle">
+        <button type="button" data-modo="una">Una colmena</button>
+        <button type="button" data-modo="varias">Varias de una vez</button>
+      </div>
+    </div>
+    <div class="field" id="campoNumeroUna">
       <label for="inNumeroColmena">Número de colmena</label>
       <input type="text" id="inNumeroColmena" inputmode="numeric">
+    </div>
+    <div class="field" id="campoNumeroVarias" hidden>
+      <label>Rango de números de colmena</label>
+      <div class="row" style="gap:10px;">
+        <div class="field" style="flex:1; margin:0;">
+          <label for="inNumeroDesde" style="font-size:12px;">Desde</label>
+          <input type="text" id="inNumeroDesde" inputmode="numeric">
+        </div>
+        <div class="field" style="flex:1; margin:0;">
+          <label for="inNumeroHasta" style="font-size:12px;">Hasta</label>
+          <input type="text" id="inNumeroHasta" inputmode="numeric">
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--muted); margin:6px 0 0;">Se crea una colmena por cada número del rango, todas del mismo tipo. Si algún número ya existe en este apiario, se omite y no se duplica.</p>
     </div>
     <div class="field">
       <label>Tipo de colmena</label>
@@ -1823,6 +1844,25 @@
     });
   });
 
+  /* "Una colmena" (el modo de siempre) o "Varias de una vez" — para
+     apiarios grandes, donde crear colmena por colmena es lento. En modo
+     "varias" se pide un rango (desde/hasta) y se crea una colmena por cada
+     número del rango, todas del mismo tipo/marcos; los números que ya
+     existan en el apiario se omiten (no se duplican). */
+  var modoColmenaSeleccionado = "una";
+  function actualizarModoColmenaUI(){
+    $("#campoNumeroUna").hidden = modoColmenaSeleccionado!=="una";
+    $("#campoNumeroVarias").hidden = modoColmenaSeleccionado!=="varias";
+    $("#btnGuardarColmena").textContent = modoColmenaSeleccionado==="varias" ? "Crear colmenas e imprimir QR" : "Crear e imprimir QR";
+  }
+  $all("#modoColmenaToggle button").forEach(function(b){
+    b.addEventListener("click", function(){
+      modoColmenaSeleccionado = b.dataset.modo;
+      $all("#modoColmenaToggle button").forEach(function(x){ x.classList.toggle("on", x===b); });
+      actualizarModoColmenaUI();
+    });
+  });
+
   $("#btnImprimirQR").addEventListener("click", function(){ imprimirTodosLosQR(); });
   $("#btnDescargarQR").addEventListener("click", function(){ descargarQRComoPDF(); });
 
@@ -1831,6 +1871,11 @@
     var existentes = colmenasDe(apiarioActivo).map(function(c){ return c.numero; });
     var siguiente = existentes.length ? Math.max.apply(null, existentes)+1 : 1;
     $("#inNumeroColmena").value = siguiente;
+    $("#inNumeroDesde").value = siguiente;
+    $("#inNumeroHasta").value = siguiente+9;
+    modoColmenaSeleccionado = "una";
+    $all("#modoColmenaToggle button").forEach(function(x){ x.classList.toggle("on", x.dataset.modo==="una"); });
+    actualizarModoColmenaUI();
     tipoColmenaSeleccionado = "doble";
     $all("#tipoColmenaToggle button").forEach(function(x){ x.classList.toggle("on", x.dataset.tipo==="doble"); });
     $("#inMarcosColmena").value = 19;
@@ -1838,14 +1883,43 @@
   });
   $("#btnCancelarColmena").addEventListener("click", function(){ $("#modalColmena").hidden = true; });
   $("#btnGuardarColmena").addEventListener("click", function(){
-    var numero = parseInt($("#inNumeroColmena").value,10);
-    if(!numero || numero<1){ toast("Escribe un número válido"); return; }
-    var yaExiste = colmenasDe(apiarioActivo).some(function(c){ return c.numero===numero; });
-    if(yaExiste){ toast("Ya existe la colmena #"+numero+" en este apiario"); return; }
     var marcos = parseInt($("#inMarcosColmena").value,10);
     if(!marcos || marcos<1){
       marcos = tipoColmenaSeleccionado==="doble"?19:(tipoColmenaSeleccionado==="nucleo"?4:10);
     }
+
+    if(modoColmenaSeleccionado==="varias"){
+      var desde = parseInt($("#inNumeroDesde").value,10);
+      var hasta = parseInt($("#inNumeroHasta").value,10);
+      if(!desde || desde<1 || !hasta || hasta<1){ toast("Escribe un rango válido"); return; }
+      if(hasta<desde){ toast("El número \"hasta\" debe ser mayor o igual que \"desde\""); return; }
+      var TOPE_LOTE = 200; // límite de seguridad para no crear miles por error de dedo
+      if((hasta-desde+1) > TOPE_LOTE){ toast("Ese rango tiene más de "+TOPE_LOTE+" colmenas — divídelo en partes más chicas"); return; }
+      var existentesSet = {};
+      colmenasDe(apiarioActivo).forEach(function(c){ existentesSet[c.numero]=true; });
+      var creadas = [];
+      var omitidas = [];
+      for(var n=desde; n<=hasta; n++){
+        if(existentesSet[n]){ omitidas.push(n); continue; }
+        var cc = {id:uid("c"), apiarioId:apiarioActivo, numero:n, tipo:tipoColmenaSeleccionado, marcosTotales:marcos, historialMovimientos:[]};
+        store.colmenas.push(cc);
+        creadas.push(cc);
+      }
+      if(!creadas.length){ toast("Todos esos números ya existen en este apiario"); return; }
+      store.esDemo = false;
+      guardar();
+      $("#modalColmena").hidden = true;
+      renderColmenas();
+      var msg = "Se crearon "+creadas.length+" colmenas (#"+desde+" a #"+hasta+")";
+      if(omitidas.length) msg += " — "+omitidas.length+" ya existían y se omitieron";
+      toast(msg);
+      return;
+    }
+
+    var numero = parseInt($("#inNumeroColmena").value,10);
+    if(!numero || numero<1){ toast("Escribe un número válido"); return; }
+    var yaExiste = colmenasDe(apiarioActivo).some(function(c){ return c.numero===numero; });
+    if(yaExiste){ toast("Ya existe la colmena #"+numero+" en este apiario"); return; }
     var c = {id:uid("c"), apiarioId:apiarioActivo, numero:numero, tipo:tipoColmenaSeleccionado, marcosTotales:marcos, historialMovimientos:[]};
     store.colmenas.push(c);
     store.esDemo = false;
