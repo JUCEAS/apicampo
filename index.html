@@ -1867,22 +1867,26 @@
     if(total===10) return '<span class="tipo-tag tipo-sencilla">sencilla</span>';
     return '';
   }
-  /* Conteo de colmenas por tipo en un apiario ("2 dobles · 1 sencilla · 1
-     núcleo"), para verlo de un vistazo en la tarjeta del apiario sin tener
-     que entrar a la lista de colmenas. */
-  function resumenTiposColmenas(apiarioId){
+  /* Conteo de colmenas por tipo en un apiario, en columna (una línea por
+     tipo: dobles, sencillas, núcleos) y con el total al final, para verlo
+     de un vistazo en la tarjeta del apiario sin tener que entrar a la lista
+     de colmenas. Devuelve HTML ya listo para insertar (líneas con <br>). */
+  function resumenTiposColmenasHtml(apiarioId){
     var lista = colmenasDe(apiarioId);
+    if(!lista.length) return "";
     var dobles=0, sencillas=0, nucleos=0;
     lista.forEach(function(c){
       if(c.tipo==="nucleo"){ nucleos++; return; }
       var total = c.marcosTotales || (c.tipo==="sencilla"?10:19);
       if(total>10) dobles++; else if(total===10) sencillas++;
     });
-    var partes = [];
-    if(dobles) partes.push(dobles+" doble"+(dobles>1?"s":""));
-    if(sencillas) partes.push(sencillas+" sencilla"+(sencillas>1?"s":""));
-    if(nucleos) partes.push(nucleos+" núcleo"+(nucleos>1?"s":""));
-    return partes.join(" · ");
+    var lineas = [];
+    if(dobles) lineas.push(dobles+" doble"+(dobles>1?"s":""));
+    if(sencillas) lineas.push(sencillas+" sencilla"+(sencillas>1?"s":""));
+    if(nucleos) lineas.push(nucleos+" núcleo"+(nucleos>1?"s":""));
+    var html = lineas.map(function(l){ return '<div>'+escaparHtml(l)+'</div>'; }).join("");
+    html += '<div style="margin-top:2px; padding-top:2px; border-top:1px solid var(--line); font-weight:700;">Total: '+lista.length+'</div>';
+    return html;
   }
   function fueReforzadaUltimaVisita(colmenaId){
     var ult = ultimaRevision(colmenaId);
@@ -2149,12 +2153,12 @@
       var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
       var proximaGira = esSociedad ? calcularProximoTurnoGira(ap) : null;
       var proximaGiraFecha = esSociedad ? fechaProximaGiraEstimada(ap) : null;
-      var resumenTipos = resumenTiposColmenas(ap.id);
+      var resumenTiposHtml = resumenTiposColmenasHtml(ap.id);
       card.innerHTML =
         (esActivo ? '<span class="trabajando-tag">📍 Trabajando aquí</span>' : '')+
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
-          (resumenTipos ? '<div class="mono" style="font-size:11px; color:var(--muted); text-align:right; white-space:nowrap;" title="Colmenas por tipo">'+escaparHtml(resumenTipos)+'</div>' : '')+
+          (resumenTiposHtml ? '<div class="mono" style="font-size:11px; color:var(--muted); text-align:right; line-height:1.5; white-space:nowrap;" title="Colmenas por tipo">'+resumenTiposHtml+'</div>' : '')+
         '</div>'+
         (ap.senasa ? '<div class="coords mono" style="margin-top:-2px;" title="Número de registro SENASA">SENASA: '+escaparHtml(ap.senasa)+'</div>' : '')+
         (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
