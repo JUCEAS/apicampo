@@ -14,6 +14,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Vosk: reconocimiento de voz que corre en el propio teléfono (no necesita internet
+     una vez que el modelo en español ya se descargó, ver btnPrepararVoz más abajo). -->
+<script src="https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js" defer></script>
 <style>
   :root{
     --bg:#FBF7EE;
@@ -429,6 +432,15 @@
     50%{ box-shadow:0 0 0 16px rgba(174,58,44,0); }
   }
   .mic-status{ font-size:13px; color:var(--muted); font-weight:600; }
+  .vosk-btn{
+    width:100%; border:1px solid var(--line); background:var(--surface-2); color:var(--accent-ink);
+    font-weight:600; font-size:13px; padding:9px 10px; border-radius:12px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .vosk-btn[disabled]{ opacity:.65; cursor:default; }
+  .vosk-ready{ color:var(--good); font-size:12px; font-weight:700; text-align:center; padding:6px 0; }
+  .vosk-bar-wrap{ width:100%; height:8px; border-radius:6px; background:var(--surface-2); overflow:hidden; margin-top:6px; }
+  .vosk-bar{ height:100%; background:var(--accent); width:0%; transition:width .2s linear; }
 
   .parsed-grid{
     display:grid;
@@ -693,7 +705,8 @@
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
         <div class="mic-status" id="micStatus">Toca para dictar la revisión</div>
-        <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;">El dictado por voz necesita internet (Chrome lo procesa en línea). Sin señal, escribe directo en el cuadro de abajo.</div>
+        <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;" id="micHint">El dictado usa reconocimiento en línea cuando hay señal. Prepara el modo sin señal abajo para dictar en el apiario.</div>
+        <div id="voskPrep" style="width:100%; margin-top:2px;"></div>
         <button class="btn btn-primary btn-block" id="btnGuardarRevisionTop" style="margin-top:4px;">Guardar revisión</button>
       </div>
 
@@ -2597,29 +2610,31 @@
   $("#btnGuardarRevision").addEventListener("click", guardarRevisionActual);
   $("#btnGuardarRevisionTop").addEventListener("click", guardarRevisionActual);
 
-  /* ---- Dictado por voz (Web Speech API) ----
-     Nota técnica: en Android, el modo "continuous" de Chrome es poco confiable —
-     el propio sistema reinicia el reconocimiento cada pocos segundos y, al hacerlo,
-     puede repetir palabras ya captadas, y además corta por completo tras una pausa
-     corta. Por eso aquí se usa continuous=false (cada sesión capta una frase) y se
-     reinicia automáticamente por código en segundo plano cuando el usuario no ha
-     detenido el dictado a propósito — así se ve continuo mucho más limpio, sin
-     duplicar texto. */
+  /* ---- Dictado por voz: dos motores ----
+     "online": Web Speech API nativa del navegador (mejor precisión, pero
+     manda el audio a los servidores de Google — solo funciona con señal).
+     "offline": Vosk, un motor de reconocimiento que corre en el propio
+     teléfono con un modelo en español ya descargado (vosk-model-small-es).
+     Se elige el motor solo: si hay señal se usa el nativo; si no hay señal
+     (o el navegador no tiene la API nativa) y el modelo offline ya está
+     preparado, se usa Vosk automáticamente — sin que el usuario tenga que
+     elegir nada cada vez.
+
+     Nota técnica sobre el motor nativo: en Android, el modo "continuous" de
+     Chrome es poco confiable — el propio sistema reinicia el reconocimiento
+     cada pocos segundos y, al hacerlo, puede repetir palabras ya captadas, y
+     además corta por completo tras una pausa corta. Por eso aquí se usa
+     continuous=false (cada sesión capta una frase) y se reinicia
+     automáticamente por código en segundo plano cuando el usuario no ha
+     detenido el dictado a propósito — así se ve continuo mucho más limpio,
+     sin duplicar texto. */
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   var reconocimiento = null;
   var escuchando = false;
   var detenerManual = false;
+  var motorActual = null;     // "online" | "offline"
   var dictadoBase = "";       // texto que ya estaba en el cuadro antes de empezar a dictar
   var dictadoAcumulado = "";  // texto final ya confirmado durante esta sesión de dictado (puede abarcar varios reinicios)
-
-  function initReconocimiento(){
-    if(!SpeechRecognitionCtor) return null;
-    var rec = new SpeechRecognitionCtor();
-    rec.lang = "es-HN";
-    rec.continuous = false;
-    rec.interimResults = true;
-    return rec;
-  }
 
   function actualizarCuadroDictado(interino){
     var partes = [dictadoBase, dictadoAcumulado, interino].filter(function(s){ return s && s.length; });
@@ -2633,7 +2648,18 @@
     renderMarcosGrid();
   }
 
+  /* ---- Motor "online" (Web Speech API) ---- */
+  function initReconocimiento(){
+    if(!SpeechRecognitionCtor) return null;
+    var rec = new SpeechRecognitionCtor();
+    rec.lang = "es-HN";
+    rec.continuous = false;
+    rec.interimResults = true;
+    return rec;
+  }
+
   function iniciarSesionReconocimiento(){
+    motorActual = "online";
     reconocimiento = initReconocimiento();
     if(!reconocimiento) return;
 
@@ -2659,10 +2685,20 @@
       actualizarCuadroDictado(interino);
     };
     reconocimiento.onerror = function(ev){
+      // Si se cae la señal a media dictada y ya tenemos el modelo offline
+      // preparado, seguimos sin que el usuario tenga que hacer nada.
+      if(ev.error==="network" && voskListo){
+        detenerManual = true;
+        try{ reconocimiento.stop(); }catch(e){}
+        iniciarVosk().catch(function(){
+          $("#micStatus").textContent = "Se perdió la señal y no se pudo pasar al modo sin conexión. Escribe directo.";
+        });
+        return;
+      }
       var mensajes = {
         "not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
         "service-not-allowed": "No diste permiso para usar el micrófono. Revísalo en el candado o en Ajustes del sitio, en Chrome.",
-        "network": "El dictado necesita internet y no se pudo conectar. Escribe directo en el cuadro de abajo.",
+        "network": voskListo ? "Se perdió la señal. Intenta de nuevo — pasará solo al modo sin conexión." : "El dictado necesita internet y no se pudo conectar. Prepara el modo sin señal arriba, o escribe directo.",
         "no-speech": "No se escuchó nada. Sigue hablando o toca el micrófono para detener.",
         "audio-capture": "No se encontró un micrófono en este dispositivo."
       };
@@ -2694,34 +2730,228 @@
     catch(e){ $("#micStatus").textContent = "No se pudo iniciar el micrófono."; }
   }
 
+  /* ---- Motor "offline" (Vosk — corre en el teléfono, sin internet) ----
+     El modelo (~34MB) se descarga una sola vez, a propósito, desde el botón
+     "Preparar dictado sin señal" (ver más abajo), y queda en el
+     almacenamiento del navegador (Cache Storage) — igual que el resto de la
+     app, sobrevive a que se cierre Chrome o se apague el teléfono. */
+  var MODELO_VOZ_URL = "https://raw.githubusercontent.com/ccoreilly/vosk-browser/gh-pages/models/vosk-model-small-es-0.3.tar.gz";
+  var CACHE_MODELO_VOZ = "apicampo-modelo-voz";
+  var voskModel = null;        // instancia ya cargada en memoria (WASM)
+  var voskListo = false;       // el modelo ya está descargado en el teléfono (no implica que esté cargado en memoria)
+  var voskDescargando = false;
+  var voskRecognizer = null;
+  var voskAudioCtx = null;
+  var voskScriptNode = null;
+  var voskMicStream = null;
+
+  function renderVoskPrep(){
+    var cont = $("#voskPrep");
+    if(!cont) return;
+    if(!window.Vosk){
+      cont.innerHTML = "";
+      return;
+    }
+    if(voskListo){
+      cont.innerHTML = '<div class="vosk-ready">✓ Dictado sin señal listo — se usa solo cuando no hay internet</div>';
+      $("#micHint").textContent = "El dictado funciona con o sin señal — la app elige el modo sola.";
+      return;
+    }
+    if(voskDescargando){
+      cont.innerHTML =
+        '<div class="vosk-btn" style="cursor:default;">Descargando modelo de voz… <span id="voskPct">0%</span></div>' +
+        '<div class="vosk-bar-wrap"><div class="vosk-bar" id="voskBar"></div></div>' +
+        '<div style="font-size:11px; color:var(--muted); text-align:center; margin-top:4px;">No cierres la app mientras descarga (una sola vez, ~34&nbsp;MB).</div>';
+      return;
+    }
+    cont.innerHTML = '<button class="vosk-btn" id="btnPrepararVoz" type="button">⬇ Preparar dictado sin señal (34&nbsp;MB, una sola vez)</button>';
+    var btn = $("#btnPrepararVoz");
+    if(btn) btn.addEventListener("click", function(){
+      if(navigator.onLine===false){
+        toast("Necesitas internet la primera vez para descargar el modelo de voz");
+        return;
+      }
+      descargarModeloVoz();
+    });
+  }
+
+  function actualizarBarraDescarga(frac){
+    var pct = Math.round(Math.max(0,Math.min(1,frac))*100);
+    var el1 = $("#voskPct"), el2 = $("#voskBar");
+    if(el1) el1.textContent = pct+"%";
+    if(el2) el2.style.width = pct+"%";
+  }
+
+  async function hayModeloVozEnCache(){
+    try{
+      var cache = await caches.open(CACHE_MODELO_VOZ);
+      var match = await cache.match(MODELO_VOZ_URL);
+      return !!match;
+    }catch(e){ return false; }
+  }
+
+  async function descargarModeloVoz(){
+    if(voskDescargando || voskListo) return;
+    if(!window.Vosk){
+      toast("El dictado sin señal aún no terminó de cargar en la app — espera unos segundos y vuelve a intentar.");
+      return;
+    }
+    voskDescargando = true;
+    renderVoskPrep();
+    try{
+      var res = await fetch(MODELO_VOZ_URL);
+      if(!res.ok) throw new Error("No se pudo descargar el modelo ("+res.status+")");
+      var total = parseInt(res.headers.get("Content-Length")||"0",10);
+      var reader = res.body.getReader();
+      var recibido = 0;
+      var partes = [];
+      while(true){
+        var paso = await reader.read();
+        if(paso.done) break;
+        partes.push(paso.value);
+        recibido += paso.value.length;
+        if(total) actualizarBarraDescarga(recibido/total);
+      }
+      var blob = new Blob(partes, {type:"application/gzip"});
+      // Guardar en Cache Storage para que la próxima vez no haga falta
+      // volver a descargar (queda disponible aunque se cierre el navegador).
+      try{
+        var cache = await caches.open(CACHE_MODELO_VOZ);
+        await cache.put(MODELO_VOZ_URL, new Response(blob.slice(0), {headers:{"Content-Type":"application/gzip"}}));
+      }catch(e){ /* si falla el guardado, igual seguimos: ya quedó en memoria para esta sesión */ }
+      await cargarVoskDesdeBlob(blob);
+      voskDescargando = false;
+      voskListo = true;
+      renderVoskPrep();
+      toast("Dictado sin señal listo");
+    }catch(e){
+      voskDescargando = false;
+      renderVoskPrep();
+      toast("No se pudo descargar el modelo de voz. Intenta de nuevo con mejor señal.");
+    }
+  }
+
+  async function cargarVoskDesdeBlob(blob){
+    var url = URL.createObjectURL(blob);
+    try{
+      voskModel = await Vosk.createModel(url);
+    } finally {
+      // el modelo ya quedó cargado en el Worker; el objeto URL no hace falta más
+      URL.revokeObjectURL(url);
+    }
+    return voskModel;
+  }
+
+  async function asegurarVoskCargado(){
+    if(voskModel) return voskModel;
+    var cache = await caches.open(CACHE_MODELO_VOZ);
+    var match = await cache.match(MODELO_VOZ_URL);
+    if(!match) return null;
+    var blob = await match.blob();
+    return cargarVoskDesdeBlob(blob);
+  }
+
+  async function iniciarVosk(){
+    motorActual = "offline";
+    $("#micStatus").textContent = "Preparando micrófono sin conexión…";
+    var modelo = await asegurarVoskCargado();
+    if(!modelo){ throw new Error("modelo no disponible"); }
+
+    voskMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation:true, noiseSuppression:true, channelCount:1 }
+    });
+    voskAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    var source = voskAudioCtx.createMediaStreamSource(voskMicStream);
+    voskRecognizer = new modelo.KaldiRecognizer(voskAudioCtx.sampleRate);
+    voskRecognizer.on("partialresult", function(msg){
+      var parcial = (msg && msg.result && msg.result.partial) ? msg.result.partial : "";
+      actualizarCuadroDictado(parcial);
+    });
+    voskRecognizer.on("result", function(msg){
+      var texto = (msg && msg.result && msg.result.text) ? msg.result.text.trim() : "";
+      if(texto){ dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + texto; }
+      actualizarCuadroDictado("");
+    });
+
+    voskScriptNode = voskAudioCtx.createScriptProcessor(4096,1,1);
+    voskScriptNode.onaudioprocess = function(ev){
+      if(voskRecognizer) voskRecognizer.acceptWaveform(ev.inputBuffer);
+    };
+    // ScriptProcessorNode solo procesa audio si está conectado al destino final;
+    // se pasa por una ganancia en 0 para que el propio micrófono no se
+    // escuche por el parlante (sin esto habría eco/retroalimentación).
+    var silencio = voskAudioCtx.createGain();
+    silencio.gain.value = 0;
+    source.connect(voskScriptNode);
+    voskScriptNode.connect(silencio);
+    silencio.connect(voskAudioCtx.destination);
+
+    escuchando = true;
+    detenerManual = false;
+    $("#btnMic").classList.add("listening");
+    $("#micStatus").textContent = "Escuchando (sin conexión)… toca de nuevo para detener";
+    if($("#btnVozGlobal")) $("#btnVozGlobal").classList.add("desactivado");
+  }
+
+  function detenerVosk(){
+    detenerManual = true;
+    if(voskScriptNode){ try{ voskScriptNode.disconnect(); }catch(e){} voskScriptNode.onaudioprocess=null; voskScriptNode=null; }
+    if(voskRecognizer){ try{ voskRecognizer.remove(); }catch(e){} voskRecognizer=null; }
+    if(voskAudioCtx){ try{ voskAudioCtx.close(); }catch(e){} voskAudioCtx=null; }
+    if(voskMicStream){ voskMicStream.getTracks().forEach(function(t){ t.stop(); }); voskMicStream=null; }
+    escuchando = false;
+    $("#btnMic").classList.remove("listening");
+    $("#micStatus").textContent = "Toca para dictar la revisión";
+    if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
+  }
+
+  /* ---- Botón del micrófono: elige el motor solo ---- */
   $("#btnMic").addEventListener("click", function(){
     if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
-    if(!SpeechRecognitionCtor){
-      $("#micStatus").textContent = "Tu navegador no tiene dictado por voz. Escribe en el cuadro de abajo.";
-      return;
-    }
-    if(navigator.onLine===false){
-      $("#micStatus").textContent = "Sin internet: el dictado por voz no funciona sin conexión. Escribe directo en el cuadro de abajo.";
-      toast("El dictado necesita internet");
-      return;
-    }
+
     if(escuchando){
-      detenerManual = true;
-      if(reconocimiento) reconocimiento.stop();
+      if(motorActual==="offline"){ detenerVosk(); }
+      else { detenerManual = true; if(reconocimiento) reconocimiento.stop(); }
       return;
     }
-    detenerManual = false;
+
     dictadoAcumulado = "";
     var base = $("#txtDictado").value;
     dictadoBase = base && !/\s$/.test(base) ? base+" " : base;
-    iniciarSesionReconocimiento();
+
+    var hayNativo = !!SpeechRecognitionCtor;
+    var hayInternet = navigator.onLine!==false;
+
+    if(hayNativo && hayInternet){
+      iniciarSesionReconocimiento();
+      return;
+    }
+    if(voskListo){
+      iniciarVosk().catch(function(){
+        $("#micStatus").textContent = "No se pudo iniciar el micrófono sin conexión. Escribe directo en el cuadro de abajo.";
+      });
+      return;
+    }
+    if(!hayNativo){
+      $("#micStatus").textContent = "Este navegador no tiene dictado por voz. Prepara el modo sin señal arriba, o escribe directo.";
+    } else {
+      $("#micStatus").textContent = "Sin señal: prepara el dictado sin conexión arriba (necesita internet una sola vez), o escribe directo.";
+      toast("El dictado necesita internet — o prepara el modo sin señal");
+    }
   });
 
-  if(!SpeechRecognitionCtor){
-    document.addEventListener("DOMContentLoaded", function(){
-      $("#micStatus").textContent = "Dictado no disponible en este navegador — funciona en Chrome para Android. Puedes escribir directo.";
+  /* Al abrir la app: revisa si el modelo offline ya está descargado de una
+     sesión anterior, y muestra el botón de preparación si no lo está. */
+  document.addEventListener("DOMContentLoaded", function(){
+    hayModeloVozEnCache().then(function(listo){
+      voskListo = listo;
+      renderVoskPrep();
     });
-  }
+    if(!SpeechRecognitionCtor){
+      var hint = $("#micHint");
+      if(hint) hint.textContent = "Este navegador no tiene dictado en línea — prepara el modo sin señal para poder dictar.";
+    }
+  });
 
   /* ---- Escanear QR con la cámara ---- */
   var scanStream = null, scanTimer = null;

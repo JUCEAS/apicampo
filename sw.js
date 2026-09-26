@@ -2,7 +2,13 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v12";
+var CACHE_NAME = "apicampo-cache-v13";
+
+/* Caché aparte para el modelo de voz offline (~34MB): no lleva número de
+   versión de la app, así que NO se borra cuando la app se actualiza (ver
+   "activate" más abajo). Sin esto, cada actualización de ApiCampo forzaría
+   volver a descargar el modelo entero en el próximo apiario sin señal. */
+var CACHE_MODELO_VOZ = "apicampo-modelo-voz";
 
 var APP_SHELL = [
   "./manifest.json",
@@ -12,14 +18,18 @@ var APP_SHELL = [
 ];
 
 /* Librerías externas (QR) y fuentes: se guardan en cuanto se piden la primera vez,
-   así ya quedan disponibles sin conexión desde la segunda apertura. */
+   así ya quedan disponibles sin conexión desde la segunda apertura.
+   El modelo de voz offline se descarga y guarda aparte (CACHE_MODELO_VOZ),
+   solo cuando el usuario lo pide desde "Preparar dictado sin señal" — por su
+   tamaño no se descarga solo al instalar la app. */
 var EXTERNOS = [
   "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
-  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap",
+  "https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js"
 ];
 
 self.addEventListener("install", function(event){
@@ -34,7 +44,7 @@ self.addEventListener("activate", function(event){
   event.waitUntil(
     caches.keys().then(function(nombres){
       return Promise.all(nombres.map(function(n){
-        if(n !== CACHE_NAME) return caches.delete(n);
+        if(n !== CACHE_NAME && n !== CACHE_MODELO_VOZ) return caches.delete(n);
       }));
     }).then(function(){ return self.clients.claim(); })
   );
