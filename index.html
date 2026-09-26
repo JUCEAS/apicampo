@@ -1124,7 +1124,7 @@
   function parseInspeccion(textoOriginal){
     var t = " " + (textoOriginal||"").toLowerCase() + " ";
     var r = {
-      reinaPresente:null, reinaVirgen:false, sinCriaDelDia:false,
+      reinaPresente:null, reinaVirgen:false, sinCriaDelDia:null,
       posturaEtapa:null, posturaDias:null, posturaNivel:null,
       criaSellada:null, criaIntensidad:null,
       zanganos:null, zanganosIntensidad:null,
@@ -1238,13 +1238,13 @@
        son mansas" o "no son dóciles" es agresividad, no mansedumbre).
        "positivas" se admite como alias de "pasivas" porque a veces el
        dictado de voz confunde esa palabra. */
-    if(/\bno son (mansas?|d[oó]ciles?|pasivas?|tranquilas?)\b|\bno (es|son) tan (mansas?|d[oó]ciles?|pasivas?)\b/.test(t)){
+    if(/\bno son (mansas?|mansos?|d[oó]ciles?|pasivas?|pasivos?|tranquilas?|tranquilos?)\b|\bno (es|son) tan (mansas?|mansos?|d[oó]ciles?|pasivas?|pasivos?)\b/.test(t)){
       r.temperamento = "agresiva";
-    } else if(/\bno son agresivas?\b|\bno (es|son) tan agresivas?\b/.test(t)){
+    } else if(/\bno son agresivas?\b|\bno son agresivos?\b|\bno (es|son) tan agresivas?\b/.test(t)){
       r.temperamento = "mansa";
-    } else if(/\b(mansas?|tranquilas?|d[oó]ciles?|pasivas?|positivas?)\b/.test(t)){
+    } else if(/\b(mansas?|mansos?|tranquilas?|tranquilos?|d[oó]ciles?|pasivas?|pasivos?|positivas?|positivos?)\b/.test(t)){
       r.temperamento = "mansa";
-    } else if(/\b(agresivas?|nerviosas?|bravas?)\b/.test(t)){
+    } else if(/\b(agresivas?|agresivos?|nerviosas?|nerviosos?|bravas?|bravos?)\b/.test(t)){
       r.temperamento = "agresiva";
     }
 
@@ -2723,6 +2723,11 @@
         if(p) partes.push(p);
         if(d) partes.push(d);
         if(c.posturaNivel) partes.push("postura "+c.posturaNivel);
+        /* Si solo se dijo "postura/cría del día" (sin más detalle), no hay
+           etapa/días/nivel que mostrar, pero sí sabemos si hubo o no —
+           antes esto se guardaba pero la ficha no mostraba nada. */
+        if(!partes.length && c.sinCriaDelDia===true) partes.push("sin cría del día");
+        if(!partes.length && c.sinCriaDelDia===false) partes.push("hay cría del día");
         if(partes.length) return partes.join(" · ");
         return "Sin dato";
       }},
@@ -3006,7 +3011,24 @@
     [/\bs[aá]nganos\b/gi, "zánganos"],
     [/\bs[aá]ngano\b/gi, "zángano"],
     [/\bsangano\b/gi, "zángano"],
-    [/\bsanganos\b/gi, "zánganos"]
+    [/\bsanganos\b/gi, "zánganos"],
+    /* "cría sellada" sale como "c. seria" / "c seria" / "sería" (se pierden
+       las últimas sílabas de "sellada" y "cría" se acorta a la letra C). */
+    [/\bc\.?\s*seria\b/gi, "cría sellada"],
+    [/\bc\.?\s*ser[ií]a\b/gi, "cría sellada"],
+    /* "cría" a secas se confunde con "tenía" (verbo tener) — solo se corrige
+       cuando aparece junto a palabras que solo tienen sentido con "cría"
+       (sellada, del día, de hoy, operculada, yesificada) o después de "sin"/
+       "hay", para no tocar frases legítimas como "no tenía reina". */
+    [/\btenía sellada\b/gi, "cría sellada"],
+    [/\btenía operculada\b/gi, "cría operculada"],
+    [/\btenía yesificada\b/gi, "cría yesificada"],
+    [/\btenía del d[ií]a\b/gi, "cría del día"],
+    [/\btenía de hoy\b/gi, "cría de hoy"],
+    [/\bsin tenía\b/gi, "sin cría"],
+    [/\bhay tenía\b/gi, "hay cría"],
+    [/\bno hay tenía\b/gi, "no hay cría"],
+    [/\bno tenemos tenía\b/gi, "no tenemos cría"]
   ];
 
   function corregirDictadoOffline(texto){
