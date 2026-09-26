@@ -893,6 +893,10 @@
     <div class="row" style="gap:10px; margin-bottom:10px;">
       <button class="btn btn-primary" style="flex:1;" id="btnNuevaInversion">+ Registrar compra</button>
     </div>
+    <div class="type-toggle" id="inversionVistaToggle" style="margin-bottom:10px;">
+      <button type="button" data-vista="pendiente">Por comprar<span>lo que falta</span></button>
+      <button type="button" data-vista="historial">Historial<span>ya comprado</span></button>
+    </div>
     <div class="prod-tiles" id="inversionTotales"></div>
     <div class="wrap-chips" id="chipsCategoriaInversion"></div>
     <div class="card" style="padding:4px 14px;">
@@ -1203,7 +1207,7 @@
 <div class="modal-backdrop" id="modalInversion" hidden>
   <div class="modal">
     <h2>Registrar compra</h2>
-    <p style="font-size:13px; color:var(--muted); margin:0;">Para llevar cuánto has invertido en el negocio.</p>
+    <p style="font-size:13px; color:var(--muted); margin:0;">Queda como pendiente ("por comprar") hasta que confirmes que ya la hiciste.</p>
     <div class="field">
       <label>¿Qué compraste?</label>
       <div class="wrap-chips" id="inversionCategoriaChips"></div>
@@ -1233,6 +1237,22 @@
     <div class="row" style="gap:10px;">
       <button class="btn btn-line" style="flex:1;" id="btnCancelarInversion">Cancelar</button>
       <button class="btn btn-primary" style="flex:1;" id="btnGuardarInversion">Guardar compra</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: confirmar compra ya realizada / marcar fecha de uso -->
+<div class="modal-backdrop" id="modalFechaInversion" hidden>
+  <div class="modal">
+    <h2 id="fechaInversionTitulo">Confirmar compra</h2>
+    <p id="fechaInversionTexto" style="font-size:13px; color:var(--muted); margin:0 0 10px;"></p>
+    <div class="field">
+      <label for="inFechaInversion">Fecha</label>
+      <input type="date" id="inFechaInversion">
+    </div>
+    <div class="row" style="gap:10px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarFechaInversion">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;" id="btnGuardarFechaInversion">Guardar</button>
     </div>
   </div>
 </div>
@@ -1541,7 +1561,15 @@
       tratamientos: tratamientos,
       alimentaciones: alimentaciones,
       trabajos: [],
-      inversiones: [],
+      inversiones: [
+        {id:"invd1", categoria:"Cera", detalle:"", cantidad:4, precioUnitario:85, total:340,
+         apiarioId:ap1, fecha:hoy-15*dia, registradoPor:"JUCEAS",
+         confirmada:true, fechaCompra:hoy-14*dia, fechaUso:hoy-10*dia, reparto:null},
+        {id:"invd2", categoria:"Medicamento", detalle:"Ácido oxálico", cantidad:2, precioUnitario:180, total:360,
+         apiarioId:ap2, fecha:hoy-2*dia, registradoPor:"JUCEAS",
+         confirmada:false, fechaCompra:null, fechaUso:null,
+         reparto:[{socioId:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)", monto:180}, {socioId:"soc_ceiba_2", nombre:"Socio 2 (ejemplo)", monto:180}]}
+      ],
       cosechas: [],
       config: {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120},
       usuarios: ["JUCEAS"],
@@ -1578,6 +1606,13 @@
           if(!ap.giras) ap.giras = [];
         });
         if(!datos.cosechas) datos.cosechas = [];
+        // Las compras registradas antes de que existiera el paso de
+        // "confirmar compra" se tratan como ya realizadas (así no
+        // desaparecen de golpe del historial ni parecen "pendientes").
+        (datos.inversiones||[]).forEach(function(i){
+          if(i.confirmada===undefined){ i.confirmada = true; i.fechaCompra = i.fecha; }
+          if(i.fechaUso===undefined) i.fechaUso = null;
+        });
         (datos.colmenas||[]).forEach(function(c){ if(!c.historialMovimientos) c.historialMovimientos = []; });
         (datos.revisiones||[]).forEach(function(r){
           if(!r.apiarioId){
@@ -4548,6 +4583,49 @@
   var CATEGORIAS_INVERSION = ["Marcos","Cajas / alzas","Tapaderas (techos)","Pisos (bases)","Cera","Medicamento","Azúcar (alimentación)","Otro"];
   var inversionCategoriaSel = CATEGORIAS_INVERSION[0];
   var inversionFiltro = "todas";
+  var inversionVista = "pendiente"; // "pendiente" = por comprar (proyección) · "historial" = ya confirmadas
+  var fechaInversionContexto = null;
+
+  $all("#inversionVistaToggle button").forEach(function(b){
+    b.addEventListener("click", function(){ inversionVista = b.dataset.vista; renderInversion(); });
+  });
+
+  function abrirModalFechaInversion(inv, tipo){
+    fechaInversionContexto = {inv:inv, tipo:tipo};
+    var etiqueta = inv.categoria + (inv.detalle ? (" · "+inv.detalle) : "");
+    if(tipo==="confirmar"){
+      $("#fechaInversionTitulo").textContent = "Confirmar compra";
+      $("#fechaInversionTexto").textContent = "¿Cuándo compraste \""+etiqueta+"\"? Pasará del listado \"Por comprar\" al Historial.";
+      $("#inFechaInversion").value = new Date().toISOString().slice(0,10);
+    } else {
+      $("#fechaInversionTitulo").textContent = "Marcar como usado";
+      $("#fechaInversionTexto").textContent = "¿Cuándo usaste \""+etiqueta+"\" en el apiario?";
+      $("#inFechaInversion").value = inv.fechaUso ? new Date(inv.fechaUso).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+    }
+    $("#modalFechaInversion").hidden = false;
+  }
+  $("#btnCancelarFechaInversion").addEventListener("click", function(){ $("#modalFechaInversion").hidden = true; fechaInversionContexto = null; });
+  $("#modalFechaInversion").addEventListener("click", function(e){ if(e.target===this){ this.hidden = true; fechaInversionContexto = null; } });
+  $("#btnGuardarFechaInversion").addEventListener("click", function(){
+    if(!fechaInversionContexto) return;
+    var fechaStr = $("#inFechaInversion").value;
+    if(!fechaStr){ toast("Elige una fecha"); return; }
+    var ts = new Date(fechaStr+"T12:00:00").getTime();
+    var inv = fechaInversionContexto.inv;
+    if(fechaInversionContexto.tipo==="confirmar"){
+      inv.confirmada = true;
+      inv.fechaCompra = ts;
+      toast("Compra confirmada");
+    } else {
+      inv.fechaUso = ts;
+      toast("Fecha de uso guardada");
+    }
+    store.esDemo = false;
+    guardar();
+    $("#modalFechaInversion").hidden = true;
+    fechaInversionContexto = null;
+    renderInversion();
+  });
 
   function fmtLdec(n){
     return "L "+n.toLocaleString("es-HN", {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -4636,22 +4714,31 @@
       id: uid("inv"), categoria: inversionCategoriaSel, detalle: detalle,
       cantidad: cantidad, precioUnitario: precio, total: total,
       apiarioId: apiarioId, fecha: Date.now(), registradoPor: store.usuarioActual,
-      reparto: reparto
+      reparto: reparto, confirmada: false, fechaCompra: null, fechaUso: null
     });
     store.esDemo = false;
     guardar();
     $("#modalInversion").hidden = true;
+    inversionVista = "pendiente";
     renderInversion();
-    toast("Compra registrada");
+    toast("Compra registrada como pendiente por comprar");
   });
 
   function inversionesFiltradas(){
-    var lista = store.inversiones.slice().sort(function(a,b){ return b.fecha-a.fecha; });
+    var confirmadas = (inversionVista==="historial");
+    var lista = store.inversiones.filter(function(i){ return !!i.confirmada === confirmadas; });
+    lista.sort(function(a,b){
+      var ta = confirmadas ? (a.fechaCompra||a.fecha) : a.fecha;
+      var tb = confirmadas ? (b.fechaCompra||b.fecha) : b.fecha;
+      return tb-ta;
+    });
     if(inversionFiltro==="todas") return lista;
     return lista.filter(function(i){ return i.categoria===inversionFiltro; });
   }
 
   function renderInversion(){
+    $all("#inversionVistaToggle button").forEach(function(b){ b.classList.toggle("on", b.dataset.vista===inversionVista); });
+
     var wrap = $("#chipsCategoriaInversion");
     wrap.innerHTML = "";
     var chipTodas = el("button",{class:"chip"+(inversionFiltro==="todas"?" active":""), text:"Todas"});
@@ -4664,29 +4751,52 @@
       wrap.appendChild(chip);
     });
 
-    var totalGeneral = store.inversiones.reduce(function(s,i){ return s+i.total; }, 0);
-    var cantidadCompras = store.inversiones.length;
-    var tilesWrap = $("#inversionTotales");
-    tilesWrap.innerHTML =
-      '<div class="prod-tile accent"><span class="v">'+fmtL(totalGeneral)+'</span><span class="k">invertido en total</span></div>'+
-      '<div class="prod-tile"><span class="v">'+cantidadCompras+'</span><span class="k">compra'+(cantidadCompras===1?"":"s")+' registrada'+(cantidadCompras===1?"":"s")+'</span></div>';
-
     var lista = inversionesFiltradas();
+    var totalVista = lista.reduce(function(s,i){ return s+i.total; }, 0);
+    var tilesWrap = $("#inversionTotales");
+    if(inversionVista==="pendiente"){
+      tilesWrap.innerHTML =
+        '<div class="prod-tile accent"><span class="v">'+fmtL(totalVista)+'</span><span class="k">proyectado por comprar</span></div>'+
+        '<div class="prod-tile"><span class="v">'+lista.length+'</span><span class="k">pendiente'+(lista.length===1?"":"s")+' de confirmar</span></div>';
+    } else {
+      tilesWrap.innerHTML =
+        '<div class="prod-tile accent"><span class="v">'+fmtL(totalVista)+'</span><span class="k">invertido (confirmado)</span></div>'+
+        '<div class="prod-tile"><span class="v">'+lista.length+'</span><span class="k">compra'+(lista.length===1?"":"s")+' confirmada'+(lista.length===1?"":"s")+'</span></div>';
+    }
+
     var cont = $("#listaInversion");
     cont.innerHTML = "";
     $("#inversionEmpty").hidden = lista.length>0;
+    $("#inversionEmpty").textContent = inversionVista==="pendiente"
+      ? "No tienes compras pendientes por confirmar."
+      : "Todavía no has confirmado ninguna compra.";
     lista.forEach(function(inv){
       var row = el("div",{class:"prod-row"});
       var izq = el("div");
       var apNombre = inv.apiarioId ? apiarioNombre(inv.apiarioId) : "General";
       var repartoTxt = (inv.reparto && inv.reparto.length) ? (' · ÷ '+inv.reparto.length+' socios ('+fmtLdec(inv.reparto[0].monto)+' c/u aprox.)') : '';
+      var fechaMostrar = (inversionVista==="historial") ? (inv.fechaCompra||inv.fecha) : inv.fecha;
+      var usoTxt = inv.fechaUso ? (' · usado '+fechaCorta(inv.fechaUso)) : '';
       izq.innerHTML = '<div class="who">'+escaparHtml(inv.categoria)+(inv.detalle?(" · "+escaparHtml(inv.detalle)):"")+'</div>'+
-        '<div class="apiario-name">'+escaparHtml(apNombre)+' · '+fechaCorta(inv.fecha)+escaparHtml(repartoTxt)+'</div>';
+        '<div class="apiario-name">'+escaparHtml(apNombre)+' · '+fechaCorta(fechaMostrar)+escaparHtml(repartoTxt)+escaparHtml(usoTxt)+'</div>';
       row.appendChild(izq);
       var der = el("div",{class:"right"});
       der.innerHTML = '<div class="kg">'+fmtNum(inv.cantidad,inv.cantidad%1===0?0:2)+' × '+fmtLdec(inv.precioUnitario)+'</div><div class="ingreso">'+fmtL(inv.total)+'</div>';
       row.appendChild(der);
-      var btnBorrar = el("button",{class:"icon-btn", style:"color:var(--critical); flex:none; margin-left:6px;", title:"Eliminar", "aria-label":"Eliminar compra"});
+
+      var botones = el("div",{style:"display:flex; flex-direction:column; gap:4px; margin-left:6px; flex:none;"});
+      if(!inv.confirmada){
+        var btnConfirmar = el("button",{class:"icon-btn", style:"color:var(--good);", title:"Confirmar compra", "aria-label":"Confirmar compra"});
+        btnConfirmar.textContent = "✓";
+        btnConfirmar.addEventListener("click", function(ev){ ev.stopPropagation(); abrirModalFechaInversion(inv, "confirmar"); });
+        botones.appendChild(btnConfirmar);
+      } else if(!inv.fechaUso){
+        var btnUso = el("button",{class:"icon-btn", title:"Marcar como usado", "aria-label":"Marcar como usado"});
+        btnUso.textContent = "🔧";
+        btnUso.addEventListener("click", function(ev){ ev.stopPropagation(); abrirModalFechaInversion(inv, "uso"); });
+        botones.appendChild(btnUso);
+      }
+      var btnBorrar = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar", "aria-label":"Eliminar compra"});
       btnBorrar.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       btnBorrar.addEventListener("click", function(ev){
         ev.stopPropagation();
@@ -4697,12 +4807,16 @@
           renderInversion();
         });
       });
+      botones.appendChild(btnBorrar);
       row.style.alignItems = "center";
-      row.appendChild(btnBorrar);
+      row.appendChild(botones);
       cont.appendChild(row);
     });
 
-    renderRepartoSociosResumen(lista);
+    var confirmadasParaReparto = store.inversiones.filter(function(i){
+      return i.confirmada && (inversionFiltro==="todas" || i.categoria===inversionFiltro);
+    });
+    renderRepartoSociosResumen(confirmadasParaReparto);
   }
 
   // Resumen: cuánto le corresponde pagar a cada socio, agrupado por apiario
