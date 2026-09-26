@@ -1731,7 +1731,7 @@
       var card = el("div",{class:"card apiario-card"});
       card.innerHTML =
         '<div class="top">'+
-          '<div><h3>'+ap.nombre+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
+          '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
@@ -2330,8 +2330,8 @@
         var apId = r.apiarioId || c.apiarioId;
         var muestraApiario = store.apiarios.length>1 && apId!==c.apiarioId;
         row.innerHTML =
-          '<div class="top"><span class="who">'+fechaCorta(r.fecha)+(muestraApiario?(' · '+apiarioNombre(apId)):'')+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
-          '<div class="summary">'+resumenCampos(r.campos, r.marcos)+(r.revisadoPor?(' · revisó '+r.revisadoPor):'')+'</div>';
+          '<div class="top"><span class="who">'+fechaCorta(r.fecha)+(muestraApiario?(' · '+escaparHtml(apiarioNombre(apId))):'')+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
+          '<div class="summary">'+resumenCampos(r.campos, r.marcos)+(r.revisadoPor?(' · revisó '+escaparHtml(r.revisadoPor)):'')+'</div>';
         row.addEventListener("click", function(){ abrirDetalleRevision(r); });
         hist.appendChild(row);
       });
@@ -2670,9 +2670,9 @@
       var v = calcularVencimiento(t.fecha, t.frecuenciaDias);
       var row = el("div",{class:"tx-row"});
       row.innerHTML =
-        '<div class="top"><span class="who">'+t.producto+'</span>'+tagVencimientoHtml(v)+'</div>'+
-        '<div class="when">'+fechaCorta(t.fecha)+' · '+t.enfermedad+'</div>'+
-        (t.dosis?('<div class="detail">Dosis: '+t.dosis+'</div>'):'')+
+        '<div class="top"><span class="who">'+escaparHtml(t.producto)+'</span>'+tagVencimientoHtml(v)+'</div>'+
+        '<div class="when">'+fechaCorta(t.fecha)+' · '+escaparHtml(t.enfermedad)+'</div>'+
+        (t.dosis?('<div class="detail">Dosis: '+escaparHtml(t.dosis)+'</div>'):'')+
         (t.duracionDias?('<div class="detail">Duración: '+t.duracionDias+' días</div>'):'');
       wrap.appendChild(row);
     });
@@ -3657,7 +3657,7 @@
       var filas = apiariosVisibles.map(function(a){
         var d = haversineKm(miUbicacion.lat, miUbicacion.lng, a.lat, a.lng);
         var estado = d<=2.5 ? "dentro del radio habitual (2.5 km)" : (d<=5 ? "dentro del radio amplio (5 km)" : "fuera del radio de 5 km");
-        return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0 0 4px;"><b>'+a.nombre+'</b>: '+d.toFixed(2)+' km de tu ubicación — '+estado+'</p>';
+        return '<p style="font-size:12.5px; color:var(--accent-ink); margin:0 0 4px;"><b>'+escaparHtml(a.nombre)+'</b>: '+d.toFixed(2)+' km de tu ubicación — '+estado+'</p>';
       }).join("");
       cardUbicacion.innerHTML =
         '<p class="section-title" style="margin-bottom:6px; color:var(--accent-ink);">Distancia desde tu ubicación</p>'+
@@ -3670,7 +3670,7 @@
       var a = apiariosVisibles[0];
       if(a){
         var card = el("div",{class:"card"});
-        card.innerHTML = '<p class="section-title" style="margin-bottom:6px;">'+a.nombre+'</p>'+
+        card.innerHTML = '<p class="section-title" style="margin-bottom:6px;">'+escaparHtml(a.nombre)+'</p>'+
           '<p class="mono" style="font-size:13px; margin:0 0 8px;">'+a.lat.toFixed(5)+', '+a.lng.toFixed(5)+'</p>'+
           '<p style="font-size:12.5px; color:var(--muted); margin:0;">Área de pecoreo a 2.5 km ≈ 1 963 ha. A 5 km, el área crece a unas 7 850 ha.</p>';
         box.appendChild(card);
@@ -3768,7 +3768,7 @@
       colmenasSinRevisar.forEach(function(c){
         var row = el("div",{class:"hist-row"});
         var ult = ultimaRevision(c.id);
-        row.innerHTML = '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombre(c.apiarioId)+'</span>'+estadoBadgeHtml("sin_revisar")+'</div>'+
+        row.innerHTML = '<div class="top"><span class="who">#'+c.numero+' · '+escaparHtml(apiarioNombre(c.apiarioId))+'</span>'+estadoBadgeHtml("sin_revisar")+'</div>'+
           '<div class="summary">'+(ult? ("última revisión "+haceTiempo(ult.fecha)) : "nunca revisada")+'</div>';
         row.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
         contenedor.appendChild(row);
@@ -3788,8 +3788,8 @@
         var t = ev.data;
         var rowT = el("div",{class:"hist-row"});
         rowT.innerHTML =
-          '<div class="top"><span class="who">🛠 '+apiarioNombre(t.apiarioId)+' — '+escaparHtml(trabajoTipoTexto(t))+'</span></div>'+
-          '<div class="when">'+fechaCorta(t.fecha)+' · '+haceTiempo(t.fecha)+(t.registradoPor?(' · registró '+t.registradoPor):'')+'</div>'+
+          '<div class="top"><span class="who">🛠 '+escaparHtml(apiarioNombre(t.apiarioId))+' — '+escaparHtml(trabajoTipoTexto(t))+'</span></div>'+
+          '<div class="when">'+fechaCorta(t.fecha)+' · '+haceTiempo(t.fecha)+(t.registradoPor?(' · registró '+escaparHtml(t.registradoPor)):'')+'</div>'+
           (t.texto ? ('<div class="summary">'+escaparHtml(t.texto)+'</div>') : '');
         contenedor.appendChild(rowT);
         return;
@@ -3800,8 +3800,8 @@
       var apId = r.apiarioId || c.apiarioId;
       var row = el("div",{class:"hist-row"});
       row.innerHTML =
-        '<div class="top"><span class="who">#'+c.numero+' · '+apiarioNombre(apId)+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
-        '<div class="when">'+fechaCorta(r.fecha)+' · '+haceTiempo(r.fecha)+(r.revisadoPor?(' · revisó '+r.revisadoPor):'')+'</div>'+
+        '<div class="top"><span class="who">#'+c.numero+' · '+escaparHtml(apiarioNombre(apId))+'</span>'+estadoBadgeHtml(estadoRevision(r.campos))+'</div>'+
+        '<div class="when">'+fechaCorta(r.fecha)+' · '+haceTiempo(r.fecha)+(r.revisadoPor?(' · revisó '+escaparHtml(r.revisadoPor)):'')+'</div>'+
         '<div class="summary">'+resumenCampos(r.campos, r.marcos)+'</div>';
       row.addEventListener("click", function(){ abrirDetalleRevision(r); });
       contenedor.appendChild(row);
@@ -4093,7 +4093,7 @@
       var p = proyeccionColmena(c);
       var row = el("div",{class:"prod-row"});
       var izq = el("div");
-      izq.innerHTML = '<div class="who">#'+c.numero+'</div><div class="apiario-name">'+apiarioNombre(c.apiarioId)+(c.tipo==="nucleo"?" · núcleo":"")+'</div>';
+      izq.innerHTML = '<div class="who">#'+c.numero+'</div><div class="apiario-name">'+escaparHtml(apiarioNombre(c.apiarioId))+(c.tipo==="nucleo"?" · núcleo":"")+'</div>';
       row.appendChild(izq);
       if(p && p.marcosMiel>0){
         hayFilas = true;
