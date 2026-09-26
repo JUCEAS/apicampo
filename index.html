@@ -2376,9 +2376,40 @@
   function escaparHtml(s){
     return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
-  var TRABAJO_TIPOS = ["Chapeo / limpieza de maleza","Reparación de estructura","Alimentación general del apiario","Tratamiento general del apiario","Traslado o acomodo de colmenas","Otro"];
+  /* Lista ampliada según prácticas comunes de manejo apícola (chapeo,
+     alimentación, sanidad, pero también cambio de cera, cosecha, división
+     de colmenas, pintura, bebederos, depredadores, etc.) — un mismo día de
+     trabajo casi siempre combina varias de estas tareas a la vez, por eso
+     ahora se pueden marcar varias en lugar de solo una. */
+  var TRABAJO_TIPOS = [
+    "Chapeo / limpieza de maleza",
+    "Reparación de estructura",
+    "Alimentación general del apiario",
+    "Tratamiento sanitario / control de varroa",
+    "Traslado o acomodo de colmenas",
+    "Cambio de cera / panales viejos",
+    "Revisión general del apiario",
+    "Cosecha de miel",
+    "División de colmenas / formación de núcleos",
+    "Unificación de colmenas",
+    "Pintura de colmenas",
+    "Colocación de sombra o techo",
+    "Bebedero de agua para las abejas",
+    "Control de depredadores (hormigas, ratones, etc.)",
+    "Cercado / seguridad del apiario",
+    "Otro"
+  ];
   var trabajoApiarioActual = null;
-  var trabajoTipoSel = TRABAJO_TIPOS[0];
+  var trabajoTiposSel = [TRABAJO_TIPOS[0]];
+
+  /* El texto del tipo de trabajo se guarda como lista (tipos:[...]) para
+     poder marcar varias tareas del mismo día. Los registros viejos (antes
+     de este cambio) solo tenían "tipo" como texto único — este helper
+     muestra bien ambos casos sin tener que migrar los datos guardados. */
+  function trabajoTipoTexto(t){
+    if(Array.isArray(t.tipos) && t.tipos.length) return t.tipos.join(" + ");
+    return t.tipo || "";
+  }
 
   function trabajosDe(apiarioId){
     return store.trabajos.filter(function(t){ return t.apiarioId===apiarioId; }).sort(function(a,b){ return b.fecha-a.fecha; });
@@ -2387,25 +2418,27 @@
     var lista = trabajosDe(apiarioId);
     if(!lista.length) return "";
     var t = lista[0];
-    return '<p style="font-size:12px; color:var(--muted); margin:4px 0 0;">🛠 Último trabajo: <b>'+escaparHtml(t.tipo)+'</b> — '+haceTiempo(t.fecha)+'</p>';
+    return '<p style="font-size:12px; color:var(--muted); margin:4px 0 0;">🛠 Último trabajo: <b>'+escaparHtml(trabajoTipoTexto(t))+'</b> — '+haceTiempo(t.fecha)+'</p>';
   }
 
   function abrirModalTrabajo(ap){
     trabajoApiarioActual = ap;
     $("#trabajoApiarioLabel").textContent = ap.nombre;
     $("#inTrabajoDetalle").value = "";
-    var ref = crearChipsUnicos($("#trabajoTipoChips"), TRABAJO_TIPOS, TRABAJO_TIPOS[0], function(v){ trabajoTipoSel=v; });
-    trabajoTipoSel = ref.get();
+    trabajoTiposSel = [TRABAJO_TIPOS[0]];
+    var ref = crearChipsMultiples($("#trabajoTipoChips"), TRABAJO_TIPOS, trabajoTiposSel, function(v){ trabajoTiposSel=v; });
+    trabajoTiposSel = ref.get();
     $("#modalTrabajo").hidden = false;
   }
   $("#btnCancelarTrabajo").addEventListener("click", function(){ $("#modalTrabajo").hidden = true; });
   $("#modalTrabajo").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
   $("#btnGuardarTrabajo").addEventListener("click", function(){
     if(!trabajoApiarioActual) return;
+    if(!trabajoTiposSel.length){ toast("Marca al menos un tipo de trabajo"); return; }
     var texto = $("#inTrabajoDetalle").value.trim();
     store.trabajos.push({
       id:uid("tr"), apiarioId:trabajoApiarioActual.id, fecha:Date.now(),
-      tipo:trabajoTipoSel, texto:texto, registradoPor:store.usuarioActual
+      tipos:trabajoTiposSel.slice(), texto:texto, registradoPor:store.usuarioActual
     });
     store.esDemo = false;
     guardar();
@@ -2492,6 +2525,43 @@
     }
     pintar();
     return { get:function(){ return actual; } };
+  }
+
+  /* Como crearChipsUnicos, pero permite marcar varias opciones a la vez
+     (un mismo trabajo en el apiario casi siempre combina varias tareas:
+     chapear Y alimentar Y revisar estructuras el mismo día). "Otro" pide
+     un texto libre y se agrega a la selección junto con las demás. */
+  function crearChipsMultiples(container, opciones, valoresIniciales, onCambio){
+    var actuales = (valoresIniciales||[]).slice();
+    function estaActivo(op){ return actuales.indexOf(op)!==-1; }
+    function pintar(){
+      container.innerHTML = "";
+      opciones.forEach(function(op){
+        var esOtroPersonalizado = op==="Otro" && actuales.some(function(v){ return opciones.indexOf(v)===-1; });
+        var chip = el("button",{class:"chip"+((estaActivo(op)||esOtroPersonalizado)?" active":""), type:"button", text:op});
+        chip.addEventListener("click", function(){
+          if(op==="Otro"){
+            preguntarApp("Escribe el valor:", "").then(function(custom){
+              if(!custom) return;
+              custom = custom.trim();
+              if(custom && actuales.indexOf(custom)===-1){
+                actuales.push(custom);
+                onCambio(actuales.slice());
+                pintar();
+              }
+            });
+            return;
+          }
+          var i = actuales.indexOf(op);
+          if(i===-1) actuales.push(op); else actuales.splice(i,1);
+          onCambio(actuales.slice());
+          pintar();
+        });
+        container.appendChild(chip);
+      });
+    }
+    pintar();
+    return { get:function(){ return actuales.slice(); } };
   }
 
   /* ---- Tratamientos ---- */
@@ -3661,7 +3731,7 @@
         var t = ev.data;
         var rowT = el("div",{class:"hist-row"});
         rowT.innerHTML =
-          '<div class="top"><span class="who">🛠 '+apiarioNombre(t.apiarioId)+' — '+escaparHtml(t.tipo)+'</span></div>'+
+          '<div class="top"><span class="who">🛠 '+apiarioNombre(t.apiarioId)+' — '+escaparHtml(trabajoTipoTexto(t))+'</span></div>'+
           '<div class="when">'+fechaCorta(t.fecha)+' · '+haceTiempo(t.fecha)+(t.registradoPor?(' · registró '+t.registradoPor):'')+'</div>'+
           (t.texto ? ('<div class="summary">'+escaparHtml(t.texto)+'</div>') : '');
         contenedor.appendChild(rowT);
@@ -3790,14 +3860,24 @@
           y += 5.5;
           trabajosApiario.forEach(function(t){
             var detalle = t.texto || "";
+            /* El tipo ahora puede ser varias tareas juntas ("Chapeo... +
+               Alimentación... + Pintura..."), así que ya no cabe en una
+               sola línea junto a la fecha — se envuelve como el detalle,
+               y la fecha pasa a su propia línea. */
+            var tipoTexto = trabajoTipoTexto(t);
+            var lineasTipo = doc.splitTextToSize(tipoTexto, anchoTexto - 4);
             var lineasT = detalle ? doc.splitTextToSize(detalle, anchoTexto - 4) : [];
-            nuevaPaginaSiHaceFalta(6 + lineasT.length*4.4);
+            nuevaPaginaSiHaceFalta(6 + lineasTipo.length*4.4 + lineasT.length*4.4);
             doc.setFont("helvetica","bold");
             doc.setFontSize(9.5);
-            doc.text(t.tipo, margin, y);
+            doc.text(lineasTipo, margin, y);
+            y += lineasTipo.length*4.4;
             doc.setFont("helvetica","normal");
-            doc.text(fechaCorta(t.fecha)+(t.registradoPor?(" · registró "+t.registradoPor):""), margin+70, y);
-            y += 4.8;
+            doc.setFontSize(8.5);
+            doc.setTextColor(110);
+            doc.text(fechaCorta(t.fecha)+(t.registradoPor?(" · registró "+t.registradoPor):""), margin, y);
+            doc.setTextColor(20);
+            y += 4.4;
             if(lineasT.length){
               doc.setFontSize(9.5);
               doc.text(lineasT, margin+4, y);
