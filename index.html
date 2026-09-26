@@ -382,10 +382,19 @@
   .toast[hidden]{ opacity:0; pointer-events:none; transform:translate(-50%,8px); }
 
   /* ---------- Apiarios ---------- */
-  .apiario-card{ display:flex; flex-direction:column; gap:8px; }
+  .apiario-card{ display:flex; flex-direction:column; gap:8px; border:1.5px solid var(--line); transition:background .15s, border-color .15s; }
   .apiario-card .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
   .apiario-card h3{ font-size:16.5px; margin:0; }
   .apiario-card .coords{ font-size:12px; color:var(--muted); }
+  /* Igual que las opciones seleccionadas (fondo amarillo/dorado): el
+     apiario con el que se está trabajando ahora se pinta con ese mismo
+     color, para que se distinga de un vistazo entre la lista. */
+  .apiario-card.trabajando{ background:var(--accent-soft); border-color:var(--accent); }
+  .apiario-card .trabajando-tag{
+    display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+    color:var(--accent-soft-ink); background:var(--surface); border:1px solid var(--accent);
+    padding:2px 8px; border-radius:999px; align-self:flex-start; margin-bottom:-2px;
+  }
   .stat-mini{ display:flex; gap:14px; font-size:12.5px; color:var(--muted); }
   .stat-mini b{ color:var(--ink); }
   .badge-sociedad{
@@ -577,7 +586,11 @@
   .type-toggle button span{ font-size:11px; font-weight:500; color:var(--muted); }
   .type-toggle button.on{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
   .type-toggle button.on span{ color:var(--accent-ink); opacity:0.85; }
-  .socio-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .socio-block{
+    border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:8px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .socio-row{ display:flex; gap:8px; align-items:center; }
   .socio-row .socio-num{
     flex:none; width:22px; height:22px; border-radius:999px; background:var(--accent-soft); color:var(--accent-soft-ink);
     font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
@@ -587,6 +600,11 @@
     font-size:13px; font-family:inherit; background:var(--surface-2); color:var(--ink);
   }
   .socio-row input.socio-tel{ flex:0 0 34%; }
+  .socio-sin-giras{
+    display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted);
+    padding-left:30px; cursor:pointer;
+  }
+  .socio-sin-giras input{ flex:none; width:16px; height:16px; margin:0; accent-color:var(--accent); }
 
   /* ---------- Mapa ---------- */
   .map-caption{ font-size:12px; color:var(--muted); line-height:1.5; }
@@ -1684,6 +1702,7 @@
       if(!ap.modoPropiedad) ap.modoPropiedad = "individual";
       if(!ap.socios) ap.socios = [];
       if(!ap.giras) ap.giras = [];
+      ap.socios.forEach(function(s){ if(s.sinGiras===undefined) s.sinGiras = false; });
     });
     if(!datos.cosechas) datos.cosechas = [];
     // Las compras registradas antes de que existiera el paso de
@@ -2023,6 +2042,7 @@
     };
     $("#topbarSub").textContent = subs[tab]||"";
     actualizarBannerApiarioActivo();
+    if(tab==="apiarios") renderApiarios();
     if(tab==="colmenas") renderColmenas();
     if(tab==="revisar") renderRevisarColmenas();
     if(tab==="mapa") renderMapa();
@@ -2048,10 +2068,12 @@
     }
     store.apiarios.forEach(function(ap){
       var n = colmenasDe(ap.id).length;
-      var card = el("div",{class:"card apiario-card"});
+      var esActivo = ap.id===apiarioActivo;
+      var card = el("div",{class:"card apiario-card"+(esActivo?" trabajando":"")});
       var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
       var proximaGira = esSociedad ? calcularProximoTurnoGira(ap) : null;
       card.innerHTML =
+        (esActivo ? '<span class="trabajando-tag">📍 Trabajando aquí</span>' : '')+
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
         '</div>'+
@@ -2060,7 +2082,7 @@
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
-      var b1 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Trabajar aquí"});
+      var b1 = el("button",{class:"btn "+(esActivo?"btn-primary":"btn-line"), style:"flex:1; padding:8px; font-size:13px;", text: esActivo ? "✓ Trabajando aquí" : "Trabajar aquí"});
       b1.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("colmenas"); });
       var b2 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver en mapa"});
       b2.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("mapa"); });
@@ -2119,12 +2141,13 @@
   var modoPropiedadSel = "individual";
   var sociosForm = []; // copia de trabajo mientras el modal está abierto: [{id,nombre,telefono}]
 
-  function nuevoSocioVacio(){ return {id:uid("soc"), nombre:"", telefono:""}; }
+  function nuevoSocioVacio(){ return {id:uid("soc"), nombre:"", telefono:"", sinGiras:false}; }
 
   function renderSociosForm(){
     var wrap = $("#listaSociosForm");
     wrap.innerHTML = "";
     sociosForm.forEach(function(s, i){
+      var bloque = el("div",{class:"socio-block"});
       var row = el("div",{class:"socio-row"});
       var num = el("span",{class:"socio-num", text:String(i+1)});
       var inNombre = el("input",{type:"text", placeholder:"Nombre del socio"});
@@ -2137,7 +2160,20 @@
       btnDel.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       btnDel.addEventListener("click", function(){ sociosForm.splice(i,1); renderSociosForm(); });
       row.appendChild(num); row.appendChild(inNombre); row.appendChild(inTel); row.appendChild(btnDel);
-      wrap.appendChild(row);
+      bloque.appendChild(row);
+
+      // Socios que viven donde está el apiario no gastan en transporte, así
+      // que se pueden marcar como "no hace giras" y quedan fuera del turno
+      // rotativo (sin dejar de ser socio para dividir costos e inversión).
+      var lbl = el("label",{class:"socio-sin-giras"});
+      var chk = el("input",{type:"checkbox"});
+      chk.checked = !!s.sinGiras;
+      chk.addEventListener("change", function(){ s.sinGiras = chk.checked; });
+      lbl.appendChild(chk);
+      lbl.appendChild(document.createTextNode("No hace giras (vive donde está el apiario)"));
+      bloque.appendChild(lbl);
+
+      wrap.appendChild(bloque);
     });
   }
 
@@ -2180,7 +2216,7 @@
     $("#inLng").value = ap.lng;
     $("#ubicacionMsg").textContent = "";
     modoPropiedadSel = ap.modoPropiedad || "individual";
-    sociosForm = (ap.socios||[]).map(function(s){ return {id:s.id, nombre:s.nombre, telefono:s.telefono}; });
+    sociosForm = (ap.socios||[]).map(function(s){ return {id:s.id, nombre:s.nombre, telefono:s.telefono, sinGiras:!!s.sinGiras}; });
     if(modoPropiedadSel==="sociedad" && sociosForm.length<2){ while(sociosForm.length<2) sociosForm.push(nuevoSocioVacio()); }
     renderSociosForm();
     actualizarModoPropiedadUI();
@@ -2214,7 +2250,7 @@
       if(sociosValidos.length<2){ toast("Un apiario en sociedad necesita al menos 2 socios con nombre"); return; }
       var sinTelefono = sociosValidos.some(function(s){ return !s.telefono || !s.telefono.trim(); });
       if(sinTelefono){ toast("Falta el teléfono de algún socio"); return; }
-      socios = sociosValidos.map(function(s){ return {id:s.id, nombre:s.nombre.trim(), telefono:s.telefono.trim()}; });
+      socios = sociosValidos.map(function(s){ return {id:s.id, nombre:s.nombre.trim(), telefono:s.telefono.trim(), sinGiras:!!s.sinGiras}; });
     }
 
     if(apiarioEditando){
@@ -2252,23 +2288,33 @@
   /* ---- Turnos de gira (transporte por sociedad) ---- */
   var girasApiarioActual = null;
 
+  // Socios que sí entran en la rotación de giras: quienes viven donde está
+  // el apiario no gastan en transporte para llegar, así que se marcan como
+  // "no hace giras" al crearlos/editarlos y quedan fuera del turno rotativo
+  // (siguen siendo socios normales para dividir costos e inversión).
+  function sociosParaGiras(ap){
+    return (ap.socios||[]).filter(function(s){ return !s.sinGiras; });
+  }
+
   // Ronda de turnos: cada quien financia el transporte de su gira, en el
-  // mismo orden en que aparecen los socios. Se calcula a partir de quién
-  // hizo la última gira registrada — así no hay que anotar "de quién es el
-  // turno", el propio historial lo dice.
+  // mismo orden en que aparecen los socios elegibles. Se calcula a partir de
+  // quién hizo la última gira registrada — así no hay que anotar "de quién
+  // es el turno", el propio historial lo dice.
   function calcularProximoTurnoGira(ap){
-    if(!ap.socios || ap.socios.length<2) return null;
+    var elegibles = sociosParaGiras(ap);
+    if(!elegibles.length) return null;
+    if(elegibles.length===1) return elegibles[0];
     var giras = (ap.giras||[]).slice().sort(function(a,b){ return b.fecha-a.fecha; });
-    if(!giras.length) return ap.socios[0];
-    var idx = ap.socios.findIndex(function(s){ return s.id===giras[0].socioId; });
-    if(idx===-1) return ap.socios[0];
-    return ap.socios[(idx+1)%ap.socios.length];
+    if(!giras.length) return elegibles[0];
+    var idx = elegibles.findIndex(function(s){ return s.id===giras[0].socioId; });
+    if(idx===-1) return elegibles[0];
+    return elegibles[(idx+1)%elegibles.length];
   }
 
   function poblarSelectGiraSocio(ap, seleccionado){
     var sel = $("#selGiraSocio");
     sel.innerHTML = "";
-    ap.socios.forEach(function(s){
+    sociosParaGiras(ap).forEach(function(s){
       var opt = el("option",{text:s.nombre});
       opt.value = s.id;
       if(s.id===seleccionado) opt.selected = true;
@@ -2277,11 +2323,17 @@
   }
 
   function renderGirasOrden(ap, proximo){
-    var n = ap.socios.length;
-    var startIdx = ap.socios.findIndex(function(s){ return s.id===proximo.id; });
+    var elegibles = sociosParaGiras(ap);
+    var n = elegibles.length;
+    var startIdx = elegibles.findIndex(function(s){ return s.id===proximo.id; });
     var orden = [];
-    for(var i=0;i<n;i++){ orden.push(ap.socios[(startIdx+i)%n].nombre); }
-    $("#girasOrden").textContent = orden.join(" → ") + " → (vuelve a "+orden[0]+")";
+    for(var i=0;i<n;i++){ orden.push(elegibles[(startIdx+i)%n].nombre); }
+    var exentos = (ap.socios||[]).filter(function(s){ return s.sinGiras; });
+    var txt = orden.join(" → ") + (n>1 ? (" → (vuelve a "+orden[0]+")") : " (siempre le toca a esta persona)");
+    if(exentos.length){
+      txt += " · sin gira: "+exentos.map(function(s){ return s.nombre; }).join(", ");
+    }
+    $("#girasOrden").textContent = txt;
   }
 
   function renderGirasHistorial(ap){
@@ -2324,7 +2376,7 @@
       renderGirasOrden(ap, proximo);
     } else {
       $("#selGiraSocio").innerHTML = "";
-      $("#girasOrden").textContent = "";
+      $("#girasOrden").textContent = "Todos los socios están marcados como \"no hace giras\".";
     }
     renderGirasHistorial(ap);
     $("#modalGiras").hidden = false;
