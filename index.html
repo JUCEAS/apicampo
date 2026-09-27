@@ -781,6 +781,7 @@
     </div>
     <button class="apiario-activo-pill" id="topbarApiarioActivo" hidden title="Cambiar el apiario en el que estás trabajando"></button>
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
+    <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <span class="demo-pill">v1.0</span>
   </header>
 
@@ -1608,6 +1609,16 @@
     sincronizando = true;
     var batch = writeBatch(db);
     var huboEscritura = false;
+    // Los apiarios son la unidad de permisos (Fase 3): cualquiera que no
+    // tenga dueño todavía (por ejemplo, uno creado antes de esta fase) se
+    // marca aquí mismo como propiedad de quien tiene la sesión iniciada,
+    // antes de subirlo — si no, Firestore rechazaría la escritura.
+    if(auth.currentUser){
+      (store.apiarios||[]).forEach(function(ap){
+        if(!ap.propietarioId) ap.propietarioId = auth.currentUser.uid;
+        if(!ap.colaboradores) ap.colaboradores = [];
+      });
+    }
     COLECCIONES.forEach(function(nombre){
       var lista = store[nombre] || [];
       var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
@@ -2049,6 +2060,14 @@
   store = cargar();
 
   function uid(pref){ return pref+"_"+Math.random().toString(36).slice(2,9); }
+
+  // Uid de Firebase Auth del usuario con sesión iniciada (o null si no hay
+  // sesión / no hay nube). Se usa para marcar quién es el dueño de cada
+  // apiario nuevo, que es la unidad de permisos de la Fase 3.
+  function uidUsuarioNube(){
+    var u = window.ApiCampoSync && window.ApiCampoSync.obtenerUsuario();
+    return u ? u.uid : null;
+  }
 
   /* ============================================================
      3. UTILIDADES
@@ -2618,7 +2637,7 @@
       return;
     }
 
-    var ap = {id:uid("ap"), nombre:nombre, senasa:senasa, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[]};
+    var ap = {id:uid("ap"), nombre:nombre, senasa:senasa, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[], propietarioId:uidUsuarioNube(), colaboradores:[]};
     store.apiarios.push(ap);
     store.esDemo = false;
     fijarApiarioActivo(ap.id);
@@ -6003,9 +6022,19 @@
   // nube, lo fusiona con lo local y arranca la app normal.
   function iniciarAppConNube(sync){
     mostrarPasoAcceso("accesoCargando");
+
+    var btnCerrarSesionApp = $("#btnCerrarSesionApp");
+    if(btnCerrarSesionApp) btnCerrarSesionApp.onclick = function(){
+      // Recargar de una vez es lo más simple y seguro: deja todo (los
+      // escuchas de Firestore, las variables de sincronización) en un
+      // estado limpio en vez de tener que deshacer cada cosa a mano.
+      sync.cerrarSesion().then(function(){ window.location.reload(); }).catch(function(){ window.location.reload(); });
+    };
+
     sync.onAuthChange(function(usuario){
       if(usuario){
         ocultarAcceso();
+        if(btnCerrarSesionApp) btnCerrarSesionApp.hidden = false;
         sync.jalarInicial(store).then(function(){
           sincronizacionActiva = true;
           guardar();
@@ -6021,6 +6050,8 @@
         });
         return;
       }
+
+      if(btnCerrarSesionApp) btnCerrarSesionApp.hidden = true;
 
       // No hay sesión iniciada: pide correo y contraseña antes de entrar.
       mostrarPasoAcceso("accesoPaso1");
