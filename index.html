@@ -699,10 +699,76 @@
   }
 
   ::selection{ background:var(--accent-soft); }
+
+  /* ============================================================
+     Acceso por teléfono (Fase 2: sincronización con la nube)
+     ============================================================ */
+  .acceso-overlay{
+    position:fixed; inset:0; z-index:9999;
+    background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px; overflow:auto;
+  }
+  .acceso-card{
+    background:var(--surface); border-radius:16px; padding:28px 24px;
+    max-width:380px; width:100%; box-shadow:0 4px 24px var(--shadow);
+  }
+  .acceso-logo{ font-size:20px; font-weight:700; color:var(--accent-ink); margin-bottom:4px; text-align:center; }
+  .acceso-paso label{ display:block; font-size:13px; font-weight:600; margin:14px 0 6px; color:var(--ink); }
+  .acceso-sub{ font-size:13px; color:var(--muted); line-height:1.5; margin:8px 0 4px; text-align:center; }
+  .acceso-paso input{
+    width:100%; padding:12px; font-size:16px; border:1.5px solid var(--line); border-radius:10px;
+    font-family:inherit; background:var(--surface); color:var(--ink);
+  }
+  .acceso-paso input:focus{ outline:none; border-color:var(--accent); }
+  .acceso-btn{
+    width:100%; margin-top:12px; padding:13px; font-size:15px; font-weight:700;
+    background:var(--accent); color:#fff; border:none; border-radius:10px; cursor:pointer;
+  }
+  .acceso-btn:disabled{ opacity:0.6; cursor:not-allowed; }
+  .acceso-btn-secundario{ background:transparent; color:var(--accent-ink); border:1.5px solid var(--accent); }
+  .acceso-estado{
+    margin-top:14px; padding:10px 12px; border-radius:10px; font-size:13px; display:none; line-height:1.5;
+  }
+  .acceso-estado.ok{ display:block; background:var(--good-soft); color:var(--good); }
+  .acceso-estado.error{ display:block; background:var(--critical-soft); color:var(--critical); }
+  .acceso-estado.info{ display:block; background:var(--accent-soft); color:var(--accent-ink); }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- ============================================================
+     Acceso por teléfono (Fase 2: sincronización con la nube)
+     ============================================================ -->
+<div id="accesoOverlay" class="acceso-overlay" hidden>
+  <div class="acceso-card">
+    <div class="acceso-logo">🐝 ApiCampo</div>
+
+    <div id="accesoCargando" class="acceso-paso">
+      <p class="acceso-sub">Comprobando tu sesión...</p>
+    </div>
+
+    <div id="accesoPaso1" class="acceso-paso" hidden>
+      <p class="acceso-sub">Ingresa con tu número de teléfono para sincronizar tus datos entre dispositivos.</p>
+      <label for="accesoTelefono">Número de teléfono (con código de país)</label>
+      <input type="tel" id="accesoTelefono" placeholder="+504 9999-9999" autocomplete="tel">
+      <div id="recaptcha-container"></div>
+      <button id="btnAccesoEnviarCodigo" class="acceso-btn">Enviar código por SMS</button>
+      <button id="btnAccesoSinInternet" class="acceso-btn acceso-btn-secundario">Usar sin sincronizar por ahora</button>
+    </div>
+
+    <div id="accesoPaso2" class="acceso-paso" hidden>
+      <p class="acceso-sub">Escribe el código de 6 dígitos que llegó por SMS.</p>
+      <label for="accesoCodigo">Código de verificación</label>
+      <input type="text" id="accesoCodigo" inputmode="numeric" maxlength="6" placeholder="123456">
+      <button id="btnAccesoVerificarCodigo" class="acceso-btn">Verificar e ingresar</button>
+      <button id="btnAccesoCambiarNumero" class="acceso-btn acceso-btn-secundario">Usar otro número</button>
+    </div>
+
+    <div id="accesoEstado" class="acceso-estado"></div>
+  </div>
+</div>
 
 <div id="app">
 
@@ -1425,6 +1491,175 @@
 <div id="printQRPage"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+
+<!-- ============================================================
+     Firebase (Fase 2 del plan de migración): autenticación por
+     teléfono + sincronización de los datos en Firestore.
+     Va en un <script type="module"> aparte porque el SDK de
+     Firebase usa import/export; la app principal (más abajo) es
+     un script clásico y no puede usar import directamente, así que
+     este bloque expone todo lo necesario en "window.ApiCampoSync".
+     Si no hay internet la primera vez que se abre la app (o el SDK
+     no carga por cualquier motivo), la app principal lo detecta y
+     sigue funcionando 100% local, exactamente como antes de esta
+     fase — nunca se queda bloqueada esperando la nube.
+     ============================================================ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, writeBatch, getDocs, onSnapshot, enableIndexedDbPersistence
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  var firebaseConfig = {
+    apiKey: "AIzaSyD6OOS2hiixQM1SmErbsI3N8X41w-sXM3U",
+    authDomain: "apicampo-2257b.firebaseapp.com",
+    projectId: "apicampo-2257b",
+    storageBucket: "apicampo-2257b.firebasestorage.app",
+    messagingSenderId: "939135440234",
+    appId: "1:939135440234:web:cdc0e08ee303787b3a4113",
+    measurementId: "G-YBLS1P1L1V"
+  };
+
+  var app = initializeApp(firebaseConfig);
+  var auth = getAuth(app);
+  var db = getFirestore(app);
+  try{ enableIndexedDbPersistence(db); }catch(e){
+    /* varias pestañas abiertas u otro motivo: seguimos sin la persistencia
+       offline propia de Firestore — la app ya tiene la suya en localStorage,
+       así que esto no afecta el uso sin conexión. */
+  }
+
+  // Estas son las 8 colecciones que se sincronizan entre dispositivos.
+  // "config", "usuarios" y "usuarioActual" quedan solo en este teléfono.
+  var COLECCIONES = ["apiarios","colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas"];
+
+  var recaptchaVerifier = null;
+  var confirmationResult = null;
+  var ultimoEnviado = {};     // coleccion -> {id: "json de la última versión ya sincronizada"}
+  var sincronizando = false;
+  var pendienteResync = false;
+
+  function iniciarRecaptcha(contenedorId){
+    if(recaptchaVerifier) return recaptchaVerifier;
+    recaptchaVerifier = new RecaptchaVerifier(auth, contenedorId, { size: "invisible" });
+    return recaptchaVerifier;
+  }
+
+  function enviarCodigo(telefono, contenedorId){
+    var verifier = iniciarRecaptcha(contenedorId);
+    return signInWithPhoneNumber(auth, telefono, verifier).then(function(resultado){
+      confirmationResult = resultado;
+    });
+  }
+
+  function verificarCodigo(codigo){
+    return confirmationResult.confirm(codigo).then(function(resultado){ return resultado.user; });
+  }
+
+  function cerrarSesion(){ return signOut(auth); }
+
+  // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
+  // fusiona con lo que ya hay en el store local, sin borrar nada local.
+  function jalarInicial(store){
+    var tareas = COLECCIONES.map(function(nombre){
+      return getDocs(collection(db, nombre)).then(function(snap){
+        var local = store[nombre] || (store[nombre] = []);
+        var localPorId = {};
+        local.forEach(function(item){ localPorId[item.id] = item; });
+        snap.forEach(function(d){
+          var item = d.data(); item.id = d.id;
+          if(!localPorId[d.id]) local.push(item);
+        });
+        var conocidos = ultimoEnviado[nombre] = {};
+        local.forEach(function(item){ conocidos[item.id] = JSON.stringify(item); });
+      });
+    });
+    return Promise.all(tareas);
+  }
+
+  // Escucha cambios que otros dispositivos/socios suban a Firestore y los
+  // aplica al store local, avisando a la app (avisar) para que vuelva a pintar.
+  function escucharCambios(store, avisar){
+    COLECCIONES.forEach(function(nombre){
+      onSnapshot(collection(db, nombre), function(snap){
+        var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
+        var huboCambio = false;
+        snap.docChanges().forEach(function(cambio){
+          var id = cambio.doc.id;
+          var lista = store[nombre] || (store[nombre] = []);
+          var idx = -1;
+          for(var i=0;i<lista.length;i++){ if(lista[i].id===id){ idx=i; break; } }
+          if(cambio.type === "removed"){
+            if(idx>=0){ lista.splice(idx,1); huboCambio = true; }
+            delete conocidos[id];
+            return;
+          }
+          var item = cambio.doc.data(); item.id = id;
+          var firmaNueva = JSON.stringify(item);
+          if(conocidos[id] === firmaNueva) return; // este cambio lo originamos nosotros mismos al sincronizar()
+          if(idx>=0) lista[idx] = item; else lista.push(item);
+          conocidos[id] = firmaNueva;
+          huboCambio = true;
+        });
+        if(huboCambio) avisar();
+      });
+    });
+  }
+
+  // Sube a Firestore lo que cambió localmente desde la última vez
+  // (solo los documentos nuevos/modificados/borrados, no toda la base).
+  function sincronizar(store){
+    if(sincronizando){ pendienteResync = true; return Promise.resolve(); }
+    sincronizando = true;
+    var batch = writeBatch(db);
+    var huboEscritura = false;
+    COLECCIONES.forEach(function(nombre){
+      var lista = store[nombre] || [];
+      var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
+      var vistos = {};
+      lista.forEach(function(item){
+        if(!item || !item.id) return;
+        vistos[item.id] = true;
+        var firma = JSON.stringify(item);
+        if(conocidos[item.id] === firma) return;
+        var datos = Object.assign({}, item);
+        delete datos.id;
+        batch.set(doc(db, nombre, item.id), datos);
+        conocidos[item.id] = firma;
+        huboEscritura = true;
+      });
+      Object.keys(conocidos).forEach(function(id){
+        if(!vistos[id]){
+          batch.delete(doc(db, nombre, id));
+          delete conocidos[id];
+          huboEscritura = true;
+        }
+      });
+    });
+    var terminar = huboEscritura ? batch.commit() : Promise.resolve();
+    return terminar.catch(function(e){
+      console.error("No se pudo sincronizar con la nube (se sigue guardando en este teléfono):", e);
+    }).then(function(){
+      sincronizando = false;
+      if(pendienteResync){ pendienteResync = false; return sincronizar(store); }
+    });
+  }
+
+  window.ApiCampoSync = {
+    enviarCodigo: enviarCodigo,
+    verificarCodigo: verificarCodigo,
+    cerrarSesion: cerrarSesion,
+    jalarInicial: jalarInicial,
+    escucharCambios: escucharCambios,
+    sincronizar: sincronizar,
+    onAuthChange: function(cb){ onAuthStateChanged(auth, cb); },
+    obtenerUsuario: function(){ return auth.currentUser; }
+  };
+</script>
+
 <script>
 (function(){
   "use strict";
@@ -1657,6 +1892,9 @@
      ============================================================ */
   var STORE_KEY = "apicampo:v1";
   var store = null;
+  // Se vuelve true en cuanto hay sesión iniciada y se completó la primera
+  // sincronización con Firestore (ver ARRANQUE, al final de este script).
+  var sincronizacionActiva = false;
 
   function marcosDemo(total, especif){
     var arr = [];
@@ -1808,6 +2046,12 @@
   }
   function guardar(){
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
+    // Empuja los cambios a Firestore solo si ya hay sesión y ya se hizo la
+    // primera sincronización, y nunca mientras los datos sean los de demo
+    // (así nunca se sube "Apiario El Zapote" de ejemplo a la nube de nadie).
+    if(sincronizacionActiva && window.ApiCampoSync && !store.esDemo){
+      window.ApiCampoSync.sincronizar(store);
+    }
   }
   store = cargar();
 
@@ -5735,8 +5979,137 @@
   /* ============================================================
      12. ARRANQUE
      ============================================================ */
-  renderApiarios();
-  cambiarTab("apiarios");
+  function arrancarConDatosLocales(){
+    renderApiarios();
+    cambiarTab("apiarios");
+  }
+
+  function mostrarPasoAcceso(paso){
+    var overlay = $("#accesoOverlay");
+    if(!overlay) return;
+    overlay.hidden = false;
+    ["accesoCargando","accesoPaso1","accesoPaso2"].forEach(function(id){
+      var el = $("#"+id);
+      if(el) el.hidden = (id!==paso);
+    });
+  }
+  function ocultarAcceso(){
+    var overlay = $("#accesoOverlay");
+    if(overlay) overlay.hidden = true;
+  }
+  function estadoAcceso(msg, tipo){
+    var el = $("#accesoEstado");
+    if(!el) return;
+    el.textContent = msg || "";
+    el.className = "acceso-estado" + (tipo ? " "+tipo : "");
+  }
+
+  // Une la app principal con la capa de Firebase (window.ApiCampoSync,
+  // definida en el <script type="module"> de más arriba). Si no hay sesión
+  // pide el número de teléfono; si ya hay sesión, trae lo que haya en la
+  // nube, lo fusiona con lo local y arranca la app normal.
+  function iniciarAppConNube(sync){
+    mostrarPasoAcceso("accesoCargando");
+    sync.onAuthChange(function(usuario){
+      if(usuario){
+        ocultarAcceso();
+        sync.jalarInicial(store).then(function(){
+          sincronizacionActiva = true;
+          guardar();
+          arrancarConDatosLocales();
+          sync.escucharCambios(store, function(){
+            guardar();
+            renderApiarios();
+          });
+        }).catch(function(e){
+          console.error("No se pudo traer los datos de la nube, se sigue con lo local:", e);
+          sincronizacionActiva = false;
+          arrancarConDatosLocales();
+        });
+        return;
+      }
+
+      // No hay sesión iniciada: pide el número de teléfono antes de entrar.
+      mostrarPasoAcceso("accesoPaso1");
+
+      var btnEnviar = $("#btnAccesoEnviarCodigo");
+      var btnSinInternet = $("#btnAccesoSinInternet");
+      var btnVerificar = $("#btnAccesoVerificarCodigo");
+      var btnCambiarNumero = $("#btnAccesoCambiarNumero");
+
+      if(btnEnviar) btnEnviar.onclick = function(){
+        var telefono = ($("#accesoTelefono").value||"").trim();
+        if(!telefono || telefono.charAt(0)!=="+"){
+          estadoAcceso("Escribe el número completo con código de país, por ejemplo +504 9999-9999.", "error");
+          return;
+        }
+        btnEnviar.disabled = true;
+        estadoAcceso("Enviando código por SMS...", "info");
+        sync.enviarCodigo(telefono, "recaptcha-container").then(function(){
+          estadoAcceso("Código enviado. Revisa tus mensajes de texto.", "ok");
+          mostrarPasoAcceso("accesoPaso2");
+          btnEnviar.disabled = false;
+        }).catch(function(err){
+          console.error(err);
+          estadoAcceso("No se pudo enviar el código: " + (err.message||err.code||""), "error");
+          btnEnviar.disabled = false;
+        });
+      };
+
+      if(btnSinInternet) btnSinInternet.onclick = function(){
+        // Deja usar la app sin sincronizar (por ejemplo, si no hay señal
+        // para recibir el SMS en este momento). Se puede iniciar sesión
+        // más adelante recargando la app cuando haya señal.
+        sincronizacionActiva = false;
+        ocultarAcceso();
+        arrancarConDatosLocales();
+      };
+
+      if(btnVerificar) btnVerificar.onclick = function(){
+        var codigo = ($("#accesoCodigo").value||"").trim();
+        if(codigo.length!==6){
+          estadoAcceso("El código debe tener 6 dígitos.", "error");
+          return;
+        }
+        btnVerificar.disabled = true;
+        estadoAcceso("Verificando...", "info");
+        sync.verificarCodigo(codigo).then(function(){
+          // onAuthChange se dispara solo con el usuario ya autenticado y
+          // continúa el arranque desde el principio de esta función.
+        }).catch(function(err){
+          console.error(err);
+          estadoAcceso("Código incorrecto o vencido: " + (err.message||err.code||""), "error");
+          btnVerificar.disabled = false;
+        });
+      };
+
+      if(btnCambiarNumero) btnCambiarNumero.onclick = function(){
+        $("#accesoCodigo").value = "";
+        mostrarPasoAcceso("accesoPaso1");
+        estadoAcceso("", "");
+      };
+    });
+  }
+
+  // El script de Firebase (window.ApiCampoSync) es un <script type="module">
+  // y por eso se ejecuta un poco después que este script clásico. Se espera
+  // hasta 5 segundos (50 x 100ms) a que quede listo; si nunca aparece (sin
+  // internet en la primerísima carga, o el archivo bloqueado), la app sigue
+  // funcionando 100% local, exactamente como antes de esta fase.
+  function esperarNube(intentos){
+    if(window.ApiCampoSync){
+      iniciarAppConNube(window.ApiCampoSync);
+      return;
+    }
+    if(intentos<=0){
+      sincronizacionActiva = false;
+      arrancarConDatosLocales();
+      return;
+    }
+    setTimeout(function(){ esperarNube(intentos-1); }, 100);
+  }
+
+  esperarNube(50);
 
 })();
 </script>
