@@ -1402,6 +1402,25 @@
   </div>
 </div>
 
+<!-- Modal: colaboradores de un apiario (acceso compartido en la nube) -->
+<div class="modal-backdrop" id="modalColaboradores" hidden>
+  <div class="modal">
+    <h2 id="colabTitulo">Colaboradores</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Las personas que agregues aquí verán y podrán registrar revisiones en este apiario desde su propia cuenta, sincronizado igual que en tu teléfono.</p>
+    <div id="colabLista" style="margin-bottom:10px;"></div>
+    <div class="empty" id="colabEmpty" hidden>Todavía no has agregado a nadie.</div>
+    <div class="field">
+      <label for="inColabCorreo">Invitar por correo</label>
+      <input type="text" id="inColabCorreo" inputmode="email" placeholder="correo@ejemplo.com">
+    </div>
+    <button type="button" class="btn btn-primary btn-block" id="btnInvitarColaborador" style="margin-top:2px;">+ Enviar invitación</button>
+    <p class="section-title" style="margin:14px 0 6px;">Invitaciones pendientes</p>
+    <div id="colabInvitacionesLista"></div>
+    <div class="empty" id="colabInvitacionesEmpty" hidden>No hay invitaciones esperando respuesta.</div>
+    <button class="btn btn-line btn-block" id="btnCerrarColaboradores" style="margin-top:12px;">Cerrar</button>
+  </div>
+</div>
+
 <!-- Modal: registrar inversión / compra -->
 <div class="modal-backdrop" id="modalInversion" hidden>
   <div class="modal">
@@ -1538,7 +1557,8 @@
     sendPasswordResetEmail, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, collection, doc, writeBatch, getDocs, onSnapshot, enableIndexedDbPersistence
+    getFirestore, collection, doc, writeBatch, getDocs, onSnapshot, enableIndexedDbPersistence,
+    query, where, updateDoc, deleteDoc, setDoc, arrayUnion
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   var firebaseConfig = {
@@ -1586,61 +1606,134 @@
 
   // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
   // fusiona con lo que ya hay en el store local, sin borrar nada local.
+  // UID de Firebase Auth de JUCEAS (administrador): ve y sincroniza TODO sin
+  // filtrar, igual que antes de la Fase 3b. Cualquier otro usuario (un socio
+  // real invitado a colaborar) solo puede ver sus propios apiarios y los que
+  // le compartieron, así que sus lecturas deben ir filtradas — Firestore
+  // rechaza por completo una consulta sin filtro si no puede comprobar que
+  // la regla de seguridad se cumple para TODOS los documentos posibles de
+  // la colección, no solo para los del usuario.
+  var ADMIN_UID = "nLLaVaWva4SlkC8qjIfhWcIRkY12";
+  function esAdminLocal(){
+    return !!(auth.currentUser && auth.currentUser.uid === ADMIN_UID);
+  }
+
+  // Las consultas que hay que correr para traer una colección: una sola sin
+  // filtro para el administrador, o varias filtradas para todos los demás.
+  function consultasPara(nombre, apiarioIdsPermitidos){
+    if(esAdminLocal()) return [collection(db, nombre)];
+    if(!auth.currentUser) return [];
+    if(nombre==="apiarios"){
+      return [
+        query(collection(db,"apiarios"), where("propietarioId","==",auth.currentUser.uid)),
+        query(collection(db,"apiarios"), where("colaboradoresUids","array-contains",auth.currentUser.uid))
+      ];
+    }
+    // Las otras 7 colecciones cuelgan de un apiario (campo apiarioId): se
+    // filtran por los apiarios a los que ya se tiene acceso. Firestore
+    // permite hasta 30 valores por cada "in", de sobra para una sociedad.
+    if(!apiarioIdsPermitidos || !apiarioIdsPermitidos.length) return [];
+    var grupos = [];
+    for(var i=0;i<apiarioIdsPermitidos.length;i+=30) grupos.push(apiarioIdsPermitidos.slice(i,i+30));
+    return grupos.map(function(g){ return query(collection(db,nombre), where("apiarioId","in",g)); });
+  }
+
+  function idsDeApiariosLocales(store){
+    return (store.apiarios||[]).map(function(a){ return a.id; });
+  }
+
+  // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
+  // fusiona con lo que ya hay en el store local, sin borrar nada local.
   function jalarInicial(store){
-    var tareas = COLECCIONES.map(function(nombre){
-      return getDocs(collection(db, nombre)).then(function(snap){
-        var local = store[nombre] || (store[nombre] = []);
-        var localPorId = {};
-        local.forEach(function(item){ localPorId[item.id] = item; });
-        var conocidos = ultimoEnviado[nombre] = {};
-        // Fase 4 (migración de datos existentes): solo lo que YA está en la
-        // nube se marca aquí como "ya sincronizado". Lo que solo existe en
-        // este teléfono (apiarios/colmenas/etc. creados antes de haber
-        // iniciado sesión) se deja SIN marca a propósito: así, cuando
-        // guardar() dispare sincronizar() justo después de este primer
-        // login, esos documentos se ven como nuevos y se suben solos a
-        // Firestore con el dueño ya asignado (sincronizar() les pone
-        // propietarioId antes de subirlos). Antes, este bloque marcaba
-        // TODO lo local como "ya sincronizado" incluso lo que nunca se
-        // había subido, así que los datos viejos se quedaban atrapados en
-        // el teléfono para siempre.
+    function procesar(nombre, snapshots){
+      var local = store[nombre] || (store[nombre] = []);
+      var localPorId = {};
+      local.forEach(function(item){ localPorId[item.id] = item; });
+      var conocidos = ultimoEnviado[nombre] = {};
+      // Fase 4 (migración de datos existentes): solo lo que YA está en la
+      // nube se marca aquí como "ya sincronizado". Lo que solo existe en
+      // este teléfono se deja SIN marca a propósito: así, cuando guardar()
+      // dispare sincronizar() justo después de este primer login, esos
+      // documentos se ven como nuevos y se suben solos a Firestore.
+      snapshots.forEach(function(snap){
         snap.forEach(function(d){
           var item = d.data(); item.id = d.id;
-          if(!localPorId[d.id]) local.push(item);
+          if(!localPorId[d.id]){ local.push(item); localPorId[d.id] = item; }
           conocidos[d.id] = JSON.stringify(item);
         });
       });
+    }
+    // Primero se traen los apiarios (para saber a cuáles se tiene acceso) y
+    // solo después las 7 colecciones que dependen de esa lista — para el
+    // administrador esto no cambia nada (sigue viendo todo sin filtrar).
+    var qsApiarios = consultasPara("apiarios", null);
+    return Promise.all(qsApiarios.map(function(q){ return getDocs(q); })).then(function(snapsApiarios){
+      procesar("apiarios", snapsApiarios);
+      var apiarioIds = idsDeApiariosLocales(store);
+      var otras = COLECCIONES.filter(function(n){ return n!=="apiarios"; });
+      return Promise.all(otras.map(function(nombre){
+        var qs = consultasPara(nombre, apiarioIds);
+        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); });
+      }));
     });
-    return Promise.all(tareas);
   }
 
   // Escucha cambios que otros dispositivos/socios suban a Firestore y los
   // aplica al store local, avisando a la app (avisar) para que vuelva a pintar.
   function escucharCambios(store, avisar){
-    COLECCIONES.forEach(function(nombre){
-      onSnapshot(collection(db, nombre), function(snap){
-        var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
-        var huboCambio = false;
-        snap.docChanges().forEach(function(cambio){
-          var id = cambio.doc.id;
-          var lista = store[nombre] || (store[nombre] = []);
-          var idx = -1;
-          for(var i=0;i<lista.length;i++){ if(lista[i].id===id){ idx=i; break; } }
-          if(cambio.type === "removed"){
-            if(idx>=0){ lista.splice(idx,1); huboCambio = true; }
-            delete conocidos[id];
-            return;
-          }
-          var item = cambio.doc.data(); item.id = id;
-          var firmaNueva = JSON.stringify(item);
-          if(conocidos[id] === firmaNueva) return; // este cambio lo originamos nosotros mismos al sincronizar()
-          if(idx>=0) lista[idx] = item; else lista.push(item);
-          conocidos[id] = firmaNueva;
-          huboCambio = true;
+    function procesarSnapshot(nombre, snap){
+      var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
+      var huboCambio = false;
+      snap.docChanges().forEach(function(cambio){
+        var id = cambio.doc.id;
+        var lista = store[nombre] || (store[nombre] = []);
+        var idx = -1;
+        for(var i=0;i<lista.length;i++){ if(lista[i].id===id){ idx=i; break; } }
+        if(cambio.type === "removed"){
+          // También llega "removed" cuando un documento deja de cumplir el
+          // filtro de la consulta (por ejemplo, a un socio le quitan el
+          // acceso a un apiario) — no solo cuando se borra de verdad.
+          if(idx>=0){ lista.splice(idx,1); huboCambio = true; }
+          delete conocidos[id];
+          return;
+        }
+        var item = cambio.doc.data(); item.id = id;
+        var firmaNueva = JSON.stringify(item);
+        if(conocidos[id] === firmaNueva) return; // este cambio lo originamos nosotros mismos al sincronizar()
+        if(idx>=0) lista[idx] = item; else lista.push(item);
+        conocidos[id] = firmaNueva;
+        huboCambio = true;
+      });
+      if(huboCambio) avisar();
+    }
+
+    var desuscribirHijos = [];
+    function reescucharHijos(){
+      desuscribirHijos.forEach(function(fn){ try{ fn(); }catch(e){} });
+      desuscribirHijos = [];
+      var apiarioIds = idsDeApiariosLocales(store);
+      COLECCIONES.filter(function(n){ return n!=="apiarios"; }).forEach(function(nombre){
+        consultasPara(nombre, apiarioIds).forEach(function(q){
+          desuscribirHijos.push(onSnapshot(q, function(snap){ procesarSnapshot(nombre, snap); }));
         });
-        if(huboCambio) avisar();
+      });
+    }
+
+    var idsPrevios = null;
+    consultasPara("apiarios", null).forEach(function(q){
+      onSnapshot(q, function(snap){
+        procesarSnapshot("apiarios", snap);
+        // Si cambió el conjunto de apiarios a los que este usuario tiene
+        // acceso (le compartieron uno nuevo, o le quitaron uno), hay que
+        // volver a suscribirse a las 7 colecciones hijas con el filtro
+        // actualizado. Para el administrador esto no aplica (ve todo).
+        if(!esAdminLocal()){
+          var idsAhora = idsDeApiariosLocales(store).slice().sort().join(",");
+          if(idsAhora !== idsPrevios){ idsPrevios = idsAhora; reescucharHijos(); }
+        }
       });
     });
+    if(esAdminLocal()) reescucharHijos();
   }
 
   // Sube a Firestore lo que cambió localmente desde la última vez
@@ -1657,7 +1750,11 @@
     if(auth.currentUser){
       (store.apiarios||[]).forEach(function(ap){
         if(!ap.propietarioId) ap.propietarioId = auth.currentUser.uid;
-        if(!ap.colaboradores) ap.colaboradores = [];
+        if(!ap.colaboradoresUids) ap.colaboradoresUids = [];
+        if(!ap.colaboradoresInfo) ap.colaboradoresInfo = [];
+        // Limpieza: "colaboradores" (sin usar, de antes de esta función) ya
+        // no hace falta — se quita para no dejar un campo suelto en Firestore.
+        if("colaboradores" in ap) delete ap.colaboradores;
       });
     }
     // Importante: los cambios a "ultimoEnviado" (qué se considera ya
@@ -1711,6 +1808,77 @@
     });
   }
 
+  /* ---- Invitar colaboradores a un apiario ----
+     Firebase (en el plan gratis, sin funciones de servidor) no deja que la
+     app busque el UID de otra persona a partir de su correo, así que la
+     invitación se guarda como un documento en "invitaciones" cuyo ID es
+     "<apiarioId>_<correo>" — así, cuando esa persona inicia sesión, las
+     reglas de Firestore pueden comprobar con exists() si hay una
+     invitación para su propio correo, sin necesitar una consulta ni un
+     servidor. Aceptar la invitación agrega su propio UID a colaboradoresUids
+     del apiario — es la única escritura que las reglas permiten a alguien
+     que todavía no es dueño ni colaborador. */
+  function normalizarCorreo(correo){ return String(correo||"").trim().toLowerCase(); }
+
+  function idInvitacion(apiarioId, correo){ return apiarioId+"_"+normalizarCorreo(correo); }
+
+  function crearInvitacion(apiarioId, apiarioNombre, correoInvitado){
+    if(!auth.currentUser) return Promise.reject(new Error("Sin sesión"));
+    var correo = normalizarCorreo(correoInvitado);
+    var ref = doc(db, "invitaciones", idInvitacion(apiarioId, correo));
+    return setDoc(ref, {
+      apiarioId: apiarioId,
+      apiarioNombre: apiarioNombre,
+      propietarioId: auth.currentUser.uid,
+      correoInvitado: correo,
+      creado: Date.now()
+    });
+  }
+
+  function cancelarInvitacion(apiarioId, correoInvitado){
+    return deleteDoc(doc(db, "invitaciones", idInvitacion(apiarioId, correoInvitado)));
+  }
+
+  // Invitaciones pendientes dirigidas al correo de quien tiene sesión
+  // iniciada ahora mismo (para avisarle "te invitaron a colaborar en...").
+  function invitacionesPendientes(){
+    if(!auth.currentUser || !auth.currentUser.email) return Promise.resolve([]);
+    var q = query(collection(db,"invitaciones"), where("correoInvitado","==",normalizarCorreo(auth.currentUser.email)));
+    return getDocs(q).then(function(snap){
+      var lista = [];
+      snap.forEach(function(d){ lista.push(Object.assign({id:d.id}, d.data())); });
+      return lista;
+    });
+  }
+
+  // Invitaciones que YO (dueño) ya mandé — para mostrarlas como "pendientes"
+  // en el modal de colaboradores del apiario. Se filtra solo por
+  // propietarioId (nunca por apiarioId a la vez) para no necesitar un
+  // índice compuesto en Firestore; el filtro por apiario se hace en la
+  // pantalla, con la lista ya traída.
+  function invitacionesEnviadas(){
+    if(!auth.currentUser) return Promise.resolve([]);
+    var q = query(collection(db,"invitaciones"), where("propietarioId","==",auth.currentUser.uid));
+    return getDocs(q).then(function(snap){
+      var lista = [];
+      snap.forEach(function(d){ lista.push(Object.assign({id:d.id}, d.data())); });
+      return lista;
+    });
+  }
+
+  function aceptarInvitacion(inv){
+    if(!auth.currentUser) return Promise.reject(new Error("Sin sesión"));
+    var refApiario = doc(db, "apiarios", inv.apiarioId);
+    return updateDoc(refApiario, {
+      colaboradoresUids: arrayUnion(auth.currentUser.uid),
+      colaboradoresInfo: arrayUnion({uid:auth.currentUser.uid, correo:normalizarCorreo(auth.currentUser.email)})
+    }).then(function(){
+      // No es grave si esto falla (por ejemplo, sin señal): la invitación
+      // ya aceptada simplemente quedaría visible una vez más, sin efecto.
+      return deleteDoc(doc(db,"invitaciones", inv.id)).catch(function(){});
+    });
+  }
+
   window.ApiCampoSync = {
     iniciarSesion: iniciarSesion,
     crearCuenta: crearCuenta,
@@ -1719,6 +1887,11 @@
     jalarInicial: jalarInicial,
     escucharCambios: escucharCambios,
     sincronizar: sincronizar,
+    crearInvitacion: crearInvitacion,
+    cancelarInvitacion: cancelarInvitacion,
+    invitacionesPendientes: invitacionesPendientes,
+    invitacionesEnviadas: invitacionesEnviadas,
+    aceptarInvitacion: aceptarInvitacion,
     onAuthChange: function(cb){ onAuthStateChanged(auth, cb); },
     obtenerUsuario: function(){ return auth.currentUser; }
   };
@@ -2128,6 +2301,11 @@
     var u = window.ApiCampoSync && window.ApiCampoSync.obtenerUsuario();
     return u ? u.uid : null;
   }
+  // Mismo UID que el administrador hardcodeado en las reglas de Firestore
+  // (window.ApiCampoSync). Aquí solo se usa para decidir qué botones
+  // mostrar — quien de verdad decide qué se puede hacer son las reglas del
+  // lado del servidor, esto es únicamente conveniencia de interfaz.
+  var ADMIN_UID_UI = "nLLaVaWva4SlkC8qjIfhWcIRkY12";
 
   /* ============================================================
      3. UTILIDADES
@@ -2510,10 +2688,20 @@
       b1.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("colmenas"); });
       var b2 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver en mapa"});
       b2.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("mapa"); });
-      var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
-      b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      b3.addEventListener("click", function(){ eliminarApiario(ap); });
-      actions.appendChild(b1); actions.appendChild(b2); actions.appendChild(b3);
+      actions.appendChild(b1); actions.appendChild(b2);
+      // Un colaborador (no dueño) no puede borrar el apiario — las reglas de
+      // Firestore ya lo rechazan del lado del servidor, pero si se dejara el
+      // botón visible, el intento fallido de borrar dejaría ATASCADA toda la
+      // sincronización de esa persona (un solo intento de escritura sin
+      // permiso hace fallar el lote completo de sincronizar(), no solo esa
+      // operación). Por eso aquí ni se ofrece el botón.
+      var puedeEliminarApiario = !ap.propietarioId || uidUsuarioNube()===ap.propietarioId || uidUsuarioNube()===ADMIN_UID_UI;
+      if(puedeEliminarApiario){
+        var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
+        b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        b3.addEventListener("click", function(){ eliminarApiario(ap); });
+        actions.appendChild(b3);
+      }
       card.appendChild(actions);
       var actions2 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
       var b5 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"✏️ Editar apiario"});
@@ -2528,6 +2716,16 @@
         b6.addEventListener("click", function(){ abrirModalGiras(ap); });
         actions3.appendChild(b6);
         card.appendChild(actions3);
+      }
+      // Compartir el apiario con otra cuenta (un socio real, con su propio
+      // correo) solo tiene sentido con sincronización en la nube activa, y
+      // solo el dueño puede invitar o quitar colaboradores.
+      if(sincronizacionActiva && ap.propietarioId && uidUsuarioNube()===ap.propietarioId){
+        var actions4 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
+        var b7 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"👥 Colaboradores en la nube"});
+        b7.addEventListener("click", function(){ abrirModalColaboradores(ap); });
+        actions4.appendChild(b7);
+        card.appendChild(actions4);
       }
       wrap.appendChild(card);
     });
@@ -2697,7 +2895,7 @@
       return;
     }
 
-    var ap = {id:uid("ap"), nombre:nombre, senasa:senasa, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[], propietarioId:uidUsuarioNube(), colaboradores:[]};
+    var ap = {id:uid("ap"), nombre:nombre, senasa:senasa, lat:lat, lng:lng, creado:Date.now(), modoPropiedad:modoPropiedadSel, socios:socios, giras:[], propietarioId:uidUsuarioNube(), colaboradoresUids:[], colaboradoresInfo:[]};
     store.apiarios.push(ap);
     store.esDemo = false;
     fijarApiarioActivo(ap.id);
@@ -2843,6 +3041,115 @@
     abrirModalGiras(girasApiarioActual);
     renderApiarios();
     toast("Gira registrada");
+  });
+
+  /* ---- Colaboradores en la nube (invitar/quitar socios reales) ----
+     Solo tiene sentido con sesión y sincronización activas; el dueño invita
+     por correo, y quien acepta agrega su propio UID a colaboradoresUids
+     (ver window.ApiCampoSync.aceptarInvitacion en el <script type="module">
+     de arriba — las reglas de Firestore son las que de verdad protegen esto,
+     este modal es solo la interfaz). */
+  var colabApiarioActual = null;
+
+  function compartirTextoWhatsApp(texto){
+    if(navigator.share){
+      navigator.share({text:texto}).catch(function(){});
+      return;
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(texto).then(function(){
+        toast("Mensaje copiado — pégalo en WhatsApp");
+      }).catch(function(){
+        preguntarApp("Copia este mensaje para mandarlo por WhatsApp:", texto);
+      });
+      return;
+    }
+    preguntarApp("Copia este mensaje para mandarlo por WhatsApp:", texto);
+  }
+
+  function renderColaboradoresModal(){
+    var ap = colabApiarioActual;
+    if(!ap) return;
+    var lista = $("#colabLista");
+    lista.innerHTML = "";
+    var info = ap.colaboradoresInfo || [];
+    $("#colabEmpty").hidden = info.length>0;
+    info.forEach(function(c){
+      var row = el("div",{class:"row between", style:"padding:8px 0; border-bottom:1px solid var(--line);"});
+      row.appendChild(el("span",{style:"font-size:13.5px;", text:c.correo||c.uid}));
+      var btnQuitar = el("button",{type:"button", class:"btn btn-line", style:"padding:6px 10px; font-size:12px;", text:"Quitar"});
+      btnQuitar.addEventListener("click", function(){
+        confirmarApp("¿Quitarle el acceso a \""+(c.correo||c.uid)+"\" en este apiario?").then(function(ok){
+          if(!ok) return;
+          ap.colaboradoresUids = (ap.colaboradoresUids||[]).filter(function(u){ return u!==c.uid; });
+          ap.colaboradoresInfo = (ap.colaboradoresInfo||[]).filter(function(x){ return x.uid!==c.uid; });
+          store.esDemo = false;
+          guardar();
+          renderColaboradoresModal();
+          toast("Acceso quitado");
+        });
+      });
+      row.appendChild(btnQuitar);
+      lista.appendChild(row);
+    });
+
+    var listaInv = $("#colabInvitacionesLista");
+    listaInv.innerHTML = "";
+    if(!window.ApiCampoSync){ $("#colabInvitacionesEmpty").hidden = true; return; }
+    window.ApiCampoSync.invitacionesEnviadas().then(function(todas){
+      var pendientes = todas.filter(function(inv){ return inv.apiarioId===ap.id; });
+      $("#colabInvitacionesEmpty").hidden = pendientes.length>0;
+      pendientes.forEach(function(inv){
+        var row = el("div",{class:"row between", style:"padding:8px 0; border-bottom:1px solid var(--line);"});
+        row.appendChild(el("span",{style:"font-size:13.5px; color:var(--muted);", text:inv.correoInvitado+" · esperando respuesta"}));
+        var wrapBtns = el("div",{class:"row", style:"gap:6px;"});
+        var btnReenviar = el("button",{type:"button", class:"btn btn-line", style:"padding:6px 10px; font-size:12px;", text:"↻ Reenviar"});
+        btnReenviar.addEventListener("click", function(){
+          compartirTextoWhatsApp(mensajeInvitacion(ap, inv.correoInvitado));
+        });
+        var btnCancelar = el("button",{type:"button", class:"icon-btn", style:"color:var(--critical);", title:"Cancelar invitación", "aria-label":"Cancelar invitación"});
+        btnCancelar.textContent = "✕";
+        btnCancelar.addEventListener("click", function(){
+          window.ApiCampoSync.cancelarInvitacion(ap.id, inv.correoInvitado).then(function(){
+            renderColaboradoresModal();
+          }).catch(function(){ toast("No se pudo cancelar. Intenta de nuevo."); });
+        });
+        wrapBtns.appendChild(btnReenviar); wrapBtns.appendChild(btnCancelar);
+        row.appendChild(wrapBtns);
+        listaInv.appendChild(row);
+      });
+    }).catch(function(){ $("#colabInvitacionesEmpty").hidden = false; });
+  }
+
+  function mensajeInvitacion(ap, correo){
+    return "Te invité a colaborar conmigo en el apiario \""+ap.nombre+"\" en ApiCampo. Abre la app, crea una cuenta con este correo ("+correo+") y acepta la invitación que te va a aparecer.";
+  }
+
+  function abrirModalColaboradores(ap){
+    colabApiarioActual = ap;
+    $("#colabTitulo").textContent = "Colaboradores — "+ap.nombre;
+    $("#inColabCorreo").value = "";
+    renderColaboradoresModal();
+    $("#modalColaboradores").hidden = false;
+  }
+  $("#btnCerrarColaboradores").addEventListener("click", function(){ $("#modalColaboradores").hidden = true; colabApiarioActual = null; });
+  $("#modalColaboradores").addEventListener("click", function(e){ if(e.target===this){ this.hidden = true; colabApiarioActual = null; } });
+  $("#btnInvitarColaborador").addEventListener("click", function(){
+    var ap = colabApiarioActual;
+    if(!ap || !window.ApiCampoSync) return;
+    var correo = $("#inColabCorreo").value.trim();
+    if(!correo || correo.indexOf("@")<0){ toast("Escribe un correo válido"); return; }
+    var yaEsColaborador = (ap.colaboradoresInfo||[]).some(function(c){ return (c.correo||"").toLowerCase()===correo.toLowerCase(); });
+    if(yaEsColaborador){ toast("Esa persona ya tiene acceso a este apiario"); return; }
+    window.ApiCampoSync.crearInvitacion(ap.id, ap.nombre, correo).then(function(){
+      toast("Invitación creada");
+      $("#inColabCorreo").value = "";
+      renderColaboradoresModal();
+      compartirTextoWhatsApp(mensajeInvitacion(ap, correo));
+    }).catch(function(e){
+      console.error(e);
+      toast("No se pudo crear la invitación. Revisa tu conexión e intenta de nuevo.");
+    });
   });
 
   $("#btnReset").addEventListener("click", function(){
@@ -6273,6 +6580,35 @@
     cambiarTab("apiarios");
   }
 
+  // Revisa, justo después de iniciar sesión, si alguien invitó a este correo
+  // a colaborar en algún apiario, y pregunta una por una si se aceptan. Al
+  // aceptar se recarga la app para que jalarInicial() traiga ya los datos
+  // de ese apiario (antes de aceptar, este usuario no tenía acceso a verlo).
+  function revisarInvitacionesPendientes(sync){
+    sync.invitacionesPendientes().then(function(lista){
+      if(!lista.length) return;
+      var siguiente = function(i){
+        if(i>=lista.length) return;
+        var inv = lista[i];
+        confirmarApp("Te invitaron a colaborar en el apiario \""+inv.apiarioNombre+"\". ¿Aceptas?").then(function(si){
+          if(si){
+            sync.aceptarInvitacion(inv).then(function(){
+              toast("Listo — actualizando la app...");
+              window.location.reload();
+            }).catch(function(){
+              toast("No se pudo aceptar la invitación. Intenta de nuevo.");
+              siguiente(i+1);
+            });
+          }else{
+            sync.cancelarInvitacion(inv.apiarioId, inv.correoInvitado).catch(function(){});
+            siguiente(i+1);
+          }
+        });
+      };
+      siguiente(0);
+    }).catch(function(e){ console.error("No se pudieron revisar las invitaciones pendientes:", e); });
+  }
+
   function mostrarPasoAcceso(paso){
     var overlay = $("#accesoOverlay");
     if(!overlay) return;
@@ -6320,6 +6656,7 @@
             guardar();
             renderApiarios();
           });
+          revisarInvitacionesPendientes(sync);
         }).catch(function(e){
           console.error("No se pudo traer los datos de la nube, se sigue con lo local:", e);
           sincronizacionActiva = false;
