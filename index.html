@@ -1562,12 +1562,23 @@
         var local = store[nombre] || (store[nombre] = []);
         var localPorId = {};
         local.forEach(function(item){ localPorId[item.id] = item; });
+        var conocidos = ultimoEnviado[nombre] = {};
+        // Fase 4 (migración de datos existentes): solo lo que YA está en la
+        // nube se marca aquí como "ya sincronizado". Lo que solo existe en
+        // este teléfono (apiarios/colmenas/etc. creados antes de haber
+        // iniciado sesión) se deja SIN marca a propósito: así, cuando
+        // guardar() dispare sincronizar() justo después de este primer
+        // login, esos documentos se ven como nuevos y se suben solos a
+        // Firestore con el dueño ya asignado (sincronizar() les pone
+        // propietarioId antes de subirlos). Antes, este bloque marcaba
+        // TODO lo local como "ya sincronizado" incluso lo que nunca se
+        // había subido, así que los datos viejos se quedaban atrapados en
+        // el teléfono para siempre.
         snap.forEach(function(d){
           var item = d.data(); item.id = d.id;
           if(!localPorId[d.id]) local.push(item);
+          conocidos[d.id] = JSON.stringify(item);
         });
-        var conocidos = ultimoEnviado[nombre] = {};
-        local.forEach(function(item){ conocidos[item.id] = JSON.stringify(item); });
       });
     });
     return Promise.all(tareas);
