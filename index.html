@@ -763,6 +763,7 @@
       <div class="row" style="gap:6px; flex-wrap:wrap;">
         <button class="btn btn-line" id="btnImprimirQR" style="padding:8px 10px;">🖨 Imprimir</button>
         <button class="btn btn-line" id="btnDescargarQR" style="padding:8px 10px;">⬇ PDF</button>
+        <button class="btn btn-line" id="btnEliminarRangoColmenas" style="padding:8px 10px; color:var(--critical); border-color:var(--critical);">🗑 Eliminar por rango</button>
         <button class="btn btn-line" id="btnNuevaColmena" style="padding:8px 12px;">+ Nueva</button>
       </div>
     </div>
@@ -1103,6 +1104,29 @@
     <div class="row" style="gap:10px;">
       <button class="btn btn-line" style="flex:1;" id="btnCancelarColmena">Cancelar</button>
       <button class="btn btn-primary" style="flex:1;" id="btnGuardarColmena">Crear e imprimir QR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: eliminar varias colmenas por rango de número -->
+<div class="modal-backdrop" id="modalEliminarRango" hidden>
+  <div class="modal">
+    <h2>Eliminar colmenas por rango</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0;">Se eliminarán, en <span id="eliminarRangoApiarioNombre" class="mono"></span>, todas las colmenas cuyo número esté dentro del rango — junto con sus revisiones, tratamientos y alimentaciones. Esta acción no se puede deshacer.</p>
+    <div class="row" style="gap:10px;">
+      <div class="field" style="flex:1; margin:0;">
+        <label for="inEliminarDesde" style="font-size:12px;">Desde</label>
+        <input type="text" id="inEliminarDesde" inputmode="numeric">
+      </div>
+      <div class="field" style="flex:1; margin:0;">
+        <label for="inEliminarHasta" style="font-size:12px;">Hasta</label>
+        <input type="text" id="inEliminarHasta" inputmode="numeric">
+      </div>
+    </div>
+    <p id="eliminarRangoPreview" style="font-size:12.5px; color:var(--muted); margin:6px 0 0;"></p>
+    <div class="row" style="gap:10px; margin-top:4px;">
+      <button class="btn btn-line" style="flex:1;" id="btnCancelarEliminarRango">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1; background:var(--critical); border-color:var(--critical);" id="btnConfirmarEliminarRango">Eliminar</button>
     </div>
   </div>
 </div>
@@ -3042,6 +3066,73 @@
       toast("Colmena #"+c.numero+" eliminada");
     });
   }
+
+  /* Eliminar varias colmenas de un jalón, dando un rango de número
+     "desde"/"hasta" (el mismo tipo de rango que ya se usa para CREAR varias
+     colmenas a la vez) — para no tener que borrarlas una por una cuando hay
+     que dar de baja, por ejemplo, 10 colmenas seguidas. Solo toca el
+     apiario activo, y solo las colmenas que de verdad existan dentro del
+     rango (los números que no existan simplemente no cuentan). */
+  function colmenasEnRango(apiarioId, desde, hasta){
+    return colmenasDe(apiarioId).filter(function(c){ return c.numero>=desde && c.numero<=hasta; });
+  }
+  function actualizarPreviewEliminarRango(){
+    if(!apiarioActivo){ $("#eliminarRangoPreview").textContent = ""; return; }
+    var desde = parseInt($("#inEliminarDesde").value,10);
+    var hasta = parseInt($("#inEliminarHasta").value,10);
+    if(!desde || !hasta || hasta<desde){ $("#eliminarRangoPreview").textContent = ""; return; }
+    var lista = colmenasEnRango(apiarioActivo, desde, hasta);
+    if(!lista.length){ $("#eliminarRangoPreview").textContent = "Ninguna colmena de este apiario cae en ese rango."; return; }
+    var numeros = lista.map(function(c){ return c.numero; }).sort(function(a,b){return a-b;});
+    $("#eliminarRangoPreview").textContent = "Se eliminarán "+lista.length+" colmena"+(lista.length===1?"":"s")+": #"+numeros.join(", #");
+  }
+  $("#btnEliminarRangoColmenas").addEventListener("click", function(){
+    if(!apiarioActivo){ toast("Primero selecciona un apiario"); return; }
+    if(!colmenasDe(apiarioActivo).length){ toast("Este apiario todavía no tiene colmenas"); return; }
+    $("#eliminarRangoApiarioNombre").textContent = apiarioNombre(apiarioActivo);
+    $("#inEliminarDesde").value = "";
+    $("#inEliminarHasta").value = "";
+    $("#eliminarRangoPreview").textContent = "";
+    $("#modalEliminarRango").hidden = false;
+  });
+  $("#inEliminarDesde").addEventListener("input", actualizarPreviewEliminarRango);
+  $("#inEliminarHasta").addEventListener("input", actualizarPreviewEliminarRango);
+  $("#btnCancelarEliminarRango").addEventListener("click", function(){ $("#modalEliminarRango").hidden = true; });
+  $("#modalEliminarRango").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+  $("#btnConfirmarEliminarRango").addEventListener("click", function(){
+    var desde = parseInt($("#inEliminarDesde").value,10);
+    var hasta = parseInt($("#inEliminarHasta").value,10);
+    if(!desde || desde<1 || !hasta || hasta<1){ toast("Escribe un rango válido"); return; }
+    if(hasta<desde){ toast("El número \"hasta\" debe ser mayor o igual que \"desde\""); return; }
+    var lista = colmenasEnRango(apiarioActivo, desde, hasta);
+    if(!lista.length){ toast("Ninguna colmena de este apiario cae en ese rango"); return; }
+    var colmenaIds = lista.map(function(c){ return c.id; });
+    var nRevs = store.revisiones.filter(function(r){ return colmenaIds.indexOf(r.colmenaId)!==-1; }).length;
+    var nTx = store.tratamientos.filter(function(t){ return colmenaIds.indexOf(t.colmenaId)!==-1; }).length;
+    var nAl = store.alimentaciones.filter(function(a){ return colmenaIds.indexOf(a.colmenaId)!==-1; }).length;
+    var detalle = [];
+    if(nRevs) detalle.push(nRevs+" revisión"+(nRevs===1?"":"es"));
+    if(nTx) detalle.push(nTx+" tratamiento"+(nTx===1?"":"s"));
+    if(nAl) detalle.push(nAl+" alimentación"+(nAl===1?"":"es"));
+    var numeros = lista.map(function(c){ return c.numero; }).sort(function(a,b){return a-b;});
+    var msg = "¿Eliminar "+lista.length+" colmena"+(lista.length===1?"":"s")+" (#"+numeros.join(", #")+") de "+apiarioNombre(apiarioActivo)+"?"+
+      (detalle.length ? (" También se borrará su historial: "+detalle.join(", ")+".") : "")+
+      " Esta acción no se puede deshacer.";
+    confirmarApp(msg).then(function(ok){
+      if(!ok) return;
+      store.revisiones = store.revisiones.filter(function(r){ return colmenaIds.indexOf(r.colmenaId)===-1; });
+      store.tratamientos = store.tratamientos.filter(function(t){ return colmenaIds.indexOf(t.colmenaId)===-1; });
+      store.alimentaciones = store.alimentaciones.filter(function(a){ return colmenaIds.indexOf(a.colmenaId)===-1; });
+      store.colmenas = store.colmenas.filter(function(x){ return colmenaIds.indexOf(x.id)===-1; });
+      if(colmenaIds.indexOf(colmenaEnRevision)!==-1) colmenaEnRevision = null;
+      store.esDemo = false;
+      guardar();
+      $("#modalEliminarRango").hidden = true;
+      $("#modalDetalle").hidden = true;
+      renderColmenas();
+      toast(lista.length+" colmena"+(lista.length===1?"":"s")+" eliminada"+(lista.length===1?"":"s"));
+    });
+  });
 
   function eliminarApiario(ap){
     var colmenasApiario = colmenasDe(ap.id);
