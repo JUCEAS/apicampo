@@ -200,12 +200,6 @@
     animation:vozPulso 1s ease-in-out infinite;
   }
   .voz-global-btn.desactivado{ opacity:.35; }
-  /* Igual que .acceso-overlay[hidden]: como esta clase ya pone su propio
-     "display:flex", el [hidden] del navegador (que también es "display:none")
-     pierde el empate de especificidad y el botón se queda visible aunque
-     esté oculto por código. Le pasó al botón de "Cerrar sesión" recién
-     agregado (empieza oculto en el HTML). Se corrige explícitamente aquí. */
-  .voz-global-btn[hidden]{ display:none; }
   @keyframes vozPulso{
     0%,100%{ box-shadow:0 0 0 0 var(--accent-soft); }
     50%{ box-shadow:0 0 0 6px transparent; }
@@ -333,12 +327,6 @@
   .badge-neutral{ background:var(--surface-2); color:var(--muted); }
 
   .field{ display:flex; flex-direction:column; gap:6px; }
-  /* Mismo problema de cascada que .acceso-overlay/.voz-global-btn: esta
-     clase ya trae su propio "display", así que el navegador nunca aplica
-     su [hidden] por defecto. Esto hacía que "camposSocios", "campoNumeroVarias"
-     y "campoInversionDetalle" se vieran SIEMPRE dentro de sus modales, aunque
-     estuvieran marcados como ocultos (modo "individual", "una colmena", etc.). */
-  .field[hidden]{ display:none; }
   .field label{ font-size:12.5px; font-weight:600; color:var(--muted); }
   .field input[type="text"], .field input[type="number"], .field textarea{
     background:var(--surface-2);
@@ -1642,21 +1630,10 @@
         if(!ap.colaboradores) ap.colaboradores = [];
       });
     }
-    // Importante: los cambios a "ultimoEnviado" (qué se considera ya
-    // subido a la nube) NO se aplican aquí todavía, sino que se guardan
-    // aparte en "pendientes" y solo se copian a ultimoEnviado si el
-    // batch.commit() de más abajo tiene éxito. Antes se aplicaban de una
-    // vez al armar el batch; si el envío fallaba (sin señal justo en ese
-    // momento, permiso denegado, etc.) el dato quedaba marcado como "ya
-    // sincronizado" sin haberlo estado nunca — se perdía en silencio y
-    // nunca se volvía a intentar subir, aunque siguiera guardado en el
-    // teléfono. Ahora, si falla, se reintenta solo en el siguiente guardar().
-    var pendientesPorColeccion = {};
     COLECCIONES.forEach(function(nombre){
       var lista = store[nombre] || [];
       var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
       var vistos = {};
-      var pendientes = pendientesPorColeccion[nombre] = {set:{}, del:[]};
       lista.forEach(function(item){
         if(!item || !item.id) return;
         vistos[item.id] = true;
@@ -1665,28 +1642,20 @@
         var datos = Object.assign({}, item);
         delete datos.id;
         batch.set(doc(db, nombre, item.id), datos);
-        pendientes.set[item.id] = firma;
+        conocidos[item.id] = firma;
         huboEscritura = true;
       });
       Object.keys(conocidos).forEach(function(id){
         if(!vistos[id]){
           batch.delete(doc(db, nombre, id));
-          pendientes.del.push(id);
+          delete conocidos[id];
           huboEscritura = true;
         }
       });
     });
     var terminar = huboEscritura ? batch.commit() : Promise.resolve();
-    return terminar.then(function(){
-      // Éxito: recién ahora se marca todo como sincronizado de verdad.
-      COLECCIONES.forEach(function(nombre){
-        var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
-        var pendientes = pendientesPorColeccion[nombre];
-        Object.keys(pendientes.set).forEach(function(id){ conocidos[id] = pendientes.set[id]; });
-        pendientes.del.forEach(function(id){ delete conocidos[id]; });
-      });
-    }).catch(function(e){
-      console.error("No se pudo sincronizar con la nube (se sigue guardando en este teléfono; se reintentará más adelante):", e);
+    return terminar.catch(function(e){
+      console.error("No se pudo sincronizar con la nube (se sigue guardando en este teléfono):", e);
     }).then(function(){
       sincronizando = false;
       if(pendienteResync){ pendienteResync = false; return sincronizar(store); }
