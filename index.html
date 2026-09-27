@@ -750,20 +750,15 @@
     </div>
 
     <div id="accesoPaso1" class="acceso-paso" hidden>
-      <p class="acceso-sub">Ingresa con tu número de teléfono para sincronizar tus datos entre dispositivos.</p>
-      <label for="accesoTelefono">Número de teléfono (con código de país)</label>
-      <input type="tel" id="accesoTelefono" placeholder="+504 9999-9999" autocomplete="tel">
-      <div id="recaptcha-container"></div>
-      <button id="btnAccesoEnviarCodigo" class="acceso-btn">Enviar código por SMS</button>
+      <p class="acceso-sub">Ingresa con tu correo y contraseña para sincronizar tus datos entre dispositivos.</p>
+      <label for="accesoCorreo">Correo electrónico</label>
+      <input type="email" id="accesoCorreo" placeholder="tuNombre@correo.com" autocomplete="email">
+      <label for="accesoContrasena">Contraseña</label>
+      <input type="password" id="accesoContrasena" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+      <button id="btnAccesoEntrar" class="acceso-btn">Entrar</button>
+      <button id="btnAccesoCrearCuenta" class="acceso-btn acceso-btn-secundario">Crear cuenta nueva</button>
+      <button id="btnAccesoOlvide" class="acceso-btn acceso-btn-secundario">¿Olvidaste tu contraseña?</button>
       <button id="btnAccesoSinInternet" class="acceso-btn acceso-btn-secundario">Usar sin sincronizar por ahora</button>
-    </div>
-
-    <div id="accesoPaso2" class="acceso-paso" hidden>
-      <p class="acceso-sub">Escribe el código de 6 dígitos que llegó por SMS.</p>
-      <label for="accesoCodigo">Código de verificación</label>
-      <input type="text" id="accesoCodigo" inputmode="numeric" maxlength="6" placeholder="123456">
-      <button id="btnAccesoVerificarCodigo" class="acceso-btn">Verificar e ingresar</button>
-      <button id="btnAccesoCambiarNumero" class="acceso-btn acceso-btn-secundario">Usar otro número</button>
     </div>
 
     <div id="accesoEstado" class="acceso-estado"></div>
@@ -1507,7 +1502,8 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
-    getAuth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, signOut
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    sendPasswordResetEmail, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, collection, doc, writeBatch, getDocs, onSnapshot, enableIndexedDbPersistence
@@ -1536,27 +1532,22 @@
   // "config", "usuarios" y "usuarioActual" quedan solo en este teléfono.
   var COLECCIONES = ["apiarios","colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas"];
 
-  var recaptchaVerifier = null;
-  var confirmationResult = null;
   var ultimoEnviado = {};     // coleccion -> {id: "json de la última versión ya sincronizada"}
   var sincronizando = false;
   var pendienteResync = false;
 
-  function iniciarRecaptcha(contenedorId){
-    if(recaptchaVerifier) return recaptchaVerifier;
-    recaptchaVerifier = new RecaptchaVerifier(auth, contenedorId, { size: "invisible" });
-    return recaptchaVerifier;
+  // Acceso por correo + contraseña (gratis, sin necesidad del plan Blaze —
+  // el envío de SMS es lo único que Firebase cobra; correo/contraseña no).
+  function iniciarSesion(correo, contrasena){
+    return signInWithEmailAndPassword(auth, correo, contrasena).then(function(resultado){ return resultado.user; });
   }
 
-  function enviarCodigo(telefono, contenedorId){
-    var verifier = iniciarRecaptcha(contenedorId);
-    return signInWithPhoneNumber(auth, telefono, verifier).then(function(resultado){
-      confirmationResult = resultado;
-    });
+  function crearCuenta(correo, contrasena){
+    return createUserWithEmailAndPassword(auth, correo, contrasena).then(function(resultado){ return resultado.user; });
   }
 
-  function verificarCodigo(codigo){
-    return confirmationResult.confirm(codigo).then(function(resultado){ return resultado.user; });
+  function recuperarContrasena(correo){
+    return sendPasswordResetEmail(auth, correo);
   }
 
   function cerrarSesion(){ return signOut(auth); }
@@ -1649,8 +1640,9 @@
   }
 
   window.ApiCampoSync = {
-    enviarCodigo: enviarCodigo,
-    verificarCodigo: verificarCodigo,
+    iniciarSesion: iniciarSesion,
+    crearCuenta: crearCuenta,
+    recuperarContrasena: recuperarContrasena,
     cerrarSesion: cerrarSesion,
     jalarInicial: jalarInicial,
     escucharCambios: escucharCambios,
@@ -5988,7 +5980,7 @@
     var overlay = $("#accesoOverlay");
     if(!overlay) return;
     overlay.hidden = false;
-    ["accesoCargando","accesoPaso1","accesoPaso2"].forEach(function(id){
+    ["accesoCargando","accesoPaso1"].forEach(function(id){
       var el = $("#"+id);
       if(el) el.hidden = (id!==paso);
     });
@@ -6029,64 +6021,91 @@
         return;
       }
 
-      // No hay sesión iniciada: pide el número de teléfono antes de entrar.
+      // No hay sesión iniciada: pide correo y contraseña antes de entrar.
       mostrarPasoAcceso("accesoPaso1");
 
-      var btnEnviar = $("#btnAccesoEnviarCodigo");
+      var btnEntrar = $("#btnAccesoEntrar");
+      var btnCrearCuenta = $("#btnAccesoCrearCuenta");
+      var btnOlvide = $("#btnAccesoOlvide");
       var btnSinInternet = $("#btnAccesoSinInternet");
-      var btnVerificar = $("#btnAccesoVerificarCodigo");
-      var btnCambiarNumero = $("#btnAccesoCambiarNumero");
 
-      if(btnEnviar) btnEnviar.onclick = function(){
-        var telefono = ($("#accesoTelefono").value||"").trim();
-        if(!telefono || telefono.charAt(0)!=="+"){
-          estadoAcceso("Escribe el número completo con código de país, por ejemplo +504 9999-9999.", "error");
+      function leerCorreoContrasena(){
+        var correo = ($("#accesoCorreo").value||"").trim();
+        var contrasena = $("#accesoContrasena").value||"";
+        return {correo:correo, contrasena:contrasena};
+      }
+
+      function traducirErrorAcceso(err){
+        var codigo = err && err.code || "";
+        if(codigo==="auth/invalid-email") return "Ese correo no tiene un formato válido.";
+        if(codigo==="auth/missing-password") return "Escribe una contraseña.";
+        if(codigo==="auth/weak-password") return "La contraseña debe tener al menos 6 caracteres.";
+        if(codigo==="auth/email-already-in-use") return "Ya existe una cuenta con ese correo. Usa 'Entrar' en vez de 'Crear cuenta'.";
+        if(codigo==="auth/invalid-credential" || codigo==="auth/wrong-password" || codigo==="auth/user-not-found") return "Correo o contraseña incorrectos.";
+        if(codigo==="auth/too-many-requests") return "Demasiados intentos. Espera un momento y prueba de nuevo.";
+        return (err && (err.message||err.code)) || "Ocurrió un error.";
+      }
+
+      if(btnEntrar) btnEntrar.onclick = function(){
+        var datos = leerCorreoContrasena();
+        if(!datos.correo || !datos.contrasena){
+          estadoAcceso("Escribe tu correo y tu contraseña.", "error");
           return;
         }
-        btnEnviar.disabled = true;
-        estadoAcceso("Enviando código por SMS...", "info");
-        sync.enviarCodigo(telefono, "recaptcha-container").then(function(){
-          estadoAcceso("Código enviado. Revisa tus mensajes de texto.", "ok");
-          mostrarPasoAcceso("accesoPaso2");
-          btnEnviar.disabled = false;
+        btnEntrar.disabled = true;
+        estadoAcceso("Entrando...", "info");
+        sync.iniciarSesion(datos.correo, datos.contrasena).then(function(){
+          // onAuthChange se dispara solo con el usuario ya autenticado y
+          // continúa el arranque desde el principio de esta función.
         }).catch(function(err){
           console.error(err);
-          estadoAcceso("No se pudo enviar el código: " + (err.message||err.code||""), "error");
-          btnEnviar.disabled = false;
+          estadoAcceso(traducirErrorAcceso(err), "error");
+          btnEntrar.disabled = false;
+        });
+      };
+
+      if(btnCrearCuenta) btnCrearCuenta.onclick = function(){
+        var datos = leerCorreoContrasena();
+        if(!datos.correo || !datos.contrasena){
+          estadoAcceso("Escribe el correo y la contraseña que quieres usar.", "error");
+          return;
+        }
+        if(datos.contrasena.length<6){
+          estadoAcceso("La contraseña debe tener al menos 6 caracteres.", "error");
+          return;
+        }
+        btnCrearCuenta.disabled = true;
+        estadoAcceso("Creando cuenta...", "info");
+        sync.crearCuenta(datos.correo, datos.contrasena).then(function(){
+          // onAuthChange se dispara solo y continúa el arranque.
+        }).catch(function(err){
+          console.error(err);
+          estadoAcceso(traducirErrorAcceso(err), "error");
+          btnCrearCuenta.disabled = false;
+        });
+      };
+
+      if(btnOlvide) btnOlvide.onclick = function(){
+        var correo = ($("#accesoCorreo").value||"").trim();
+        if(!correo){
+          estadoAcceso("Escribe primero tu correo arriba, y luego toca este botón.", "error");
+          return;
+        }
+        sync.recuperarContrasena(correo).then(function(){
+          estadoAcceso("Te enviamos un correo para restablecer tu contraseña.", "ok");
+        }).catch(function(err){
+          console.error(err);
+          estadoAcceso(traducirErrorAcceso(err), "error");
         });
       };
 
       if(btnSinInternet) btnSinInternet.onclick = function(){
         // Deja usar la app sin sincronizar (por ejemplo, si no hay señal
-        // para recibir el SMS en este momento). Se puede iniciar sesión
-        // más adelante recargando la app cuando haya señal.
+        // en este momento). Se puede iniciar sesión más adelante recargando
+        // la app cuando haya señal.
         sincronizacionActiva = false;
         ocultarAcceso();
         arrancarConDatosLocales();
-      };
-
-      if(btnVerificar) btnVerificar.onclick = function(){
-        var codigo = ($("#accesoCodigo").value||"").trim();
-        if(codigo.length!==6){
-          estadoAcceso("El código debe tener 6 dígitos.", "error");
-          return;
-        }
-        btnVerificar.disabled = true;
-        estadoAcceso("Verificando...", "info");
-        sync.verificarCodigo(codigo).then(function(){
-          // onAuthChange se dispara solo con el usuario ya autenticado y
-          // continúa el arranque desde el principio de esta función.
-        }).catch(function(err){
-          console.error(err);
-          estadoAcceso("Código incorrecto o vencido: " + (err.message||err.code||""), "error");
-          btnVerificar.disabled = false;
-        });
-      };
-
-      if(btnCambiarNumero) btnCambiarNumero.onclick = function(){
-        $("#accesoCodigo").value = "";
-        mostrarPasoAcceso("accesoPaso1");
-        estadoAcceso("", "");
       };
     });
   }
