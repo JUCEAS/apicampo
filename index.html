@@ -200,6 +200,12 @@
     animation:vozPulso 1s ease-in-out infinite;
   }
   .voz-global-btn.desactivado{ opacity:.35; }
+  /* Igual que .acceso-overlay[hidden]: como esta clase ya pone su propio
+     "display:flex", el [hidden] del navegador (que también es "display:none")
+     pierde el empate de especificidad y el botón se queda visible aunque
+     esté oculto por código. Le pasó al botón de "Cerrar sesión" recién
+     agregado (empieza oculto en el HTML). Se corrige explícitamente aquí. */
+  .voz-global-btn[hidden]{ display:none; }
   @keyframes vozPulso{
     0%,100%{ box-shadow:0 0 0 0 var(--accent-soft); }
     50%{ box-shadow:0 0 0 6px transparent; }
@@ -258,6 +264,9 @@
     margin:0;
   }
   .row{ display:flex; align-items:center; gap:10px; }
+  /* Mismo problema de cascada de .field/.voz-global-btn/.acceso-overlay:
+     sin esto, un .row con el atributo "hidden" se queda visible. */
+  .row[hidden]{ display:none; }
   .between{ justify-content:space-between; }
   .wrap-chips{ display:flex; flex-wrap:wrap; gap:8px; }
 
@@ -327,8 +336,14 @@
   .badge-neutral{ background:var(--surface-2); color:var(--muted); }
 
   .field{ display:flex; flex-direction:column; gap:6px; }
+  /* Mismo problema de cascada que .acceso-overlay/.voz-global-btn: esta
+     clase ya trae su propio "display", así que el navegador nunca aplica
+     su [hidden] por defecto. Esto hacía que "camposSocios", "campoNumeroVarias"
+     y "campoInversionDetalle" se vieran SIEMPRE dentro de sus modales, aunque
+     estuvieran marcados como ocultos (modo "individual", "una colmena", etc.). */
+  .field[hidden]{ display:none; }
   .field label{ font-size:12.5px; font-weight:600; color:var(--muted); }
-  .field input[type="text"], .field input[type="number"], .field textarea{
+  .field input[type="text"], .field input[type="number"], .field input[type="date"], .field textarea{
     background:var(--surface-2);
     border:1px solid var(--line);
     border-radius:10px;
@@ -912,6 +927,10 @@
       </div>
 
       <button class="btn btn-primary btn-block" id="btnGuardarRevision">Guardar revisión</button>
+      <div class="row" id="filaInformeUltimaRevision" hidden style="gap:8px; margin-top:8px;">
+        <button type="button" class="btn btn-line" style="flex:1;" id="btnCompartirUltimaRevision">📄 Compartir informe</button>
+        <button type="button" class="btn btn-line" style="flex:1;" id="btnImprimirUltimaRevision">🖨 Imprimir</button>
+      </div>
     </div>
   </main>
 
@@ -939,6 +958,17 @@
   <main id="tab-historial" hidden>
     <div class="wrap-chips" id="chipsHistorialApiario"></div>
     <div class="wrap-chips" id="chipsHistorialFiltro"></div>
+    <div class="row" style="gap:8px; margin:6px 0 2px; align-items:flex-end;">
+      <div class="field" style="flex:1; margin:0;">
+        <label for="histDesde" style="font-size:12px;">Desde</label>
+        <input type="date" id="histDesde">
+      </div>
+      <div class="field" style="flex:1; margin:0;">
+        <label for="histHasta" style="font-size:12px;">Hasta</label>
+        <input type="date" id="histHasta">
+      </div>
+      <button type="button" class="btn btn-line" id="btnLimpiarFechasHistorial" style="flex:none; padding:10px 12px;" title="Quitar filtro de fechas">✕</button>
+    </div>
     <button class="btn btn-line btn-block" id="btnDescargarHistorialPDF" style="margin:2px 0 10px;">⬇ Descargar este historial en PDF</button>
     <div class="card" style="padding:4px 14px;">
       <div id="listaHistorial"></div>
@@ -1630,10 +1660,21 @@
         if(!ap.colaboradores) ap.colaboradores = [];
       });
     }
+    // Importante: los cambios a "ultimoEnviado" (qué se considera ya
+    // subido a la nube) NO se aplican aquí todavía, sino que se guardan
+    // aparte en "pendientes" y solo se copian a ultimoEnviado si el
+    // batch.commit() de más abajo tiene éxito. Antes se aplicaban de una
+    // vez al armar el batch; si el envío fallaba (sin señal justo en ese
+    // momento, permiso denegado, etc.) el dato quedaba marcado como "ya
+    // sincronizado" sin haberlo estado nunca — se perdía en silencio y
+    // nunca se volvía a intentar subir, aunque siguiera guardado en el
+    // teléfono. Ahora, si falla, se reintenta solo en el siguiente guardar().
+    var pendientesPorColeccion = {};
     COLECCIONES.forEach(function(nombre){
       var lista = store[nombre] || [];
       var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
       var vistos = {};
+      var pendientes = pendientesPorColeccion[nombre] = {set:{}, del:[]};
       lista.forEach(function(item){
         if(!item || !item.id) return;
         vistos[item.id] = true;
@@ -1642,20 +1683,28 @@
         var datos = Object.assign({}, item);
         delete datos.id;
         batch.set(doc(db, nombre, item.id), datos);
-        conocidos[item.id] = firma;
+        pendientes.set[item.id] = firma;
         huboEscritura = true;
       });
       Object.keys(conocidos).forEach(function(id){
         if(!vistos[id]){
           batch.delete(doc(db, nombre, id));
-          delete conocidos[id];
+          pendientes.del.push(id);
           huboEscritura = true;
         }
       });
     });
     var terminar = huboEscritura ? batch.commit() : Promise.resolve();
-    return terminar.catch(function(e){
-      console.error("No se pudo sincronizar con la nube (se sigue guardando en este teléfono):", e);
+    return terminar.then(function(){
+      // Éxito: recién ahora se marca todo como sincronizado de verdad.
+      COLECCIONES.forEach(function(nombre){
+        var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
+        var pendientes = pendientesPorColeccion[nombre];
+        Object.keys(pendientes.set).forEach(function(id){ conocidos[id] = pendientes.set[id]; });
+        pendientes.del.forEach(function(id){ delete conocidos[id]; });
+      });
+    }).catch(function(e){
+      console.error("No se pudo sincronizar con la nube (se sigue guardando en este teléfono; se reintentará más adelante):", e);
     }).then(function(){
       sincronizando = false;
       if(pendienteResync){ pendienteResync = false; return sincronizar(store); }
@@ -3003,6 +3052,34 @@
     return fontMin;
   }
 
+  // Comparte un PDF ya armado usando el share nativo del teléfono (ahí es
+  // donde aparecen WhatsApp, WhatsApp Business, correo, etc., ya elegidos
+  // por el propio usuario) y, si el navegador no lo soporta (por ejemplo en
+  // computadora), lo descarga en su lugar con un aviso de qué hacer.
+  function compartirOGuardarPDF(doc, nombreArchivo, tituloShare){
+    var blob = doc.output("blob");
+    var archivo = null;
+    try{ archivo = new File([blob], nombreArchivo, {type:"application/pdf"}); }catch(e){}
+    if(archivo && navigator.canShare && navigator.canShare({files:[archivo]})){
+      navigator.share({files:[archivo], title:tituloShare}).catch(function(){});
+    }else{
+      doc.save(nombreArchivo);
+      toast("PDF descargado — ábrelo desde Descargas para compartirlo por WhatsApp o imprimirlo");
+    }
+  }
+  // Abre el PDF en una pestaña nueva con el visor nativo del navegador, para
+  // que el usuario le dé "Imprimir" desde ahí (sin depender de que el share
+  // nativo del teléfono ofrezca esa opción, que no siempre pasa).
+  function imprimirPDF(doc){
+    try{
+      var url = doc.output("bloburl");
+      var ventana = window.open(url, "_blank");
+      if(!ventana) toast("El navegador bloqueó la ventana. Permite ventanas emergentes para imprimir directo, o descarga el PDF.");
+    }catch(e){
+      toast("No se pudo abrir el PDF para imprimir.");
+    }
+  }
+
   function descargarQRComoPDF(){
     if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
     if(!(window.jspdf && window.jspdf.jsPDF)){
@@ -3897,6 +3974,10 @@
     renderParsedGrid();
     renderDiseaseChips();
     renderMarcosGrid();
+    // Empieza una revisión nueva: el informe de "la última revisión" ya no
+    // aplica hasta que se guarde esta.
+    ultimaRevisionGuardada = null;
+    $("#filaInformeUltimaRevision").hidden = true;
   }
 
   function renderMarcosGrid(){
@@ -4031,6 +4112,11 @@
     renderMarcosGrid();
   });
 
+  // Guarda la última revisión recién guardada, para que los botones de
+  // "Compartir informe" / "Imprimir" de debajo del dictado sepan de cuál
+  // revisión se trata (se limpia al elegir otra colmena para revisar).
+  var ultimaRevisionGuardada = null;
+
   function guardarRevisionActual(){
     if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
     var texto = $("#txtDictado").value.trim();
@@ -4043,10 +4129,18 @@
     toast("Revisión guardada");
     var cId = colmenaEnRevision;
     seleccionarColmenaRevision(cId);
+    ultimaRevisionGuardada = r;
+    $("#filaInformeUltimaRevision").hidden = false;
     renderRevisarColmenas();
   }
   $("#btnGuardarRevision").addEventListener("click", guardarRevisionActual);
   $("#btnGuardarRevisionTop").addEventListener("click", guardarRevisionActual);
+  $("#btnCompartirUltimaRevision").addEventListener("click", function(){
+    if(ultimaRevisionGuardada) compartirInformeRevisionPDF(ultimaRevisionGuardada);
+  });
+  $("#btnImprimirUltimaRevision").addEventListener("click", function(){
+    if(ultimaRevisionGuardada) imprimirInformeRevisionPDF(ultimaRevisionGuardada);
+  });
 
   /* ---- Dictado por voz: dos motores ----
      "online": Web Speech API nativa del navegador (mejor precisión, pero
@@ -4707,9 +4801,27 @@
      ============================================================ */
   var histFiltro = "todos";
   var histApiario = apiarioActivo || "todos";
+  // Filtro de fechas del historial (informe por rango): "YYYY-MM-DD" tal
+  // cual lo da <input type="date">, o null cuando no se ha fijado ese
+  // extremo. Se guarda como texto y se convierte a marca de tiempo solo al
+  // filtrar, para no perder el valor tal como el usuario lo escribió.
+  var histDesde = null;
+  var histHasta = null;
 
-  /* Aplica los mismos filtros (apiario + estado) que se ven en pantalla, para
-     que tanto la lista como el PDF descargado muestren exactamente lo mismo. */
+  function rangoFechasHistorial(){
+    var desde = histDesde ? new Date(histDesde+"T00:00:00").getTime() : null;
+    var hasta = histHasta ? new Date(histHasta+"T23:59:59.999").getTime() : null;
+    return {desde:desde, hasta:hasta};
+  }
+  function dentroDeRangoHistorial(fecha, rango){
+    if(rango.desde!==null && fecha<rango.desde) return false;
+    if(rango.hasta!==null && fecha>rango.hasta) return false;
+    return true;
+  }
+
+  /* Aplica los mismos filtros (apiario + estado + rango de fechas) que se ven
+     en pantalla, para que tanto la lista como el PDF descargado muestren
+     exactamente lo mismo. */
   function obtenerHistorialFiltrado(){
     var lista = store.revisiones.slice().sort(function(a,b){ return b.fecha-a.fecha; });
 
@@ -4741,6 +4853,15 @@
       if(histApiario!=="todos"){
         trabajos = trabajos.filter(function(t){ return t.apiarioId===histApiario; });
       }
+    }
+
+    // El rango de fechas no aplica al filtro "sin revisar" (ese es sobre
+    // colmenas que NO tienen revisiones recientes, no sobre un listado de
+    // eventos con fecha propia), así que solo se filtra lista/trabajos.
+    var rango = rangoFechasHistorial();
+    if(rango.desde!==null || rango.hasta!==null){
+      lista = lista.filter(function(r){ return dentroDeRangoHistorial(r.fecha, rango); });
+      trabajos = trabajos.filter(function(t){ return dentroDeRangoHistorial(t.fecha, rango); });
     }
 
     return {lista:lista, colmenasSinRevisar:colmenasSinRevisar, trabajos:trabajos};
@@ -4860,6 +4981,9 @@
       doc.setFontSize(9.5);
       doc.setTextColor(110);
       var filtroTexto = histFiltro==="atencion" ? "Solo colmenas que necesitan atención" : (histFiltro==="sin_revisar" ? "Solo colmenas sin revisar hace más de 15 días" : "Todas las revisiones y trabajos generales");
+      if(histDesde || histHasta){
+        filtroTexto += " · del "+(histDesde?fechaCorta(new Date(histDesde+"T00:00:00").getTime()):"inicio")+" al "+(histHasta?fechaCorta(new Date(histHasta+"T00:00:00").getTime()):"hoy");
+      }
       doc.text(filtroTexto+" · generado "+fechaCorta(Date.now()), margin, y);
       doc.setTextColor(20);
       y += 9;
@@ -4966,16 +5090,7 @@
 
       var nombreApiarioArchivo = histApiario==="todos" ? "todos" : normalizarNombreArchivo(apiarioNombre(histApiario));
       var nombreArchivo = "apicampo-historial-"+nombreApiarioArchivo+".pdf";
-      var blob = doc.output("blob");
-
-      var archivo = null;
-      try{ archivo = new File([blob], nombreArchivo, {type:"application/pdf"}); }catch(e){}
-      if(archivo && navigator.canShare && navigator.canShare({files:[archivo]})){
-        navigator.share({files:[archivo], title:"Historial — ApiCampo"}).catch(function(){});
-      }else{
-        doc.save(nombreArchivo);
-        toast("PDF descargado — ábrelo desde Descargas para compartirlo por WhatsApp o imprimirlo");
-      }
+      compartirOGuardarPDF(doc, nombreArchivo, "Historial — ApiCampo");
     }catch(e){
       toast("No se pudo generar el PDF. Intenta de nuevo.");
     }
@@ -4984,6 +5099,148 @@
     return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "apiario";
   }
   $("#btnDescargarHistorialPDF").addEventListener("click", function(){ descargarHistorialPDF(); });
+  $("#histDesde").addEventListener("change", function(){ histDesde = $("#histDesde").value || null; renderHistorial(); });
+  $("#histHasta").addEventListener("change", function(){ histHasta = $("#histHasta").value || null; renderHistorial(); });
+  $("#btnLimpiarFechasHistorial").addEventListener("click", function(){
+    histDesde = null; histHasta = null;
+    $("#histDesde").value = ""; $("#histHasta").value = "";
+    renderHistorial();
+  });
+
+  // Informe de una sola revisión: "así encontramos la colmena/apiario hoy",
+  // pensado para compartir por WhatsApp con un socio o imprimir en el campo
+  // — a diferencia del historial (que junta muchas revisiones), este es de
+  // una sola página con los datos de una sola visita.
+  function construirInformeRevisionPDF(r){
+    var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
+    var apId = r.apiarioId || (c?c.apiarioId:null);
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor({unit:"mm", format:"letter"});
+    var margin = 15;
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var anchoTexto = pageW - margin*2;
+    var y = margin;
+
+    function nuevaPaginaSiHaceFalta(alturaNecesaria){
+      if(y + alturaNecesaria > pageH - margin){ doc.addPage(); y = margin; }
+    }
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(15);
+    doc.text("ApiCampo — Informe de revisión", margin, y);
+    y += 8;
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(12.5);
+    doc.text((apId?apiarioNombre(apId):"")+(c?(" · Colmena #"+c.numero):""), margin, y);
+    y += 6;
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(110);
+    doc.text(fechaCorta(r.fecha)+" · "+(ESTADO_TEXTO[estadoRevision(r.campos)]||"")+(r.revisadoPor?(" · revisó "+r.revisadoPor):""), margin, y);
+    doc.setTextColor(20);
+    y += 9;
+
+    doc.setDrawColor(200);
+    doc.line(margin, y, pageW-margin, y);
+    y += 8;
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(11);
+    doc.text("Campos entendidos", margin, y);
+    y += 6.5;
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10);
+    FIELD_DEFS.forEach(function(def){
+      var val = def.get(r.campos);
+      nuevaPaginaSiHaceFalta(6);
+      doc.setFont("helvetica","bold");
+      doc.text(def.label+":", margin, y);
+      doc.setFont("helvetica","normal");
+      doc.text(val, margin+45, y);
+      y += 6;
+    });
+
+    if(r.campos.enfermedades && r.campos.enfermedades.length){
+      y += 2;
+      nuevaPaginaSiHaceFalta(6);
+      doc.setFont("helvetica","bold");
+      doc.text("Enfermedades / plagas:", margin, y);
+      doc.setFont("helvetica","normal");
+      var lineasEnf = doc.splitTextToSize(r.campos.enfermedades.join(", "), anchoTexto-45);
+      doc.text(lineasEnf, margin+45, y);
+      y += lineasEnf.length*5.5;
+    }
+
+    var resumenMarcos = resumenMarcosTexto(r.marcos);
+    if(resumenMarcos){
+      y += 4;
+      nuevaPaginaSiHaceFalta(10);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(11);
+      doc.text("Marcos", margin, y);
+      y += 6;
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(10);
+      var lineasMarcos = doc.splitTextToSize(resumenMarcos, anchoTexto);
+      nuevaPaginaSiHaceFalta(lineasMarcos.length*5.5);
+      doc.text(lineasMarcos, margin, y);
+      y += lineasMarcos.length*5.5;
+    }
+
+    if(r.texto){
+      y += 4;
+      nuevaPaginaSiHaceFalta(10);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(11);
+      doc.text("Transcripción del dictado", margin, y);
+      y += 6;
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(9.5);
+      var lineasTexto = doc.splitTextToSize(r.texto, anchoTexto);
+      nuevaPaginaSiHaceFalta(lineasTexto.length*4.6);
+      doc.text(lineasTexto, margin, y);
+      y += lineasTexto.length*4.6;
+    }
+
+    y += 8;
+    nuevaPaginaSiHaceFalta(6);
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(140);
+    doc.text("Generado con ApiCampo · "+fechaCorta(Date.now()), margin, y);
+
+    var nombreArchivo = "apicampo-informe-"+(c?("colmena-"+c.numero+"-"):"")+normalizarNombreArchivo(fechaCorta(r.fecha))+".pdf";
+    return {doc:doc, nombreArchivo:nombreArchivo};
+  }
+
+  function compartirInformeRevisionPDF(r){
+    if(!(window.jspdf && window.jspdf.jsPDF)){
+      toast("No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.");
+      return;
+    }
+    try{
+      var res = construirInformeRevisionPDF(r);
+      compartirOGuardarPDF(res.doc, res.nombreArchivo, "Informe de revisión — ApiCampo");
+    }catch(e){
+      toast("No se pudo generar el informe. Intenta de nuevo.");
+    }
+  }
+
+  function imprimirInformeRevisionPDF(r){
+    if(!(window.jspdf && window.jspdf.jsPDF)){
+      toast("No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.");
+      return;
+    }
+    try{
+      var res = construirInformeRevisionPDF(r);
+      imprimirPDF(res.doc);
+    }catch(e){
+      toast("No se pudo generar el informe. Intenta de nuevo.");
+    }
+  }
 
   function abrirDetalleRevision(r){
     var c = store.colmenas.find(function(x){ return x.id===r.colmenaId; });
@@ -5029,6 +5286,15 @@
       fsum.innerHTML = resumenMarcosHtml(r.marcos) || '<span>No se registraron marcos</span>';
       body.appendChild(fsum);
     }
+
+    var filaInforme = el("div",{class:"row", style:"gap:8px; margin-top:6px;"});
+    var btnCompartirInforme = el("button",{class:"btn btn-primary", style:"flex:1;", text:"📄 Compartir informe"});
+    btnCompartirInforme.addEventListener("click", function(){ compartirInformeRevisionPDF(r); });
+    var btnImprimirInforme = el("button",{class:"btn btn-line", style:"flex:1;", text:"🖨 Imprimir"});
+    btnImprimirInforme.addEventListener("click", function(){ imprimirInformeRevisionPDF(r); });
+    filaInforme.appendChild(btnCompartirInforme);
+    filaInforme.appendChild(btnImprimirInforme);
+    body.appendChild(filaInforme);
 
     var cerrar = el("button",{class:"btn btn-line btn-block", text:"Cerrar"});
     cerrar.addEventListener("click", function(){ $("#modalHist").hidden = true; });
