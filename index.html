@@ -3127,8 +3127,16 @@
     }).catch(function(){ $("#colabInvitacionesEmpty").hidden = false; });
   }
 
+  /* location.origin+location.pathname (nunca un texto fijo como
+     "https://juceas.github.io/apicampo/") para que el enlace que se manda
+     sea siempre el de dónde esta copia de la app está corriendo de verdad —
+     así sigue siendo correcto aunque cambie de dirección más adelante. */
+  function urlDeLaApp(){
+    return location.origin + location.pathname;
+  }
+
   function mensajeInvitacion(ap, correo){
-    return "Te invité a colaborar conmigo en el apiario \""+ap.nombre+"\" en ApiCampo. Abre la app, crea una cuenta con este correo ("+correo+") y acepta la invitación que te va a aparecer.";
+    return "Te invité a colaborar conmigo en el apiario \""+ap.nombre+"\" en ApiCampo. Entra aquí: "+urlDeLaApp()+" — crea una cuenta con este correo ("+correo+") y acepta la invitación que te va a aparecer.";
   }
 
   function abrirModalColaboradores(ap){
