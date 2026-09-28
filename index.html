@@ -797,6 +797,7 @@
     <button class="apiario-activo-pill" id="topbarApiarioActivo" hidden title="Cambiar el apiario en el que estás trabajando"></button>
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
+    <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
     <span class="demo-pill">v1.0</span>
   </header>
 
@@ -2138,6 +2139,25 @@
   // Se vuelve true en cuanto hay sesión iniciada y se completó la primera
   // sincronización con Firestore (ver ARRANQUE, al final de este script).
   var sincronizacionActiva = false;
+
+  /* Aviso siempre visible en la barra superior cuando NO se está
+     sincronizando con la nube — para que no se confunda "esto que veo" con
+     "mis datos reales", que fue justo lo que pasó cuando, al tocar "Usar sin
+     sincronizar por ahora" (o al no tener sesión iniciada en un teléfono/
+     navegador nuevo), la app siguió mostrando los apiarios de ejemplo en vez
+     de avisar que no estaba viendo la nube. Tocar el aviso recarga la app,
+     que es la forma de volver a la pantalla de inicio de sesión. */
+  function actualizarAvisoSincronizacion(){
+    var b = $("#btnAvisoSinSincronizar");
+    if(b) b.hidden = !!sincronizacionActiva;
+  }
+  document.addEventListener("DOMContentLoaded", function(){
+    var b = $("#btnAvisoSinSincronizar");
+    if(b) b.addEventListener("click", function(){
+      toast("Recargando para iniciar sesión…");
+      setTimeout(function(){ window.location.reload(); }, 300);
+    });
+  });
 
   function marcosDemo(total, especif){
     var arr = [];
@@ -6899,6 +6919,7 @@
         if(btnCerrarSesionApp) btnCerrarSesionApp.hidden = false;
         sync.jalarInicial(store).then(function(){
           sincronizacionActiva = true;
+          actualizarAvisoSincronizacion();
           guardar();
           arrancarConDatosLocales();
           sync.escucharCambios(store, function(){
@@ -6909,6 +6930,7 @@
         }).catch(function(e){
           console.error("No se pudo traer los datos de la nube, se sigue con lo local:", e);
           sincronizacionActiva = false;
+          actualizarAvisoSincronizacion();
           arrancarConDatosLocales();
         });
         return;
@@ -6999,6 +7021,7 @@
         // en este momento). Se puede iniciar sesión más adelante recargando
         // la app cuando haya señal.
         sincronizacionActiva = false;
+        actualizarAvisoSincronizacion();
         ocultarAcceso();
         arrancarConDatosLocales();
       };
@@ -7017,6 +7040,7 @@
     }
     if(intentos<=0){
       sincronizacionActiva = false;
+      actualizarAvisoSincronizacion();
       arrancarConDatosLocales();
       return;
     }
