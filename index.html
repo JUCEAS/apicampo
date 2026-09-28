@@ -811,7 +811,10 @@
   <main id="tab-apiarios">
     <div class="row between">
       <p class="section-title">Tus apiarios</p>
-      <button class="btn btn-line" id="btnNuevoApiario" style="padding:8px 12px;">+ Nuevo</button>
+      <div class="row" style="gap:8px;">
+        <button class="btn btn-line" id="btnSocios" style="padding:8px 12px;">👥 Socios</button>
+        <button class="btn btn-line" id="btnNuevoApiario" style="padding:8px 12px;">+ Nuevo</button>
+      </div>
     </div>
     <div id="listaApiarios" style="display:flex; flex-direction:column; gap:10px;"></div>
 
@@ -1431,6 +1434,32 @@
     <div id="colabInvitacionesLista"></div>
     <div class="empty" id="colabInvitacionesEmpty" hidden>No hay invitaciones esperando respuesta.</div>
     <button class="btn btn-line btn-block" id="btnCerrarColaboradores" style="margin-top:12px;">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal: socios — administra a una persona en varios apiarios a la vez -->
+<div class="modal-backdrop" id="modalSocios" hidden>
+  <div class="modal">
+    <h2>Socios</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Administra aquí a las personas con las que compartes apiarios, en vez de hacerlo apiario por apiario.</p>
+
+    <p class="section-title" style="margin:0 0 6px;">Tus socios actuales</p>
+    <div id="sociosLista" style="margin-bottom:6px;"></div>
+    <div class="empty" id="sociosListaEmpty" hidden>Todavía no tienes a nadie con acceso a tus apiarios.</div>
+
+    <div style="background:var(--surface-2); border-radius:10px; padding:10px 12px; margin:14px 0;">
+      <p class="section-title" style="margin:0 0 8px;">Invitar (o agregar a más apiarios)</p>
+      <div class="field">
+        <label for="inSocioCorreo">Correo de la persona</label>
+        <input type="text" id="inSocioCorreo" inputmode="email" placeholder="correo@ejemplo.com">
+      </div>
+      <p style="font-size:12.5px; color:var(--muted); margin:8px 0 6px;">Marca los apiarios donde quieres que tenga acceso:</p>
+      <div id="sociosApiariosChecklist" style="max-height:180px; overflow-y:auto;"></div>
+      <div class="empty" id="sociosApiariosEmpty" hidden>Primero crea un apiario tuyo.</div>
+      <button type="button" class="btn btn-primary btn-block" id="btnInvitarSocioVarios" style="margin-top:10px;">+ Invitar a los apiarios marcados</button>
+    </div>
+
+    <button class="btn btn-line btn-block" id="btnCerrarSocios" style="margin-top:4px;">Cerrar</button>
   </div>
 </div>
 
@@ -3190,6 +3219,154 @@
       console.error(e);
       toast("No se pudo crear la invitación. Revisa tu conexión e intenta de nuevo.");
     });
+  });
+
+  /* ============================================================
+     5b. SOCIOS — administrar a una persona en varios apiarios a la vez
+     (invitar a los que marques de un jalón, o revocarle el acceso a
+     TODOS los apiarios donde lo tiene, en un solo botón). Solo aplica
+     a los apiarios de los que tú eres dueño (propietarioId===tu uid);
+     no puedes invitar ni revocar gente en un apiario ajeno donde tú
+     mismo eres colaborador.
+     ============================================================ */
+  function misApiariosPropios(){
+    var miUid = uidUsuarioNube();
+    if(!miUid) return [];
+    return (store.apiarios||[]).filter(function(ap){ return ap.propietarioId===miUid; });
+  }
+
+  function mensajeInvitacionVarios(apiarios, correo){
+    var nombres = apiarios.map(function(ap){ return "\""+ap.nombre+"\""; }).join(", ");
+    var plural = apiarios.length>1;
+    return "Te invité a colaborar conmigo en "+(plural?"estos apiarios":"este apiario")+" en ApiCampo: "+nombres+". Entra aquí: "+urlDeLaApp()+" — crea una cuenta con este correo ("+correo+") y acepta la"+(plural?"s invitaciones que te van":" invitación que te va")+" a aparecer.";
+  }
+
+  function renderSociosModal(){
+    var propios = misApiariosPropios();
+
+    // Junta, de todos tus apiarios, un solo registro por correo con la
+    // lista de en cuáles ya tiene acceso.
+    var mapa = {};
+    var orden = [];
+    propios.forEach(function(ap){
+      (ap.colaboradoresInfo||[]).forEach(function(c){
+        var key = (c.correo||c.uid||"").toLowerCase();
+        if(!key) return;
+        if(!mapa[key]){ mapa[key] = {correo:c.correo, uid:c.uid, apiarios:[]}; orden.push(key); }
+        mapa[key].apiarios.push(ap);
+      });
+    });
+
+    var lista = $("#sociosLista");
+    lista.innerHTML = "";
+    var socios = orden.map(function(k){ return mapa[k]; });
+    $("#sociosListaEmpty").hidden = socios.length>0;
+    socios.forEach(function(s){
+      var row = el("div",{class:"row between", style:"padding:8px 0; border-bottom:1px solid var(--line); align-items:flex-start; gap:10px;"});
+      var izq = el("div",{style:"flex:1; min-width:0;"});
+      izq.appendChild(el("div",{style:"font-size:13.5px; font-weight:600; word-break:break-word;", text:s.correo||s.uid}));
+      izq.appendChild(el("div",{style:"font-size:12px; color:var(--muted); margin-top:2px;", text:"Acceso en: "+s.apiarios.map(function(a){ return a.nombre; }).join(", ")}));
+      row.appendChild(izq);
+      var btnRevocar = el("button",{type:"button", class:"btn btn-line", style:"padding:6px 10px; font-size:12px; color:var(--critical); border-color:var(--critical); white-space:nowrap;", text:"Revocar de todos"});
+      btnRevocar.addEventListener("click", function(){
+        confirmarApp("¿Quitarle a \""+(s.correo||s.uid)+"\" el acceso a los "+s.apiarios.length+" apiario(s) donde lo tiene ahora? Ya no va a poder ver ni registrar nada en ninguno de ellos.").then(function(ok){
+          if(!ok) return;
+          s.apiarios.forEach(function(ap){
+            ap.colaboradoresUids = (ap.colaboradoresUids||[]).filter(function(u){ return u!==s.uid; });
+            ap.colaboradoresInfo = (ap.colaboradoresInfo||[]).filter(function(x){ return x.uid!==s.uid; });
+          });
+          // También cancela cualquier invitación que se le haya quedado
+          // pendiente (sin aceptar todavía) en cualquiera de tus apiarios.
+          if(window.ApiCampoSync && s.correo){
+            misApiariosPropios().forEach(function(ap){
+              window.ApiCampoSync.cancelarInvitacion(ap.id, s.correo).catch(function(){});
+            });
+          }
+          store.esDemo = false;
+          guardar();
+          renderApiarios();
+          renderSociosModal();
+          toast("Acceso revocado en todos los apiarios");
+        });
+      });
+      row.appendChild(btnRevocar);
+      lista.appendChild(row);
+    });
+
+    // Checklist de tus apiarios, para invitar (o agregar a más) de un jalón.
+    var check = $("#sociosApiariosChecklist");
+    check.innerHTML = "";
+    $("#sociosApiariosEmpty").hidden = propios.length>0;
+    propios.forEach(function(ap){
+      var wrap = el("label",{style:"display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13.5px; cursor:pointer;"});
+      var chk = el("input",{type:"checkbox", value:ap.id});
+      wrap.appendChild(chk);
+      wrap.appendChild(document.createTextNode(ap.nombre));
+      check.appendChild(wrap);
+    });
+  }
+
+  $("#btnSocios").addEventListener("click", function(){
+    if(!window.ApiCampoSync || !sincronizacionActiva){
+      toast("Necesitas iniciar sesión (sincronizado) para administrar socios");
+      return;
+    }
+    $("#inSocioCorreo").value = "";
+    renderSociosModal();
+    $("#modalSocios").hidden = false;
+  });
+  $("#btnCerrarSocios").addEventListener("click", function(){ $("#modalSocios").hidden = true; });
+  $("#modalSocios").addEventListener("click", function(e){ if(e.target===this) this.hidden = true; });
+
+  $("#btnInvitarSocioVarios").addEventListener("click", function(){
+    if(!window.ApiCampoSync){ toast("Necesitas iniciar sesión para invitar socios"); return; }
+    var correo = ($("#inSocioCorreo").value||"").trim();
+    if(!correo || correo.indexOf("@")<0){ toast("Escribe un correo válido"); return; }
+    var idsSeleccionados = $all("#sociosApiariosChecklist input[type=checkbox]:checked").map(function(c){ return c.value; });
+    if(!idsSeleccionados.length){ toast("Marca al menos un apiario"); return; }
+
+    var propios = misApiariosPropios();
+    var apiariosSel = propios.filter(function(ap){ return idsSeleccionados.indexOf(ap.id)>=0; });
+    var yaTieneAcceso = apiariosSel.filter(function(ap){
+      return (ap.colaboradoresInfo||[]).some(function(c){ return (c.correo||"").toLowerCase()===correo.toLowerCase(); });
+    });
+    var porInvitar = apiariosSel.filter(function(ap){ return yaTieneAcceso.indexOf(ap)<0; });
+
+    if(!porInvitar.length){
+      toast("Esa persona ya tiene acceso a todos los apiarios marcados");
+      return;
+    }
+
+    var btn = $("#btnInvitarSocioVarios");
+    btn.disabled = true;
+    var creadas = [];
+    var fallas = 0;
+    var restantes = porInvitar.length;
+    porInvitar.forEach(function(ap){
+      window.ApiCampoSync.crearInvitacion(ap.id, ap.nombre, correo).then(function(){
+        creadas.push(ap);
+      }).catch(function(e){
+        console.error(e);
+        fallas++;
+      }).then(function(){
+        restantes--;
+        if(restantes===0) terminar();
+      });
+    });
+
+    function terminar(){
+      btn.disabled = false;
+      renderSociosModal();
+      if(creadas.length){
+        toast(creadas.length+" invitación(es) creada(s) — ahora mándale el mensaje");
+        $("#inSocioCorreo").value = "";
+        $all("#sociosApiariosChecklist input[type=checkbox]").forEach(function(c){ c.checked = false; });
+        compartirTextoWhatsApp(mensajeInvitacionVarios(creadas, correo));
+      }
+      if(fallas){
+        toast(fallas+" invitación(es) no se pudieron crear. Revisa tu conexión e intenta de nuevo.");
+      }
+    }
   });
 
   $("#btnReset").addEventListener("click", function(){
