@@ -1409,11 +1409,17 @@
     <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Las personas que agregues aquí verán y podrán registrar revisiones en este apiario desde su propia cuenta, sincronizado igual que en tu teléfono.</p>
     <div id="colabLista" style="margin-bottom:10px;"></div>
     <div class="empty" id="colabEmpty" hidden>Todavía no has agregado a nadie.</div>
+    <div style="background:var(--surface-2); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+      <p style="font-size:12.5px; color:var(--muted); margin:0 0 6px; font-weight:700;">Esto no manda un correo automático — la app no tiene esa función. Son 3 pasos:</p>
+      <p style="font-size:12.5px; color:var(--muted); margin:0 0 3px;">1. Escribe abajo el correo de esa persona (uno que ya tenga, real).</p>
+      <p style="font-size:12.5px; color:var(--muted); margin:0 0 3px;">2. Al crear la invitación se abre WhatsApp con un mensaje ya armado — tienes que mandárselo tú mismo.</p>
+      <p style="font-size:12.5px; color:var(--muted); margin:0;">3. Esa persona abre ApiCampo y <b>crea una cuenta nueva con ese mismo correo</b> — ahí le va a aparecer la invitación para aceptar.</p>
+    </div>
     <div class="field">
-      <label for="inColabCorreo">Invitar por correo</label>
+      <label for="inColabCorreo">Correo de la persona a invitar</label>
       <input type="text" id="inColabCorreo" inputmode="email" placeholder="correo@ejemplo.com">
     </div>
-    <button type="button" class="btn btn-primary btn-block" id="btnInvitarColaborador" style="margin-top:2px;">+ Enviar invitación</button>
+    <button type="button" class="btn btn-primary btn-block" id="btnInvitarColaborador" style="margin-top:2px;">+ Crear invitación y avisar por WhatsApp</button>
     <p class="section-title" style="margin:14px 0 6px;">Invitaciones pendientes</p>
     <div id="colabInvitacionesLista"></div>
     <div class="empty" id="colabInvitacionesEmpty" hidden>No hay invitaciones esperando respuesta.</div>
@@ -3103,7 +3109,7 @@
         var row = el("div",{class:"row between", style:"padding:8px 0; border-bottom:1px solid var(--line);"});
         row.appendChild(el("span",{style:"font-size:13.5px; color:var(--muted);", text:inv.correoInvitado+" · esperando respuesta"}));
         var wrapBtns = el("div",{class:"row", style:"gap:6px;"});
-        var btnReenviar = el("button",{type:"button", class:"btn btn-line", style:"padding:6px 10px; font-size:12px;", text:"↻ Reenviar"});
+        var btnReenviar = el("button",{type:"button", class:"btn btn-line", style:"padding:6px 10px; font-size:12px;", text:"↻ Reenviar por WhatsApp"});
         btnReenviar.addEventListener("click", function(){
           compartirTextoWhatsApp(mensajeInvitacion(ap, inv.correoInvitado));
         });
@@ -3142,7 +3148,7 @@
     var yaEsColaborador = (ap.colaboradoresInfo||[]).some(function(c){ return (c.correo||"").toLowerCase()===correo.toLowerCase(); });
     if(yaEsColaborador){ toast("Esa persona ya tiene acceso a este apiario"); return; }
     window.ApiCampoSync.crearInvitacion(ap.id, ap.nombre, correo).then(function(){
-      toast("Invitación creada");
+      toast("Invitación creada — ahora mándale el mensaje que se va a abrir");
       $("#inColabCorreo").value = "";
       renderColaboradoresModal();
       compartirTextoWhatsApp(mensajeInvitacion(ap, correo));
