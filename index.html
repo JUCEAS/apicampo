@@ -948,6 +948,9 @@
   <main id="tab-mapa" hidden>
     <div class="wrap-chips" id="chipsMapa"></div>
     <button class="btn btn-line btn-block" id="btnMiUbicacion" style="margin:2px 0 8px;">📍 Mostrar mi ubicación en el mapa</button>
+    <button class="btn btn-line btn-block" id="btnDescargarZonaMapa" style="margin:0 0 4px;">⬇ Descargar el mapa de esta zona para verlo sin señal</button>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Elige arriba un apiario específico (no "Todos") y toca esto <b>antes de ir al campo, con señal o WiFi</b> — así el mapa de esa zona ya va a estar guardado en el teléfono cuando llegues sin cobertura. Tu punto azul ("Tú estás aquí") funciona sin señal de todas formas — es el fondo con calles/terreno lo que necesita esta descarga.</p>
+    <div id="descargaZonaEstado"></div>
     <div class="card" style="padding:0; overflow:hidden;">
       <div id="mapaLeaflet" style="width:100%; height:320px;"></div>
       <div id="mapaOffline" hidden style="padding:16px;">
@@ -2688,6 +2691,21 @@
 
   var colmenaEnRevision = null;
   var camposActuales = parseInspeccion("");
+
+  /* Correcciones hechas a mano con los botones Sí/No/? del cuadro "Campos
+     entendidos": {nombreDeCampo: valorForzado}. Cada vez que el dictado
+     recibe una frase nueva (o la persona edita el cuadro de texto a mano),
+     camposActuales se vuelve a calcular DESDE CERO a partir del texto
+     completo (parseInspeccion) — sin esto, esa reconstrucción borraba
+     cualquier corrección manual que ya se hubiera hecho, porque el texto
+     dictado no tenía forma de "saber" que ya se había corregido algo a mano.
+     Se limpia solo al empezar a revisar una colmena nueva (seleccionarColmenaRevision). */
+  var correccionesManuales = {};
+  function reaplicarCorreccionesManuales(){
+    Object.keys(correccionesManuales).forEach(function(k){
+      camposActuales[k] = correccionesManuales[k];
+    });
+  }
 
   function cambiarTab(tab){
     $all("main[id^='tab-']").forEach(function(m){ m.hidden = (m.id !== "tab-"+tab); });
@@ -4550,6 +4568,7 @@
     $("#fechaHoy").textContent = fechaCorta(Date.now());
     $("#txtDictado").value = "";
     camposActuales = parseInspeccion("");
+    correccionesManuales = {};
     var total = c.marcosTotales || (c.tipo==="sencilla"?10:19);
     marcosActuales = [];
     for(var i=0;i<total;i++) marcosActuales.push("vacio");
@@ -4642,7 +4661,7 @@
     reina: function(){
       return ["Sí","No","?"].map(function(lbl){
         var val = lbl==="Sí"?true:(lbl==="No"?false:null);
-        return {label:lbl, bad: lbl==="No",
+        return {label:lbl, bad: lbl==="No", campo:"reinaPresente",
           isOn:function(){ return camposActuales.reinaPresente===val; },
           onClick:function(){ camposActuales.reinaPresente = val; }};
       });
@@ -4652,7 +4671,7 @@
     postura: function(){
       return ["Sí","No","?"].map(function(lbl){
         var val = lbl==="Sí"?false:(lbl==="No"?true:null);
-        return {label:lbl, bad: lbl==="No",
+        return {label:lbl, bad: lbl==="No", campo:"sinCriaDelDia",
           isOn:function(){ return camposActuales.sinCriaDelDia===val; },
           onClick:function(){ camposActuales.sinCriaDelDia = val; }};
       });
@@ -4660,7 +4679,7 @@
     cria: function(){
       return ["Sí","No","?"].map(function(lbl){
         var val = lbl==="Sí"?true:(lbl==="No"?false:null);
-        return {label:lbl, bad:false,
+        return {label:lbl, bad:false, campo:"criaSellada",
           isOn:function(){ return camposActuales.criaSellada===val; },
           onClick:function(){ camposActuales.criaSellada = val; }};
       });
@@ -4668,14 +4687,14 @@
     zanganos: function(){
       return ["Sí","No","?"].map(function(lbl){
         var val = lbl==="Sí"?true:(lbl==="No"?false:null);
-        return {label:lbl, bad:false,
+        return {label:lbl, bad:false, campo:"zanganos",
           isOn:function(){ return camposActuales.zanganos===val; },
           onClick:function(){ camposActuales.zanganos = val; }};
       });
     },
     miel: function(){
       return ["Sí","No","?"].map(function(lbl){
-        return {label:lbl, bad: lbl==="No",
+        return {label:lbl, bad: lbl==="No", campo:"reservasMiel",
           isOn:function(){
             if(lbl==="Sí") return !!camposActuales.reservasMiel && camposActuales.reservasMiel!=="sin";
             if(lbl==="No") return camposActuales.reservasMiel==="sin";
@@ -4688,7 +4707,7 @@
     },
     polen: function(){
       return ["Sí","No","?"].map(function(lbl){
-        return {label:lbl, bad: lbl==="No",
+        return {label:lbl, bad: lbl==="No", campo:"reservasPolen",
           isOn:function(){
             if(lbl==="Sí") return !!camposActuales.reservasPolen && camposActuales.reservasPolen!=="sin";
             if(lbl==="No") return camposActuales.reservasPolen==="sin";
@@ -4707,7 +4726,7 @@
         {label:"Buena", value:"buena", bad:false},
         {label:"?", value:null, bad:false}
       ].map(function(op){
-        return {label:op.label, bad:op.bad,
+        return {label:op.label, bad:op.bad, campo:"poblacion",
           isOn:function(){ return camposActuales.poblacion===op.value; },
           onClick:function(){ camposActuales.poblacion = op.value; }};
       });
@@ -4718,7 +4737,7 @@
         {label:"Agresiva", value:"agresiva", bad:true},
         {label:"?", value:null, bad:false}
       ].map(function(op){
-        return {label:op.label, bad:op.bad,
+        return {label:op.label, bad:op.bad, campo:"temperamento",
           isOn:function(){ return camposActuales.temperamento===op.value; },
           onClick:function(){ camposActuales.temperamento = op.value; }};
       });
@@ -4731,7 +4750,14 @@
       var b = el("button",{text:op.label});
       if(op.isOn()) b.classList.add("on");
       if(op.bad) b.classList.add("bad");
-      b.addEventListener("click", function(){ op.onClick(); renderParsedGrid(); });
+      b.addEventListener("click", function(){
+        op.onClick();
+        // Recuerda esta corrección para que la próxima frase dictada (o un
+        // reinicio del micrófono) no la borre al recalcular todo desde el
+        // texto — ver la nota junto a "correccionesManuales" más arriba.
+        if(op.campo) correccionesManuales[op.campo] = camposActuales[op.campo];
+        renderParsedGrid();
+      });
       toggle.appendChild(b);
     });
     box.appendChild(toggle);
@@ -4791,6 +4817,7 @@
     dictadoBase = texto && !/\s$/.test(texto) ? texto+" " : texto;
     dictadoAcumulado = "";
     camposActuales = parseInspeccion(texto);
+    reaplicarCorreccionesManuales();
     var marcosDichos = parseMarcosDesdeTexto(texto, marcosActuales.length);
     Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
     renderParsedGrid();
@@ -4859,6 +4886,7 @@
     var completo = partes.join(" ").replace(/\s+/g," ");
     $("#txtDictado").value = completo;
     camposActuales = parseInspeccion(completo);
+    reaplicarCorreccionesManuales();
     var marcosDichos = parseMarcosDesdeTexto(completo, marcosActuales.length);
     Object.keys(marcosDichos).forEach(function(idx){ marcosActuales[parseInt(idx,10)-1] = marcosDichos[idx]; });
     renderParsedGrid();
@@ -5456,6 +5484,117 @@
     }, {enableHighAccuracy:true, timeout:10000});
   }
   $("#btnMiUbicacion").addEventListener("click", actualizarMiUbicacion);
+
+  /* ============================================================
+     Descargar por adelantado las imágenes del mapa (tiles) de una zona,
+     para poder verlas sin señal más adelante — como el mapa sin conexión
+     de Kobo/Maps.me: mientras SÍ hay señal (antes de salir al campo), se
+     bajan de una vez las imágenes de las calles/terreno alrededor de un
+     apiario y se guardan en el teléfono (misma caché que usa sw.js,
+     CACHE_TILES_MAPA — el nombre de abajo tiene que ser IDÉNTICO al de
+     sw.js para que sea la misma caché).
+     Importante: esto es solo el FONDO visual del mapa. El punto azul
+     "Tú estás aquí" ya funciona sin internet hoy mismo (usa el GPS del
+     teléfono, no la red) — lo único que no se veía en una zona nunca
+     visitada con señal era el fondo con calles/terreno, que es justo lo
+     que esta función soluciona. */
+  var NOMBRE_CACHE_TILES_MAPA = "apicampo-tiles-mapa"; // debe coincidir con CACHE_TILES_MAPA en sw.js
+
+  function lon2tileX(lon, z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
+  function lat2tileY(lat, z){
+    var r = lat*Math.PI/180;
+    return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z));
+  }
+  // Todos los tiles (imágenes) que cubren un círculo de radioKm alrededor
+  // de (lat,lng), para cada nivel de zoom entre zMin y zMax.
+  function tilesParaZona(lat, lng, radioKm, zMin, zMax){
+    var out = [];
+    var dLat = radioKm/111;
+    var dLng = radioKm/(111*Math.cos(lat*Math.PI/180) || 1);
+    for(var z=zMin; z<=zMax; z++){
+      var x1 = lon2tileX(lng-dLng, z), x2 = lon2tileX(lng+dLng, z);
+      var y1 = lat2tileY(lat+dLat, z), y2 = lat2tileY(lat-dLat, z);
+      var xMin=Math.min(x1,x2), xMax=Math.max(x1,x2);
+      var yMin=Math.min(y1,y2), yMax=Math.max(y1,y2);
+      for(var x=xMin; x<=xMax; x++){
+        for(var y=yMin; y<=yMax; y++) out.push({z:z,x:x,y:y});
+      }
+    }
+    return out;
+  }
+  // Misma fórmula que usa Leaflet por defecto para elegir "a"/"b"/"c" en
+  // {s} — necesario para que el tile quede guardado bajo la MISMA URL
+  // exacta que Leaflet va a pedir después, si no, no lo encontraría en caché.
+  function subdominioTile(x,y){ return ["a","b","c"][Math.abs(x+y)%3]; }
+
+  var RADIO_DESCARGA_KM = 6; // un poco más que el radio de vuelo (5 km), de margen
+  var ZOOM_MIN_DESCARGA = 12, ZOOM_MAX_DESCARGA = 16; // suficiente detalle sin bajar miles de imágenes
+
+  var descargandoZonaMapa = false;
+  async function descargarZonaMapa(ap, tiles){
+    descargandoZonaMapa = true;
+    var estado = $("#descargaZonaEstado");
+    var hechos = 0, fallidos = 0;
+    function pintar(){
+      estado.innerHTML =
+        '<div class="vosk-btn" style="cursor:default;">Descargando mapa de "'+escaparHtml(ap.nombre)+'"… '+hechos+'/'+tiles.length+'</div>'+
+        '<div class="vosk-bar-wrap"><div class="vosk-bar" style="width:'+Math.round(hechos/tiles.length*100)+'%;"></div></div>'+
+        '<div style="font-size:11px; color:var(--muted); text-align:center; margin-top:4px;">No cierres la app mientras descarga.</div>';
+    }
+    pintar();
+    try{
+      var cache = await caches.open(NOMBRE_CACHE_TILES_MAPA);
+      var idx = 0;
+      async function siguiente(){
+        if(idx>=tiles.length) return;
+        var t = tiles[idx++];
+        var url = "https://"+subdominioTile(t.x,t.y)+".tile.openstreetmap.org/"+t.z+"/"+t.x+"/"+t.y+".png";
+        try{
+          var yaEstaba = await cache.match(url, {ignoreVary:true});
+          if(!yaEstaba){
+            // mode:"no-cors" porque tile.openstreetmap.org no manda cabeceras
+            // CORS — igual que como Leaflet las pide con <img>, la respuesta
+            // llega "opaque" (no se puede leer, pero sí guardar en caché).
+            var res = await fetch(url, {mode:"no-cors"});
+            if(res && (res.ok || res.type==="opaque")) await cache.put(url, res);
+          }
+        }catch(e){ fallidos++; }
+        hechos++;
+        if(hechos%8===0 || hechos===tiles.length) pintar();
+        return siguiente();
+      }
+      var corredores = [];
+      for(var i=0;i<6;i++) corredores.push(siguiente());
+      await Promise.all(corredores);
+      descargandoZonaMapa = false;
+      estado.innerHTML = '<div class="vosk-ready">✓ Mapa de "'+escaparHtml(ap.nombre)+'" guardado — ya se puede ver sin señal'+(fallidos?(" ("+fallidos+" imágenes no se pudieron guardar; puedes volver a intentar con mejor señal)"):"")+'</div>';
+      toast("Listo — ya puedes ver esta zona sin señal");
+    }catch(e){
+      console.error(e);
+      descargandoZonaMapa = false;
+      estado.innerHTML = "";
+      toast("No se pudo descargar el mapa de esta zona. Intenta de nuevo con mejor señal.");
+    }
+  }
+
+  $("#btnDescargarZonaMapa").addEventListener("click", function(){
+    if(descargandoZonaMapa) return;
+    if(mapaModo==="todos"){
+      toast("Primero elige arriba un apiario específico (no \"Todos\"), para saber qué zona descargar");
+      return;
+    }
+    var ap = store.apiarios.find(function(a){ return a.id===mapaModo; });
+    if(!ap) return;
+    if(navigator.onLine===false){
+      toast("Necesitas señal o WiFi ahora para descargar esta zona — vuelve a intentarlo donde sí tengas conexión");
+      return;
+    }
+    var tiles = tilesParaZona(ap.lat, ap.lng, RADIO_DESCARGA_KM, ZOOM_MIN_DESCARGA, ZOOM_MAX_DESCARGA);
+    var estimadoMB = Math.max(1, Math.round(tiles.length*20/1024));
+    confirmarApp("Vas a descargar el mapa de \""+ap.nombre+"\" (radio de "+RADIO_DESCARGA_KM+" km) para verlo sin señal. Son unas "+tiles.length+" imágenes (~"+estimadoMB+" MB) — hazlo ahora, con señal o WiFi, antes de ir al campo. ¿Continuar?").then(function(ok){
+      if(ok) descargarZonaMapa(ap, tiles);
+    });
+  });
 
   /* Mapa real con Leaflet + OpenStreetMap (gratis, sin cuenta ni tarjeta).
      Si el navegador no pudo cargar la librería (sin internet la primera vez),
