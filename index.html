@@ -559,7 +559,7 @@
   .parsed-field .k{ font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .parsed-field .v{ font-size:14px; font-weight:600; }
   .parsed-field.empty-val .v{ color:var(--muted); font-weight:500; }
-  .toggle-row{ display:flex; gap:6px; }
+  .toggle-row{ display:flex; gap:6px; flex-wrap:wrap; }
   .toggle-row button{
     flex:1;
     border:1px solid var(--line);
@@ -4328,14 +4328,15 @@
         if(c.zanganos===false) return "No";
         return "Sin dato";
       }},
-    {key:"reservas", label:"Miel / polen", get:function(c){
-        var m = c.reservasMiel, p = c.reservasPolen;
-        if(!m && !p && !c.sinAlimento) return "Sin dato";
-        var partes = [];
-        if(m) partes.push("miel: "+m);
-        if(p) partes.push("polen: "+p);
-        if(c.sinAlimento && !m && !p) partes.push("sin alimento");
-        return partes.join(" · ");
+    {key:"miel", label:"Miel", get:function(c){
+        if(!c.reservasMiel) return "Sin dato";
+        if(c.reservasMiel==="sin") return "No";
+        return "Sí"+(c.reservasMiel!=="mencionada"?(" ("+c.reservasMiel+")"):"");
+      }},
+    {key:"polen", label:"Polen", get:function(c){
+        if(!c.reservasPolen) return "Sin dato";
+        if(c.reservasPolen==="sin") return "No";
+        return "Sí"+(c.reservasPolen!=="mencionada"?(" ("+c.reservasPolen+")"):"");
       }},
     {key:"poblacion", label:"Población", get:function(c){
         if(c.poblacion==="ninguna") return "Sin abejas / perdida";
@@ -4344,8 +4345,120 @@
         if(c.poblacion==="buena") return "Buena";
         return "Sin dato";
       }},
-    {key:"temperamento", label:"Temperamento", get:function(c){ return c.temperamento || "Sin dato"; }}
+    {key:"temperamento", label:"Temperamento", get:function(c){
+        if(c.temperamento==="mansa") return "Mansa";
+        if(c.temperamento==="agresiva") return "Agresiva";
+        return "Sin dato";
+      }}
   ];
+
+  /* Botones táctiles de corrección (sí / no / ? o la escala que corresponda)
+     para cada campo del cuadro de dictado. Antes solo existían para "Reina";
+     en el campo (visto en una revisión real en el apiario) casi siempre hace
+     falta corregir con un toque cuando el micrófono no reconoció bien lo
+     dicho, así que ahora todos los campos que tienen un estado claro (sí/no,
+     o una escala corta) los tienen. "bad" pinta el botón en rojo cuando esa
+     opción es la que más le preocupa al apicultor (sin reina, sin cría del
+     día, sin abejas, población baja) — coincide con lo que ya cuenta como
+     "crítico"/"atención" en estadoRevision(). */
+  var TOGGLES_POR_CAMPO = {
+    reina: function(){
+      return ["Sí","No","?"].map(function(lbl){
+        var val = lbl==="Sí"?true:(lbl==="No"?false:null);
+        return {label:lbl, bad: lbl==="No",
+          isOn:function(){ return camposActuales.reinaPresente===val; },
+          onClick:function(){ camposActuales.reinaPresente = val; }};
+      });
+    },
+    // "Sí" = sí hay postura/cría del día, "No" = sin cría del día (internamente
+    // es sinCriaDelDia, que va invertido respecto al botón).
+    postura: function(){
+      return ["Sí","No","?"].map(function(lbl){
+        var val = lbl==="Sí"?false:(lbl==="No"?true:null);
+        return {label:lbl, bad: lbl==="No",
+          isOn:function(){ return camposActuales.sinCriaDelDia===val; },
+          onClick:function(){ camposActuales.sinCriaDelDia = val; }};
+      });
+    },
+    cria: function(){
+      return ["Sí","No","?"].map(function(lbl){
+        var val = lbl==="Sí"?true:(lbl==="No"?false:null);
+        return {label:lbl, bad:false,
+          isOn:function(){ return camposActuales.criaSellada===val; },
+          onClick:function(){ camposActuales.criaSellada = val; }};
+      });
+    },
+    zanganos: function(){
+      return ["Sí","No","?"].map(function(lbl){
+        var val = lbl==="Sí"?true:(lbl==="No"?false:null);
+        return {label:lbl, bad:false,
+          isOn:function(){ return camposActuales.zanganos===val; },
+          onClick:function(){ camposActuales.zanganos = val; }};
+      });
+    },
+    miel: function(){
+      return ["Sí","No","?"].map(function(lbl){
+        return {label:lbl, bad: lbl==="No",
+          isOn:function(){
+            if(lbl==="Sí") return !!camposActuales.reservasMiel && camposActuales.reservasMiel!=="sin";
+            if(lbl==="No") return camposActuales.reservasMiel==="sin";
+            return !camposActuales.reservasMiel;
+          },
+          onClick:function(){
+            camposActuales.reservasMiel = lbl==="Sí" ? "mencionada" : (lbl==="No" ? "sin" : null);
+          }};
+      });
+    },
+    polen: function(){
+      return ["Sí","No","?"].map(function(lbl){
+        return {label:lbl, bad: lbl==="No",
+          isOn:function(){
+            if(lbl==="Sí") return !!camposActuales.reservasPolen && camposActuales.reservasPolen!=="sin";
+            if(lbl==="No") return camposActuales.reservasPolen==="sin";
+            return !camposActuales.reservasPolen;
+          },
+          onClick:function(){
+            camposActuales.reservasPolen = lbl==="Sí" ? "mencionada" : (lbl==="No" ? "sin" : null);
+          }};
+      });
+    },
+    poblacion: function(){
+      return [
+        {label:"Ninguna", value:"ninguna", bad:true},
+        {label:"Baja", value:"baja", bad:true},
+        {label:"Media", value:"media", bad:false},
+        {label:"Buena", value:"buena", bad:false},
+        {label:"?", value:null, bad:false}
+      ].map(function(op){
+        return {label:op.label, bad:op.bad,
+          isOn:function(){ return camposActuales.poblacion===op.value; },
+          onClick:function(){ camposActuales.poblacion = op.value; }};
+      });
+    },
+    temperamento: function(){
+      return [
+        {label:"Mansa", value:"mansa", bad:false},
+        {label:"Agresiva", value:"agresiva", bad:true},
+        {label:"?", value:null, bad:false}
+      ].map(function(op){
+        return {label:op.label, bad:op.bad,
+          isOn:function(){ return camposActuales.temperamento===op.value; },
+          onClick:function(){ camposActuales.temperamento = op.value; }};
+      });
+    }
+  };
+
+  function agregarToggleCampo(box, botones){
+    var toggle = el("div",{class:"toggle-row", style:"margin-top:2px;"});
+    botones.forEach(function(op){
+      var b = el("button",{text:op.label});
+      if(op.isOn()) b.classList.add("on");
+      if(op.bad) b.classList.add("bad");
+      b.addEventListener("click", function(){ op.onClick(); renderParsedGrid(); });
+      toggle.appendChild(b);
+    });
+    box.appendChild(toggle);
+  }
 
   function renderParsedGrid(){
     var grid = $("#parsedGrid");
@@ -4355,20 +4468,9 @@
       var box = el("div",{class:"parsed-field"+(val==="Sin dato"?" empty-val":"")});
       box.innerHTML = '<span class="k">'+def.label+'</span><span class="v">'+val+'</span>';
       grid.appendChild(box);
+      var fabricaToggle = TOGGLES_POR_CAMPO[def.key];
+      if(fabricaToggle) agregarToggleCampo(box, fabricaToggle());
     });
-
-    // toggles rápidos para reina y cría (corrección manual)
-    var reinaBox = grid.children[0];
-    var toggle = el("div",{class:"toggle-row", style:"margin-top:2px;"});
-    ["Sí","No","?"].forEach(function(lbl){
-      var b = el("button",{text:lbl});
-      var val = lbl==="Sí"?true:(lbl==="No"?false:null);
-      if(camposActuales.reinaPresente===val) b.classList.add("on");
-      if(lbl==="No") b.classList.add("bad");
-      b.addEventListener("click", function(){ camposActuales.reinaPresente = val; renderParsedGrid(); });
-      toggle.appendChild(b);
-    });
-    reinaBox.appendChild(toggle);
   }
 
   function renderDiseaseChips(){

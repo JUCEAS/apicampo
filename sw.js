@@ -2,13 +2,35 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v40";
+var CACHE_NAME = "apicampo-cache-v41";
 
 /* Caché aparte para el modelo de voz offline (~34MB): no lleva número de
    versión de la app, así que NO se borra cuando la app se actualiza (ver
    "activate" más abajo). Sin esto, cada actualización de ApiCampo forzaría
    volver a descargar el modelo entero en el próximo apiario sin señal. */
 var CACHE_MODELO_VOZ = "apicampo-modelo-voz";
+
+/* Caché aparte para las imágenes del mapa (tiles de OpenStreetMap): igual
+   que el modelo de voz, tampoco se borra al actualizar la app. Cada imagen
+   de mapa que ya se vio una vez (con señal) queda guardada, así que la
+   próxima vez que se abra esa misma zona sin señal, el mapa ya aparece.
+   Zonas nunca vistas antes (con señal) no pueden aparecer sin señal — eso
+   no tiene solución sin descargar mapas de toda Honduras por adelantado,
+   que no es práctico aquí. */
+var CACHE_TILES_MAPA = "apicampo-tiles-mapa";
+/* Tope de imágenes de mapa guardadas, para que la caché no crezca sin
+   límite si se revisan muchos apiarios distintos con los meses (cada
+   imagen pesa poco, ~15-25 KB, así que este tope son unos pocos MB). Al
+   pasarse, se borran las más antiguas. */
+var LIMITE_TILES_MAPA = 1500;
+function limitarCacheTiles(cache){
+  cache.keys().then(function(claves){
+    if(claves.length > LIMITE_TILES_MAPA){
+      var sobrantes = claves.slice(0, claves.length - LIMITE_TILES_MAPA);
+      sobrantes.forEach(function(k){ cache.delete(k); });
+    }
+  });
+}
 
 var APP_SHELL = [
   "./manifest.json",
@@ -44,7 +66,7 @@ self.addEventListener("activate", function(event){
   event.waitUntil(
     caches.keys().then(function(nombres){
       return Promise.all(nombres.map(function(n){
-        if(n !== CACHE_NAME && n !== CACHE_MODELO_VOZ) return caches.delete(n);
+        if(n !== CACHE_NAME && n !== CACHE_MODELO_VOZ && n !== CACHE_TILES_MAPA) return caches.delete(n);
       }));
     }).then(function(){ return self.clients.claim(); })
   );
@@ -75,6 +97,29 @@ self.addEventListener("fetch", function(event){
             );
           });
         });
+      })
+    );
+    return;
+  }
+
+  /* Imágenes del mapa (OpenStreetMap): van a su propia caché de larga
+     duración (ver CACHE_TILES_MAPA arriba) en vez de la caché normal de la
+     app, para que sobrevivan a las actualizaciones de ApiCampo. */
+  var esTileMapa = /^https:\/\/[abc]\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png(\?.*)?$/.test(req.url);
+  if(esTileMapa){
+    event.respondWith(
+      caches.match(req, {ignoreVary:true, ignoreSearch:false}).then(function(cached){
+        if(cached) return cached;
+        return fetch(req).then(function(res){
+          if(res && (res.ok || res.type === "opaque")){
+            var copiaTile = res.clone();
+            caches.open(CACHE_TILES_MAPA).then(function(cache){
+              cache.put(req, copiaTile);
+              limitarCacheTiles(cache);
+            });
+          }
+          return res;
+        }).catch(function(){});
       })
     );
     return;
