@@ -3555,6 +3555,14 @@
     infoLine.textContent = ult ? ("Última revisión: "+haceTiempo(ult.fecha)) : "Todavía no tiene revisiones";
     body.appendChild(infoLine);
 
+    // Cambiar el número por error al anotar, o simplemente reordenar, sin
+    // tener que borrar la colmena y perder su historial (revisiones,
+    // tratamientos, alimentación — todo queda igual, solo cambia el número
+    // con el que se identifica).
+    var editarNumBtn = el("button",{class:"btn btn-line btn-block", style:"font-size:12.5px; padding:8px;", text:"✏ Cambiar número de colmena"});
+    editarNumBtn.addEventListener("click", function(){ editarNumeroColmena(c); });
+    body.appendChild(editarNumBtn);
+
     if(c.tipo==="doble" || c.tipo==="sencilla"){
       var alzaBtn = el("button",{class:"btn btn-line btn-block", style:"font-size:12.5px; padding:8px;",
         text: c.tipo==="sencilla" ? "Agregar alza (pasar a doble, 19 marcos)" : "Quitar alza (pasar a sencilla, 10 marcos)"});
@@ -3689,6 +3697,34 @@
       renderColmenas();
       toast("Colmena #"+c.numero+" ahora es "+(aDoble?"doble":"sencilla"));
       abrirDetalleColmena(c.id);
+    });
+  }
+
+  /* Cambiar el número de una colmena ya existente (por ejemplo, se anotó mal
+     al crearla, o se quiere reordenar). Solo cambia el número — conserva el
+     mismo id, así que todo su historial (revisiones, tratamientos,
+     alimentación, movimientos entre apiarios) sigue siendo de esta misma
+     colmena. Aviso importante: el código QR impreso (si ya se imprimió
+     alguno) codifica el número anterior, así que después de este cambio hay
+     que volver a imprimir/generar la etiqueta con el número nuevo. */
+  function editarNumeroColmena(c){
+    preguntarApp("Nuevo número para la colmena #"+c.numero+" ("+apiarioNombre(c.apiarioId)+"):", String(c.numero)).then(function(valor){
+      if(valor===null) return;
+      var nuevoNumero = parseInt(valor,10);
+      if(!nuevoNumero || nuevoNumero<1){ toast("Escribe un número válido"); return; }
+      if(nuevoNumero===c.numero) return;
+      var yaExiste = colmenasDe(c.apiarioId).some(function(x){ return x.numero===nuevoNumero && x.id!==c.id; });
+      if(yaExiste){ toast("Ya existe la colmena #"+nuevoNumero+" en este apiario"); return; }
+      confirmarApp("¿Cambiar la colmena #"+c.numero+" a #"+nuevoNumero+"? Su historial completo (revisiones, tratamientos, alimentación) se conserva igual. Si ya imprimiste una etiqueta QR con el número #"+c.numero+", tendrás que volver a imprimirla con el número nuevo.").then(function(ok){
+        if(!ok) return;
+        var numeroAnterior = c.numero;
+        c.numero = nuevoNumero;
+        store.esDemo = false;
+        guardar();
+        renderColmenas();
+        toast("Colmena #"+numeroAnterior+" ahora es #"+nuevoNumero);
+        abrirDetalleColmena(c.id);
+      });
     });
   }
 
@@ -4599,12 +4635,22 @@
     return rec;
   }
 
+  // Cuántas veces seguidas el motor en línea intentó arrancar y nunca llegó
+  // a disparar "onstart" (ver vigilante más abajo) — se reinicia en 0 en
+  // cuanto un arranque sí funciona de verdad.
+  var reintentosArranqueFallido = 0;
+
   function iniciarSesionReconocimiento(){
     motorActual = "online";
     reconocimiento = initReconocimiento();
     if(!reconocimiento) return;
 
+    var estaSesion = reconocimiento;
+    var arrancoDeVerdad = false;
+
     reconocimiento.onstart = function(){
+      arrancoDeVerdad = true;
+      reintentosArranqueFallido = 0;
       escuchando = true;
       $("#btnMic").classList.add("listening");
       $("#micStatus").textContent = "Escuchando… toca de nuevo para detener";
@@ -4666,10 +4712,17 @@
       // avisar), dejando el micrófono "pegado" como si se hubiera apagado
       // solo después de un par de frases. Una pausa breve antes de reiniciar
       // evita justo eso.
-      var sesionQueTermino = reconocimiento;
+      // Importante: se usa "estaSesion" (capturada al crear ESTA sesión en
+      // particular), no la variable global "reconocimiento" — si para cuando
+      // este onend dispara el vigilante de arriba ya reemplazó la sesión
+      // global por una más nueva, leer la variable global aquí identificaría
+      // mal "esta" sesión como la más nueva y dispararía un reinicio de más
+      // (una sesión fantasma reiniciando a otra ya reiniciada).
+      var sesionQueTermino = estaSesion;
       setTimeout(function(){
         // Si mientras tanto se tocó "detener", o ya se inició otra sesión
-        // distinta (p. ej. cambió a modo sin conexión), no reiniciar esta.
+        // distinta (p. ej. cambió a modo sin conexión, o el vigilante ya
+        // reinició por su cuenta), no reiniciar esta.
         if(detenerManual || reconocimiento!==sesionQueTermino) return;
         try{ iniciarSesionReconocimiento(); }
         catch(e){
@@ -4689,7 +4742,30 @@
       $("#btnMic").classList.remove("listening");
       $("#micStatus").textContent = "Se detuvo el dictado. Toca el micrófono para continuar.";
       if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
+      return;
     }
+
+    /* Vigilante: en algunos teléfonos Android, start() no lanza ningún error
+       pero el micrófono nunca llega a arrancar de verdad por dentro — no
+       dispara "onstart" ni "onerror", y el botón se queda mostrando
+       "escuchando" para siempre sin captar nada (esto es justo lo que se ve
+       como "el micrófono se apaga solo": en realidad nunca se reinició bien).
+       Si a los 4 segundos "onstart" no disparó, forzamos un reinicio limpio
+       en vez de quedarnos así indefinidamente; después de varios intentos
+       seguidos fallidos, se avisa en vez de reintentar para siempre. */
+    setTimeout(function(){
+      if(detenerManual || reconocimiento!==estaSesion || arrancoDeVerdad) return;
+      try{ estaSesion.abort(); }catch(e){}
+      reintentosArranqueFallido++;
+      if(reintentosArranqueFallido > 4){
+        escuchando = false;
+        $("#btnMic").classList.remove("listening");
+        $("#micStatus").textContent = "El micrófono no está respondiendo en este teléfono. Toca para intentar de nuevo, o escribe directo.";
+        if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
+        return;
+      }
+      iniciarSesionReconocimiento();
+    }, 4000);
   }
 
   /* ---- Motor "offline" (Vosk — corre en el teléfono, sin internet) ----
@@ -4925,6 +5001,24 @@
     voskScriptNode.connect(silencio);
     silencio.connect(voskAudioCtx.destination);
 
+    /* En el modo sin conexión no hay "onend" ni "onerror" como con la API
+       nativa — si el teléfono le quita el micrófono a la app (pantalla que
+       se apaga, otra app que lo pide, Android que suspende la pestaña en
+       segundo plano), esto antes se quedaba con el botón mostrando
+       "escuchando" para siempre sin captar nada, sin ningún aviso. Estos dos
+       enganches detectan justo eso: */
+    voskMicStream.getTracks().forEach(function(t){
+      t.addEventListener("ended", function(){
+        if(detenerManual) return;
+        detenerVosk();
+        $("#micStatus").textContent = "Se soltó el micrófono sin conexión (pantalla apagada u otra app lo tomó). Toca para reactivarlo.";
+      });
+    });
+    voskAudioCtx.onstatechange = function(){
+      if(detenerManual || !voskAudioCtx) return;
+      if(voskAudioCtx.state==="suspended") voskAudioCtx.resume().catch(function(){});
+    };
+
     escuchando = true;
     detenerManual = false;
     $("#btnMic").classList.add("listening");
@@ -4976,6 +5070,34 @@
     } else {
       $("#micStatus").textContent = "Sin señal: prepara el dictado sin conexión arriba (necesita internet una sola vez), o escribe directo.";
       toast("El dictado necesita internet — o prepara el modo sin señal");
+    }
+  });
+
+  /* En el teléfono, si la pantalla se apaga (o se cambia de app) mientras se
+     está dictando, el sistema casi siempre le quita el micrófono a Chrome
+     por dentro, sin avisar — ni "onend" ni "onerror" se disparan, así que el
+     botón se quedaba mostrando "escuchando" para siempre sin captar nada
+     hasta que la persona lo tocaba dos veces. Al volver a la pantalla,
+     revisamos y reactivamos solos. */
+  var horaOcultamiento = null;
+  document.addEventListener("visibilitychange", function(){
+    if(document.hidden){
+      horaOcultamiento = Date.now();
+      return;
+    }
+    var estuvoOcultoUnRato = horaOcultamiento && (Date.now()-horaOcultamiento) > 1200;
+    horaOcultamiento = null;
+    if(!estuvoOcultoUnRato || !escuchando || detenerManual) return;
+    if(motorActual==="offline"){
+      if(voskAudioCtx && voskAudioCtx.state==="suspended") voskAudioCtx.resume().catch(function(){});
+    } else if(motorActual==="online"){
+      // No se puede comprobar desde afuera si la sesión nativa sigue viva de
+      // verdad tras estar la pantalla apagada — más seguro reiniciarla limpia.
+      var sesionVieja = reconocimiento;
+      detenerManual = true;
+      try{ if(sesionVieja) sesionVieja.abort(); }catch(e){}
+      detenerManual = false;
+      iniciarSesionReconocimiento();
     }
   });
 
