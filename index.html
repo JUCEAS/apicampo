@@ -4209,19 +4209,30 @@
     });
   }
 
+  /* IMPORTANTE: este resumen se usa en tres lados — la fila de historial en
+     pantalla, el detalle de cada colmena, y el reporte PDF de historial. Va
+     construido a partir de FIELD_DEFS (la misma lista que ya usa el cuadro
+     "Campos entendidos" en pantalla y el informe PDF de una sola revisión),
+     en vez de repetir a mano qué campos mostrar: antes esta función se había
+     quedado corta (nunca se actualizó cuando se agregaron zánganos,
+     temperamento, y los niveles de miel/polen/población más allá de
+     "ninguna"/"sin"), así que una revisión con harta información dictada
+     podía salir casi vacía en el PDF de historial aunque en pantalla sí se
+     viera completa. Con esto, lo que se ve en pantalla y lo que sale en el
+     PDF siempre va a coincidir — un campo nuevo que se agregue a FIELD_DEFS
+     ya aparece aquí solo, sin tener que acordarse de tocar este resumen. */
   function resumenCampos(campos, marcos){
     if(!campos) return "";
     var partes = [];
-    if(campos.reinaPresente===true) partes.push("reina presente");
-    if(campos.reinaPresente===false) partes.push("reina no vista");
-    if(campos.poblacion==="ninguna") partes.push("sin abejas / perdida");
-    else if(campos.poblacion==="baja") partes.push("población baja");
-    if(campos.sinAlimento || campos.reservasMiel==="sin" || campos.reservasPolen==="sin") partes.push("sin alimento");
-    if(campos.reforzada) partes.push("reforzada"+(campos.reforzadaDias!==null?(" (cría de "+campos.reforzadaDias+" días)"):""));
-    if(campos.posturaEtapa) partes.push("postura: "+campos.posturaEtapa);
-    if(campos.criaSellada) partes.push("cría sellada"+(campos.criaIntensidad?(" ("+campos.criaIntensidad+")"):""));
-    if(campos.enfermedades.length) partes.push(campos.enfermedades.join(", "));
-    if(campos.sanaExplicito && !campos.enfermedades.length) partes.push("sana");
+    FIELD_DEFS.forEach(function(def){
+      var val = def.get(campos);
+      if(val && val!=="Sin dato") partes.push(def.label+": "+val);
+    });
+    if(campos.reforzada) partes.push("Reforzada"+(campos.reforzadaDias!==null?(" (cría de "+campos.reforzadaDias+" días)"):""));
+    if(campos.espacio==="falta") partes.push("Falta espacio en la colmena");
+    if(campos.varroaPorcentaje!=null) partes.push("Varroa: "+campos.varroaPorcentaje+"%");
+    if(campos.enfermedades && campos.enfermedades.length) partes.push(campos.enfermedades.join(", "));
+    if(campos.sanaExplicito && (!campos.enfermedades || !campos.enfermedades.length)) partes.push("Sana");
     var rm = resumenMarcosTexto(marcos);
     if(rm) partes.push(rm);
     return partes.join(" · ")||"sin detalles";
