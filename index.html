@@ -762,7 +762,13 @@
     <div class="acceso-logo">🐝 ApiCampo</div>
 
     <div id="accesoCargando" class="acceso-paso">
-      <p class="acceso-sub">Comprobando tu sesión...</p>
+      <p class="acceso-sub">Conectando con la nube para poder iniciar sesión...</p>
+    </div>
+
+    <div id="accesoError" class="acceso-paso" hidden>
+      <p class="acceso-sub">No se pudo conectar con la nube (puede ser tu señal, o el navegador bloqueando el acceso). Desde aquí puedes iniciar sesión para sincronizar tus datos entre dispositivos, o seguir usando la app solo en este teléfono.</p>
+      <button id="btnAccesoReintentar" class="acceso-btn">Reintentar conexión</button>
+      <button id="btnAccesoSinInternetError" class="acceso-btn acceso-btn-secundario">Usar sin sincronizar por ahora</button>
     </div>
 
     <div id="accesoPaso1" class="acceso-paso" hidden>
@@ -6882,7 +6888,7 @@
     var overlay = $("#accesoOverlay");
     if(!overlay) return;
     overlay.hidden = false;
-    ["accesoCargando","accesoPaso1"].forEach(function(id){
+    ["accesoCargando","accesoError","accesoPaso1"].forEach(function(id){
       var el = $("#"+id);
       if(el) el.hidden = (id!==paso);
     });
@@ -7030,24 +7036,50 @@
 
   // El script de Firebase (window.ApiCampoSync) es un <script type="module">
   // y por eso se ejecuta un poco después que este script clásico. Se espera
-  // hasta 5 segundos (50 x 100ms) a que quede listo; si nunca aparece (sin
-  // internet en la primerísima carga, o el archivo bloqueado), la app sigue
-  // funcionando 100% local, exactamente como antes de esta fase.
+  // hasta 15 segundos (150 x 100ms) a que quede listo — antes eran solo 5
+  // segundos, muy poco para una señal de celular lenta en el campo, así que
+  // muchas veces se cumplía el plazo justo antes de que Firebase terminara
+  // de cargar y la app pasaba de una vez a modo local sin avisar. Mientras
+  // se espera, se muestra "Conectando con la nube..." para que no parezca
+  // que la app se quedó en blanco.
+  //
+  // Si de verdad nunca aparece (sin internet en la primerísima carga, el
+  // archivo bloqueado por el navegador o la red, etc.), ya NO se pasa en
+  // silencio a modo local: se muestra una pantalla explícita con un botón
+  // para reintentar la conexión (por si ya volvió la señal) y otro para
+  // seguir sin sincronizar — así siempre hay, a la vista, una manera clara
+  // de llegar a "iniciar sesión" en vez de encontrarse solo con el aviso
+  // "⚠ Sin sincronizar" sin saber qué hacer con él.
+  function mostrarErrorConexionNube(){
+    mostrarPasoAcceso("accesoError");
+    var btnReintentar = $("#btnAccesoReintentar");
+    var btnSinInternetError = $("#btnAccesoSinInternetError");
+    if(btnReintentar) btnReintentar.onclick = function(){
+      mostrarPasoAcceso("accesoCargando");
+      esperarNube(150);
+    };
+    if(btnSinInternetError) btnSinInternetError.onclick = function(){
+      sincronizacionActiva = false;
+      actualizarAvisoSincronizacion();
+      ocultarAcceso();
+      arrancarConDatosLocales();
+    };
+  }
+
   function esperarNube(intentos){
     if(window.ApiCampoSync){
       iniciarAppConNube(window.ApiCampoSync);
       return;
     }
     if(intentos<=0){
-      sincronizacionActiva = false;
-      actualizarAvisoSincronizacion();
-      arrancarConDatosLocales();
+      mostrarErrorConexionNube();
       return;
     }
     setTimeout(function(){ esperarNube(intentos-1); }, 100);
   }
 
-  esperarNube(50);
+  mostrarPasoAcceso("accesoCargando");
+  esperarNube(150);
 
 })();
 </script>
