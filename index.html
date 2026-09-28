@@ -1417,8 +1417,9 @@
   <div class="modal">
     <h2 id="colabTitulo">Colaboradores</h2>
     <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Las personas que agregues aquí verán y podrán registrar revisiones en este apiario desde su propia cuenta, sincronizado igual que en tu teléfono.</p>
-    <div id="colabLista" style="margin-bottom:10px;"></div>
-    <div class="empty" id="colabEmpty" hidden>Todavía no has agregado a nadie.</div>
+    <p class="section-title" style="margin:0 0 6px;">Personas con acceso ahora</p>
+    <div id="colabLista" style="margin-bottom:6px;"></div>
+    <div class="empty" id="colabEmpty" hidden>Todavía nadie ha aceptado — cuando alguien acepte una invitación, va a aparecer aquí arriba, con su botón para quitarle el acceso.</div>
     <div style="background:var(--surface-2); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
       <p style="font-size:12.5px; color:var(--muted); margin:0 0 6px; font-weight:700;">Esto no manda un correo automático — la app no tiene esa función. Son 3 pasos:</p>
       <p style="font-size:12.5px; color:var(--muted); margin:0 0 3px;">1. Escribe abajo el correo de esa persona (uno que ya tenga, real).</p>
@@ -1430,7 +1431,8 @@
       <input type="text" id="inColabCorreo" inputmode="email" placeholder="correo@ejemplo.com">
     </div>
     <button type="button" class="btn btn-primary btn-block" id="btnInvitarColaborador" style="margin-top:2px;">+ Crear invitación y avisar por WhatsApp</button>
-    <p class="section-title" style="margin:14px 0 6px;">Invitaciones pendientes</p>
+    <p class="section-title" style="margin:14px 0 6px;">Invitaciones pendientes (todavía sin aceptar)</p>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">La "✕" de aquí solo cancela la invitación — <b>no le quita el acceso a nadie que ya haya aceptado</b>. Cuando esa persona acepte, va a desaparecer de esta lista y va a aparecer arriba, en "Personas con acceso ahora"; es ahí donde se le puede quitar el acceso de verdad.</p>
     <div id="colabInvitacionesLista"></div>
     <div class="empty" id="colabInvitacionesEmpty" hidden>No hay invitaciones esperando respuesta.</div>
     <button class="btn btn-line btn-block" id="btnCerrarColaboradores" style="margin-top:12px;">Cerrar</button>
@@ -3129,8 +3131,19 @@
   }
 
   function renderColaboradoresModal(){
-    var ap = colabApiarioActual;
-    if(!ap) return;
+    if(!colabApiarioActual) return;
+    // Vuelve a buscar el apiario en store.apiarios por su id, en vez de
+    // usar directamente el objeto guardado al abrir el modal: cuando la
+    // otra persona acepta la invitación, la actualización llega por
+    // Firestore y REEMPLAZA ese objeto dentro de store.apiarios (no lo
+    // modifica en el mismo lugar) — si este modal se quedó abierto desde
+    // antes de que aceptara, seguía mostrando la copia vieja (sin ella
+    // en la lista de "Personas con acceso ahora"), y por eso solo se veía
+    // la "X" de cancelar la invitación, nunca el botón para quitarle el
+    // acceso real ya aceptado.
+    var actual = (store.apiarios||[]).filter(function(x){ return x.id===colabApiarioActual.id; })[0];
+    var ap = actual || colabApiarioActual;
+    colabApiarioActual = ap;
     var lista = $("#colabLista");
     lista.innerHTML = "";
     var info = ap.colaboradoresInfo || [];
@@ -7108,6 +7121,16 @@
           sync.escucharCambios(store, function(){
             guardar();
             renderApiarios();
+            // Si el modal de "Colaboradores en la nube" se quedó abierto
+            // (por ejemplo, esperando a que alguien acepte una invitación),
+            // esto lo refresca solo — así se ve de una vez cuando esa
+            // persona ya aceptó, en vez de tener que cerrar y volver a abrir.
+            if(!$("#modalColaboradores").hidden){
+              renderColaboradoresModal();
+            }
+            if(!$("#modalSocios").hidden){
+              renderSociosModal();
+            }
           });
           revisarInvitacionesPendientes(sync);
         }).catch(function(e){
