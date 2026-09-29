@@ -473,6 +473,10 @@
     font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     color:#fff; background:var(--critical); padding:1px 5px; border-radius:999px; margin-top:1px;
   }
+  .hive-tile .tag-equipo{
+    font-family:"Inter",sans-serif; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    color:#7A4A12; background:#F7DFC0; padding:1px 5px; border-radius:999px; margin-top:1px;
+  }
   /* Resumen de la última revisión, de un vistazo, sin tener que abrir el
      historial: cría, población, temperamento, zánganos y reservas. Cada
      colmena solo muestra las que de verdad se anotaron en su última visita. */
@@ -1981,7 +1985,13 @@
       reforzada:false, reforzadaDias:null,
       temperamento:null, espacio:null,
       enfermedades:[], sanaExplicito:false,
-      varroaPorcentaje:null
+      varroaPorcentaje:null,
+      // Estado del EQUIPO (no de la colonia): marcos/caja/techo/base en mal
+      // estado y que hay que cambiar — esto no es permanente como la reina o
+      // la población, es una tarea pendiente que se anota en la revisión de
+      // ese día para no olvidarla, y se corrige con los mismos botones Sí/No
+      // si el dictado no lo capta bien.
+      marcosMalos:null, cajaMala:null, techoMalo:null, baseMala:null
     };
 
     /* "reina" casi siempre se dicta como "abeja reina" (p.ej. "no hay abeja reina"),
@@ -2144,6 +2154,16 @@
     }
 
     if(/\b(sana|saludable)\b|\bsin enfermedad(es)?\b|\bno se (observ[oó]|vio|encontr[oó]) (ninguna )?enfermedad/.test(t)) r.sanaExplicito = true;
+
+    /* Estado del equipo — "marco(s) malo(s)", "la caja está mala", "el techo
+       está malo", "la base está mala" (o dañado/roto/quebrado/en mal
+       estado), casi siempre seguido de "hay que cambiarlo/a" (esa parte no
+       hace falta reconocerla, con el adjetivo ya alcanza). No se confunde
+       con "marco 3 con cría" porque ese patrón siempre lleva un número. */
+    if(/\bmarcos?\s+(malo(s)?|mala(s)?|da[nñ]ado(s)?|da[nñ]ada(s)?|quebrado(s)?|quebrada(s)?|roto(s)?|rota(s)?|en mal estado)\b/.test(t)) r.marcosMalos = true;
+    if(/\bcaja\s+(mala|da[nñ]ada|quebrada|rota|en mal estado)\b/.test(t)) r.cajaMala = true;
+    if(/\btecho\s+(malo|da[nñ]ado|quebrado|roto|en mal estado)\b/.test(t)) r.techoMalo = true;
+    if(/\bbase\s+(mala|da[nñ]ada|quebrada|rota|en mal estado)\b/.test(t)) r.baseMala = true;
 
     return r;
   }
@@ -2445,6 +2465,7 @@
     if(campos.poblacion==="baja") return "atencion";
     if(campos.sinAlimento || campos.reservasMiel==="sin" || campos.reservasPolen==="sin") return "atencion";
     if(campos.reservasMiel==="poca" || campos.reservasPolen==="poca") return "atencion";
+    if(campos.marcosMalos || campos.cajaMala || campos.techoMalo || campos.baseMala) return "atencion";
     return "ok";
   }
   function estadoColmena(colmenaId){
@@ -2487,6 +2508,21 @@
   }
   function reforzadaTagHtml(colmenaId){
     return fueReforzadaUltimaVisita(colmenaId) ? '<span class="tag-reforzada" title="Se reforzó con cría en la visita anterior">reforzada</span>' : '';
+  }
+  /* Etiqueta cuando la última revisión anotó equipo en mal estado (marcos,
+     caja, techo o base) que hay que cambiar — para que no se olvide en la
+     próxima visita, igual que "reforzada" arriba. */
+  function equipoMaloTagHtml(colmenaId){
+    var ult = ultimaRevision(colmenaId);
+    if(!ult || !ult.campos) return "";
+    var c = ult.campos;
+    var partes = [];
+    if(c.marcosMalos) partes.push("marcos");
+    if(c.cajaMala) partes.push("caja");
+    if(c.techoMalo) partes.push("techo");
+    if(c.baseMala) partes.push("base");
+    if(!partes.length) return "";
+    return '<span class="tag-equipo" title="Cambiar: '+escaparHtml(partes.join(", "))+'">🔧 cambiar '+escaparHtml(partes.join("/"))+'</span>';
   }
   /* Etiqueta roja bien visible cuando la última revisión dice "sin reina" (o
      "sin cría del día", que se toma como la misma señal) — para que salte a
@@ -3479,7 +3515,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile", "data-estado":estado});
-      tile.innerHTML = '<span class="dot" title="'+estadoTituloDot(estado)+'"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
+      tile.innerHTML = '<span class="dot" title="'+estadoTituloDot(estado)+'"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+equipoMaloTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ abrirDetalleColmena(c.id); });
       grid.appendChild(tile);
     });
@@ -4604,7 +4640,7 @@
     lista.forEach(function(c){
       var estado = estadoColmena(c.id);
       var tile = el("div",{class:"hive-tile"+(colmenaEnRevision===c.id?" selected":""), "data-estado":estado});
-      tile.innerHTML = '<span class="dot" title="'+estadoTituloDot(estado)+'"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
+      tile.innerHTML = '<span class="dot" title="'+estadoTituloDot(estado)+'"></span><span class="num">#'+c.numero+'</span>'+tipoTagHtml(c)+sinReinaTagHtml(c.id)+resumenColmenaTagsHtml(c.id)+reforzadaTagHtml(c.id)+equipoMaloTagHtml(c.id)+alimentacionTagHtml(c.id)+tratamientoTagHtml(c.id)+fechaUltimaRevisionHtml(c.id);
       tile.addEventListener("click", function(){ seleccionarColmenaRevision(c.id); });
       grid.appendChild(tile);
     });
@@ -4702,6 +4738,26 @@
         if(c.temperamento==="mansa") return "Mansa";
         if(c.temperamento==="agresiva") return "Agresiva";
         return "Sin dato";
+      }},
+    {key:"marcosMalos", label:"Marcos (cambiar)", get:function(c){
+        if(c.marcosMalos===true) return "Sí, cambiar";
+        if(c.marcosMalos===false) return "No";
+        return "Sin dato";
+      }},
+    {key:"cajaMala", label:"Caja (cambiar)", get:function(c){
+        if(c.cajaMala===true) return "Sí, cambiar";
+        if(c.cajaMala===false) return "No";
+        return "Sin dato";
+      }},
+    {key:"techoMalo", label:"Techo (cambiar)", get:function(c){
+        if(c.techoMalo===true) return "Sí, cambiar";
+        if(c.techoMalo===false) return "No";
+        return "Sin dato";
+      }},
+    {key:"baseMala", label:"Base (cambiar)", get:function(c){
+        if(c.baseMala===true) return "Sí, cambiar";
+        if(c.baseMala===false) return "No";
+        return "Sin dato";
       }}
   ];
 
@@ -4798,8 +4854,23 @@
           isOn:function(){ return camposActuales.temperamento===op.value; },
           onClick:function(){ camposActuales.temperamento = op.value; }};
       });
-    }
+    },
+    marcosMalos: function(){ return togglesEquipo("marcosMalos"); },
+    cajaMala: function(){ return togglesEquipo("cajaMala"); },
+    techoMalo: function(){ return togglesEquipo("techoMalo"); },
+    baseMala: function(){ return togglesEquipo("baseMala"); }
   };
+
+  // Los 4 campos de equipo (marcos/caja/techo/base) son idénticos entre sí
+  // (solo cambia el nombre del campo), así que comparten una sola fábrica.
+  function togglesEquipo(nombreCampo){
+    return ["Sí","No","?"].map(function(lbl){
+      var val = lbl==="Sí"?true:(lbl==="No"?false:null);
+      return {label:lbl, bad: lbl==="Sí", campo:nombreCampo,
+        isOn:function(){ return camposActuales[nombreCampo]===val; },
+        onClick:function(){ camposActuales[nombreCampo] = val; }};
+    });
+  }
 
   function agregarToggleCampo(box, botones){
     var toggle = el("div",{class:"toggle-row", style:"margin-top:2px;"});
