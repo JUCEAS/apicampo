@@ -7392,6 +7392,17 @@
           sincronizacionActiva = false;
           actualizarAvisoSincronizacion();
           arrancarConDatosLocales();
+          // Antes esto quedaba solo en la consola (invisible para quien no
+          // sabe abrirla en el teléfono). Ahora se avisa en pantalla con el
+          // motivo real, para poder diagnosticar por qué no sincronizó en
+          // vez de solo ver "Sin sincronizar" sin explicación.
+          var motivo = (e && (e.code || e.message)) ? (e.code || e.message) : "error desconocido";
+          confirmarApp(
+            "No se pudo traer tus datos de la nube (" + motivo + "). " +
+            "Se sigue mostrando la copia local de este teléfono. Toca la " +
+            "etiqueta roja “Sin sincronizar” para reintentar, o toma una " +
+            "foto de este mensaje para revisarlo."
+          );
         });
         return;
       }
