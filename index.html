@@ -1666,22 +1666,16 @@
 
   // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
   // fusiona con lo que ya hay en el store local, sin borrar nada local.
-  // UID de Firebase Auth de JUCEAS (administrador): ve y sincroniza TODO sin
-  // filtrar, igual que antes de la Fase 3b. Cualquier otro usuario (un socio
-  // real invitado a colaborar) solo puede ver sus propios apiarios y los que
-  // le compartieron, así que sus lecturas deben ir filtradas — Firestore
-  // rechaza por completo una consulta sin filtro si no puede comprobar que
-  // la regla de seguridad se cumple para TODOS los documentos posibles de
-  // la colección, no solo para los del usuario.
-  var ADMIN_UID = "nLLaVaWva4SlkC8qjIfhWcIRkY12";
-  function esAdminLocal(){
-    return !!(auth.currentUser && auth.currentUser.uid === ADMIN_UID);
-  }
-
-  // Las consultas que hay que correr para traer una colección: una sola sin
-  // filtro para el administrador, o varias filtradas para todos los demás.
+  // Antes, la cuenta de JUCEAS (administrador) veía y sincronizaba TODO sin
+  // filtrar, sin importar de quién fuera. Esto se quitó a propósito (29 sep
+  // 2026, a pedido de JUCEAS): ahora la cuenta admin se filtra exactamente
+  // igual que cualquier otra — solo ve sus propios apiarios y los que le
+  // compartieron. El rol de "administrador" sigue existiendo para lo que no
+  // tiene que ver con privacidad de datos (soporte de la app, etc.), pero ya
+  // no implica poder ver los apiarios de otras personas. El cambio real y
+  // definitivo está en las reglas de seguridad de Firestore (fuera de este
+  // archivo) — este archivo ya no pide una consulta sin filtro para nadie.
   function consultasPara(nombre, apiarioIdsPermitidos){
-    if(esAdminLocal()) return [collection(db, nombre)];
     if(!auth.currentUser) return [];
     if(nombre==="apiarios"){
       return [
@@ -1724,8 +1718,7 @@
       });
     }
     // Primero se traen los apiarios (para saber a cuáles se tiene acceso) y
-    // solo después las 7 colecciones que dependen de esa lista — para el
-    // administrador esto no cambia nada (sigue viendo todo sin filtrar).
+    // solo después las 7 colecciones que dependen de esa lista.
     var qsApiarios = consultasPara("apiarios", null);
     return Promise.all(qsApiarios.map(function(q){ return getDocs(q); })).then(function(snapsApiarios){
       procesar("apiarios", snapsApiarios);
@@ -1786,14 +1779,11 @@
         // Si cambió el conjunto de apiarios a los que este usuario tiene
         // acceso (le compartieron uno nuevo, o le quitaron uno), hay que
         // volver a suscribirse a las 7 colecciones hijas con el filtro
-        // actualizado. Para el administrador esto no aplica (ve todo).
-        if(!esAdminLocal()){
-          var idsAhora = idsDeApiariosLocales(store).slice().sort().join(",");
-          if(idsAhora !== idsPrevios){ idsPrevios = idsAhora; reescucharHijos(); }
-        }
+        // actualizado.
+        var idsAhora = idsDeApiariosLocales(store).slice().sort().join(",");
+        if(idsAhora !== idsPrevios){ idsPrevios = idsAhora; reescucharHijos(); }
       });
     });
-    if(esAdminLocal()) reescucharHijos();
   }
 
   // Sube a Firestore lo que cambió localmente desde la última vez
@@ -2396,11 +2386,6 @@
     var u = window.ApiCampoSync && window.ApiCampoSync.obtenerUsuario();
     return u ? u.uid : null;
   }
-  // Mismo UID que el administrador hardcodeado en las reglas de Firestore
-  // (window.ApiCampoSync). Aquí solo se usa para decidir qué botones
-  // mostrar — quien de verdad decide qué se puede hacer son las reglas del
-  // lado del servidor, esto es únicamente conveniencia de interfaz.
-  var ADMIN_UID_UI = "nLLaVaWva4SlkC8qjIfhWcIRkY12";
 
   /* ============================================================
      3. UTILIDADES
@@ -2820,8 +2805,10 @@
       // botón visible, el intento fallido de borrar dejaría ATASCADA toda la
       // sincronización de esa persona (un solo intento de escritura sin
       // permiso hace fallar el lote completo de sincronizar(), no solo esa
-      // operación). Por eso aquí ni se ofrece el botón.
-      var puedeEliminarApiario = !ap.propietarioId || uidUsuarioNube()===ap.propietarioId || uidUsuarioNube()===ADMIN_UID_UI;
+      // operación). Por eso aquí ni se ofrece el botón. Ya no hay excepción
+      // para la cuenta admin — a partir de ahora se trata exactamente igual
+      // que cualquier otra cuenta (ver nota en consultasPara()).
+      var puedeEliminarApiario = !ap.propietarioId || uidUsuarioNube()===ap.propietarioId;
       if(puedeEliminarApiario){
         var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
         b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
