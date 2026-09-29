@@ -1725,10 +1725,16 @@
     // cuál lectura exacta está bloqueada por las reglas si algo llega a
     // fallar aquí.
     var qsApiarios = consultasPara("apiarios", null);
-    return Promise.all(qsApiarios.map(function(q){ return getDocs(q); })).catch(function(e){
-      e.message = "apiarios: " + (e.code || e.message);
-      throw e;
-    }).then(function(snapsApiarios){
+    // Las dos consultas de "apiarios" (propios / donde soy colaborador) se
+    // marcan por separado, para saber cuál de las dos rechazan las reglas
+    // si alguna llega a fallar (en vez de solo saber que "apiarios" falló).
+    var etiquetasApiarios = ["apiarios(propios)", "apiarios(colaborador)"];
+    return Promise.all(qsApiarios.map(function(q,i){
+      return getDocs(q).catch(function(e){
+        e.message = etiquetasApiarios[i] + ": " + (e.code || e.message);
+        throw e;
+      });
+    })).then(function(snapsApiarios){
       procesar("apiarios", snapsApiarios);
       var apiarioIds = idsDeApiariosLocales(store);
       var otras = COLECCIONES.filter(function(n){ return n!=="apiarios"; });
