@@ -1719,14 +1719,25 @@
     }
     // Primero se traen los apiarios (para saber a cuáles se tiene acceso) y
     // solo después las 7 colecciones que dependen de esa lista.
+    //
+    // Cada etapa marca el error con el nombre de la colección que falló
+    // (en vez de dejar solo "permission-denied" a secas), para poder saber
+    // cuál lectura exacta está bloqueada por las reglas si algo llega a
+    // fallar aquí.
     var qsApiarios = consultasPara("apiarios", null);
-    return Promise.all(qsApiarios.map(function(q){ return getDocs(q); })).then(function(snapsApiarios){
+    return Promise.all(qsApiarios.map(function(q){ return getDocs(q); })).catch(function(e){
+      e.message = "apiarios: " + (e.code || e.message);
+      throw e;
+    }).then(function(snapsApiarios){
       procesar("apiarios", snapsApiarios);
       var apiarioIds = idsDeApiariosLocales(store);
       var otras = COLECCIONES.filter(function(n){ return n!=="apiarios"; });
       return Promise.all(otras.map(function(nombre){
         var qs = consultasPara(nombre, apiarioIds);
-        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); });
+        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); }).catch(function(e){
+          e.message = nombre + ": " + (e.code || e.message);
+          throw e;
+        });
       }));
     });
   }
@@ -7396,7 +7407,7 @@
           // sabe abrirla en el teléfono). Ahora se avisa en pantalla con el
           // motivo real, para poder diagnosticar por qué no sincronizó en
           // vez de solo ver "Sin sincronizar" sin explicación.
-          var motivo = (e && (e.code || e.message)) ? (e.code || e.message) : "error desconocido";
+          var motivo = (e && (e.message || e.code)) ? (e.message || e.code) : "error desconocido";
           confirmarApp(
             "No se pudo traer tus datos de la nube (" + motivo + "). " +
             "Se sigue mostrando la copia local de este teléfono. Toca la " +
