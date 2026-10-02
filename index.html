@@ -5503,7 +5503,12 @@
   });
 
   /* Al abrir la app: revisa si el modelo offline ya está descargado de una
-     sesión anterior, y muestra el botón de preparación si no lo está. */
+     sesión anterior, y muestra el botón de preparación si no lo está. Si no
+     está descargado y hay internet en ese momento, se descarga solo en
+     segundo plano (misma barra de progreso), para no depender de que el
+     usuario se acuerde de tocar el botón antes de perder señal en el campo.
+     Si abre sin señal, no se intenta — sigue disponible el botón manual
+     como respaldo para cuando él quiera activarlo. */
   document.addEventListener("DOMContentLoaded", function(){
     hayModeloVozEnCache().then(function(listo){
       voskListo = listo;
@@ -5511,12 +5516,31 @@
       // Si ya estaba descargado de antes, reforzamos el pedido de espacio
       // protegido cada vez que se abre la app (no cuesta nada repetirlo).
       if(listo) pedirAlmacenamientoPersistente();
+      else if(navigator.onLine!==false) descargarModeloVozAutomatico();
     });
     if(!SpeechRecognitionCtor){
       var hint = $("#micHint");
       if(hint) hint.textContent = "Este navegador no tiene dictado en línea — prepara el modo sin señal para poder dictar.";
     }
   });
+
+  // Espera a que vosk-browser (cargado con "defer") esté listo antes de
+  // lanzar la descarga automática — si se intenta demasiado pronto,
+  // descargarModeloVoz() se sale sin hacer nada porque todavía no existe
+  // window.Vosk.
+  function descargarModeloVozAutomatico(){
+    if(window.Vosk){ descargarModeloVoz(); return; }
+    var intentos = 0;
+    var t = setInterval(function(){
+      intentos++;
+      if(window.Vosk){
+        clearInterval(t);
+        descargarModeloVoz();
+      } else if(intentos>20){ // ~10s, si no cargó ya no insistimos solos
+        clearInterval(t);
+      }
+    }, 500);
+  }
 
   /* ---- Escanear QR con la cámara ---- */
   var scanStream = null, scanTimer = null;
@@ -5591,31 +5615,47 @@
   var mapaModo = apiarioActivo || "todos";
 
   // Ubicación actual del teléfono, para compararla con los apiarios en el mapa
-  // y saber a qué distancia está. Se pide solo cuando el usuario toca el botón
-  // — no se guarda entre sesiones, porque cambia cada vez que te mueves.
+  // y saber a qué distancia está. No se guarda entre sesiones, porque cambia
+  // cada vez que te mueves. Antes se pedía una sola vez por botón; ahora el
+  // botón es un interruptor: al activarlo se usa watchPosition (el navegador
+  // avisa solo cada vez que la posición cambia, sin volver a tocar nada) y
+  // se queda así hasta que el usuario lo apague o cierre la app — se deja
+  // como interruptor manual, en vez de dejarlo siempre encendido, porque el
+  // GPS continuo gasta más batería y así el usuario decide cuándo le conviene.
   var miUbicacion = null;
-  function actualizarMiUbicacion(){
+  var miUbicacionWatchId = null;
+  function activarMiUbicacion(){
     var btn = $("#btnMiUbicacion");
     if(!navigator.geolocation){ toast("Este navegador no puede obtener tu ubicación."); return; }
-    var textoOriginal = btn.textContent;
     btn.textContent = "Buscando tu ubicación…";
     btn.disabled = true;
-    navigator.geolocation.getCurrentPosition(function(pos){
+    miUbicacionWatchId = navigator.geolocation.watchPosition(function(pos){
       miUbicacion = {
         lat: pos.coords.latitude, lng: pos.coords.longitude,
         accuracy: pos.coords.accuracy, ts: Date.now()
       };
-      btn.textContent = "📍 Actualizar mi ubicación";
+      btn.textContent = "📍 Detener ubicación en vivo";
       btn.disabled = false;
       dibujarMapa();
       renderMapaOverlapList();
     }, function(err){
-      btn.textContent = textoOriginal;
+      btn.textContent = "📍 Mostrar mi ubicación en el mapa";
       btn.disabled = false;
+      miUbicacionWatchId = null;
       toast("No se pudo obtener tu ubicación ("+(err&&err.message?err.message:"sin permiso")+").");
-    }, {enableHighAccuracy:true, timeout:10000});
+    }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
   }
-  $("#btnMiUbicacion").addEventListener("click", actualizarMiUbicacion);
+  function detenerMiUbicacion(){
+    if(miUbicacionWatchId!=null){ navigator.geolocation.clearWatch(miUbicacionWatchId); miUbicacionWatchId=null; }
+    var btn = $("#btnMiUbicacion");
+    btn.textContent = "📍 Mostrar mi ubicación en el mapa";
+    btn.disabled = false;
+  }
+  function alternarMiUbicacion(){
+    if(miUbicacionWatchId!=null) detenerMiUbicacion();
+    else activarMiUbicacion();
+  }
+  $("#btnMiUbicacion").addEventListener("click", alternarMiUbicacion);
 
   /* ============================================================
      Descargar por adelantado las imágenes del mapa (tiles) de una zona,
