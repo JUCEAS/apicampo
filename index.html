@@ -1686,14 +1686,34 @@
     // Las otras 7 colecciones cuelgan de un apiario (campo apiarioId): se
     // filtran por los apiarios a los que ya se tiene acceso. Firestore
     // permite hasta 30 valores por cada "in", de sobra para una sociedad.
-    if(!apiarioIdsPermitidos || !apiarioIdsPermitidos.length) return [];
-    var grupos = [];
-    for(var i=0;i<apiarioIdsPermitidos.length;i+=30) grupos.push(apiarioIdsPermitidos.slice(i,i+30));
-    return grupos.map(function(g){ return query(collection(db,nombre), where("apiarioId","in",g)); });
+    //
+    // Una consulta por apiario (where ==) en vez de un solo "in" con todos:
+    // así las reglas de Firestore solo tienen que revisar un apiario por
+    // consulta, y si alguno falla no tumba a los demás.
+    var qs = (apiarioIdsPermitidos||[]).map(function(id){
+      return query(collection(db,nombre), where("apiarioId","==",id));
+    });
+    // Compras generales (sin apiario): solo las de quien las registró.
+    if(nombre==="inversiones"){
+      qs.push(query(collection(db,"inversiones"), where("apiarioId","==",null), where("propietarioId","==",auth.currentUser.uid)));
+    }
+    return qs;
   }
 
-  function idsDeApiariosLocales(store){
-    return (store.apiarios||[]).map(function(a){ return a.id; });
+  // Solo los apiarios que de verdad existen en la nube y a los que se tiene
+  // acceso. Antes se usaban TODOS los del teléfono (incluidos los de
+  // ejemplo o los que aún no se subían) y Firestore rechazaba la consulta
+  // completa con "permission-denied", porque las reglas no pueden revisar
+  // un apiario que no existe en la nube.
+  var apiariosEnNube = {};   // etiqueta de consulta -> {id:true}
+  function idsDeApiariosEnNube(){
+    var ids = {};
+    Object.keys(apiariosEnNube).forEach(function(k){ Object.keys(apiariosEnNube[k]).forEach(function(id){ ids[id]=true; }); });
+    return Object.keys(ids);
+  }
+  function registrarApiariosEnNube(etiqueta, snap){
+    var m = apiariosEnNube[etiqueta] = {};
+    snap.forEach(function(d){ if(!d.metadata || !d.metadata.hasPendingWrites) m[d.id] = true; });
   }
 
   // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
@@ -1736,11 +1756,20 @@
       });
     })).then(function(snapsApiarios){
       procesar("apiarios", snapsApiarios);
-      var apiarioIds = idsDeApiariosLocales(store);
+      snapsApiarios.forEach(function(snap,i){ registrarApiariosEnNube(etiquetasApiarios[i], snap); });
+      var apiarioIds = idsDeApiariosEnNube();
       var otras = COLECCIONES.filter(function(n){ return n!=="apiarios"; });
       return Promise.all(otras.map(function(nombre){
         var qs = consultasPara(nombre, apiarioIds);
-        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); }).catch(function(e){
+        return Promise.all(qs.map(function(q, i){
+          var p = getDocs(q);
+          // La consulta de compras generales (la última de "inversiones") no
+          // debe tumbar la carga de todo lo demás si llega a fallar.
+          if(nombre==="inversiones" && i===qs.length-1){
+            p = p.catch(function(e){ console.warn("Compras generales no disponibles:", e); return []; });
+          }
+          return p;
+        })).then(function(snaps){ procesar(nombre, snaps); }).catch(function(e){
           e.message = nombre + ": " + (e.code || e.message);
           throw e;
         });
@@ -1781,23 +1810,29 @@
     function reescucharHijos(){
       desuscribirHijos.forEach(function(fn){ try{ fn(); }catch(e){} });
       desuscribirHijos = [];
-      var apiarioIds = idsDeApiariosLocales(store);
+      var apiarioIds = idsDeApiariosEnNube();
       COLECCIONES.filter(function(n){ return n!=="apiarios"; }).forEach(function(nombre){
         consultasPara(nombre, apiarioIds).forEach(function(q){
-          desuscribirHijos.push(onSnapshot(q, function(snap){ procesarSnapshot(nombre, snap); }));
+          desuscribirHijos.push(onSnapshot(q, function(snap){ procesarSnapshot(nombre, snap); }, function(e){
+            console.warn("No se pudo escuchar "+nombre+":", e);
+          }));
         });
       });
     }
 
     var idsPrevios = null;
-    consultasPara("apiarios", null).forEach(function(q){
-      onSnapshot(q, function(snap){
+    var etiquetas = ["apiarios(propios)", "apiarios(colaborador)"];
+    consultasPara("apiarios", null).forEach(function(q, i){
+      // includeMetadataChanges: para enterarse cuando un apiario recién
+      // creado en este teléfono ya quedó confirmado en la nube.
+      onSnapshot(q, {includeMetadataChanges:true}, function(snap){
         procesarSnapshot("apiarios", snap);
+        registrarApiariosEnNube(etiquetas[i], snap);
         // Si cambió el conjunto de apiarios a los que este usuario tiene
         // acceso (le compartieron uno nuevo, o le quitaron uno), hay que
         // volver a suscribirse a las 7 colecciones hijas con el filtro
         // actualizado.
-        var idsAhora = idsDeApiariosLocales(store).slice().sort().join(",");
+        var idsAhora = idsDeApiariosEnNube().slice().sort().join(",");
         if(idsAhora !== idsPrevios){ idsPrevios = idsAhora; reescucharHijos(); }
       });
     });
@@ -1822,6 +1857,11 @@
         // Limpieza: "colaboradores" (sin usar, de antes de esta función) ya
         // no hace falta — se quita para no dejar un campo suelto en Firestore.
         if("colaboradores" in ap) delete ap.colaboradores;
+      });
+      // Compras generales (sin apiario): se marcan con el dueño para que
+      // las reglas sepan de quién son.
+      (store.inversiones||[]).forEach(function(inv){
+        if(!inv.apiarioId && !inv.propietarioId) inv.propietarioId = auth.currentUser.uid;
       });
     }
     // Importante: los cambios a "ultimoEnviado" (qué se considera ya
