@@ -130,6 +130,10 @@
     display:flex;
     flex-direction:column;
     background:var(--bg);
+    /* Red de seguridad: si algo llega a quedar más ancho que la pantalla,
+       se recorta en vez de dejar que la página se deslice de lado (eso
+       hacía que la barra de abajo se moviera). "clip" no rompe el sticky. */
+    overflow-x:clip;
   }
   header.topbar{
     position:sticky;
@@ -223,12 +227,15 @@
   nav.tabbar{
     position:sticky;
     bottom:0;
-    z-index:20;
+    /* Por encima del mapa (Leaflet usa z-index de 400 a 1000). */
+    z-index:1100;
     background:var(--surface);
     border-top:1px solid var(--line);
     padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
     display:grid;
-    grid-template-columns:repeat(6,1fr);
+    /* 7 pestañas en una sola fila (antes eran 6 columnas y "Inversión"
+       quedaba sola en una segunda fila, haciendo la barra el doble de alta). */
+    grid-template-columns:repeat(7,minmax(0,1fr));
     gap:2px;
   }
   nav.tabbar button{
@@ -241,12 +248,25 @@
     gap:3px;
     padding:6px 2px;
     border-radius:12px;
-    font-size:10.5px;
+    font-size:10px;
     font-weight:600;
     cursor:pointer;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
   }
   nav.tabbar button svg{ width:21px; height:21px; }
   nav.tabbar button.active{ color:var(--accent-soft-ink); background:var(--accent-soft); }
+
+  /* El mapa queda "encerrado" en su propia capa: así sus piezas internas
+     (que traen z-index altos) nunca se dibujan encima de la barra de abajo
+     ni del encabezado al deslizar la pantalla. */
+  #mapaLeaflet{ position:relative; z-index:0; isolation:isolate; }
+  /* Las fechas Desde/Hasta del Historial no encogían y empujaban el botón
+     ✕ fuera de la pantalla: la página quedaba más ancha que el teléfono. */
+  #tab-historial .field{ min-width:0; }
+  #tab-historial input[type="date"]{ width:100%; min-width:0; }
 
   /* ---------- Generic components ---------- */
   .card{
