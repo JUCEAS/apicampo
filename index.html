@@ -130,10 +130,6 @@
     display:flex;
     flex-direction:column;
     background:var(--bg);
-    /* Red de seguridad: si algo llega a quedar más ancho que la pantalla,
-       se recorta en vez de dejar que la página se deslice de lado (eso
-       hacía que la barra de abajo se moviera). "clip" no rompe el sticky. */
-    overflow-x:clip;
   }
   header.topbar{
     position:sticky;
@@ -227,15 +223,12 @@
   nav.tabbar{
     position:sticky;
     bottom:0;
-    /* Por encima del mapa (Leaflet usa z-index de 400 a 1000). */
-    z-index:1100;
+    z-index:20;
     background:var(--surface);
     border-top:1px solid var(--line);
     padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
     display:grid;
-    /* 7 pestañas en una sola fila (antes eran 6 columnas y "Inversión"
-       quedaba sola en una segunda fila, haciendo la barra el doble de alta). */
-    grid-template-columns:repeat(7,minmax(0,1fr));
+    grid-template-columns:repeat(6,1fr);
     gap:2px;
   }
   nav.tabbar button{
@@ -248,25 +241,12 @@
     gap:3px;
     padding:6px 2px;
     border-radius:12px;
-    font-size:10px;
+    font-size:10.5px;
     font-weight:600;
     cursor:pointer;
-    min-width:0;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
   }
   nav.tabbar button svg{ width:21px; height:21px; }
   nav.tabbar button.active{ color:var(--accent-soft-ink); background:var(--accent-soft); }
-
-  /* El mapa queda "encerrado" en su propia capa: así sus piezas internas
-     (que traen z-index altos) nunca se dibujan encima de la barra de abajo
-     ni del encabezado al deslizar la pantalla. */
-  #mapaLeaflet{ position:relative; z-index:0; isolation:isolate; }
-  /* Las fechas Desde/Hasta del Historial no encogían y empujaban el botón
-     ✕ fuera de la pantalla: la página quedaba más ancha que el teléfono. */
-  #tab-historial .field{ min-width:0; }
-  #tab-historial input[type="date"]{ width:100%; min-width:0; }
 
   /* ---------- Generic components ---------- */
   .card{
@@ -1706,34 +1686,14 @@
     // Las otras 7 colecciones cuelgan de un apiario (campo apiarioId): se
     // filtran por los apiarios a los que ya se tiene acceso. Firestore
     // permite hasta 30 valores por cada "in", de sobra para una sociedad.
-    //
-    // Una consulta por apiario (where ==) en vez de un solo "in" con todos:
-    // así las reglas de Firestore solo tienen que revisar un apiario por
-    // consulta, y si alguno falla no tumba a los demás.
-    var qs = (apiarioIdsPermitidos||[]).map(function(id){
-      return query(collection(db,nombre), where("apiarioId","==",id));
-    });
-    // Compras generales (sin apiario): solo las de quien las registró.
-    if(nombre==="inversiones"){
-      qs.push(query(collection(db,"inversiones"), where("apiarioId","==",null), where("propietarioId","==",auth.currentUser.uid)));
-    }
-    return qs;
+    if(!apiarioIdsPermitidos || !apiarioIdsPermitidos.length) return [];
+    var grupos = [];
+    for(var i=0;i<apiarioIdsPermitidos.length;i+=30) grupos.push(apiarioIdsPermitidos.slice(i,i+30));
+    return grupos.map(function(g){ return query(collection(db,nombre), where("apiarioId","in",g)); });
   }
 
-  // Solo los apiarios que de verdad existen en la nube y a los que se tiene
-  // acceso. Antes se usaban TODOS los del teléfono (incluidos los de
-  // ejemplo o los que aún no se subían) y Firestore rechazaba la consulta
-  // completa con "permission-denied", porque las reglas no pueden revisar
-  // un apiario que no existe en la nube.
-  var apiariosEnNube = {};   // etiqueta de consulta -> {id:true}
-  function idsDeApiariosEnNube(){
-    var ids = {};
-    Object.keys(apiariosEnNube).forEach(function(k){ Object.keys(apiariosEnNube[k]).forEach(function(id){ ids[id]=true; }); });
-    return Object.keys(ids);
-  }
-  function registrarApiariosEnNube(etiqueta, snap){
-    var m = apiariosEnNube[etiqueta] = {};
-    snap.forEach(function(d){ if(!d.metadata || !d.metadata.hasPendingWrites) m[d.id] = true; });
+  function idsDeApiariosLocales(store){
+    return (store.apiarios||[]).map(function(a){ return a.id; });
   }
 
   // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
@@ -1776,20 +1736,11 @@
       });
     })).then(function(snapsApiarios){
       procesar("apiarios", snapsApiarios);
-      snapsApiarios.forEach(function(snap,i){ registrarApiariosEnNube(etiquetasApiarios[i], snap); });
-      var apiarioIds = idsDeApiariosEnNube();
+      var apiarioIds = idsDeApiariosLocales(store);
       var otras = COLECCIONES.filter(function(n){ return n!=="apiarios"; });
       return Promise.all(otras.map(function(nombre){
         var qs = consultasPara(nombre, apiarioIds);
-        return Promise.all(qs.map(function(q, i){
-          var p = getDocs(q);
-          // La consulta de compras generales (la última de "inversiones") no
-          // debe tumbar la carga de todo lo demás si llega a fallar.
-          if(nombre==="inversiones" && i===qs.length-1){
-            p = p.catch(function(e){ console.warn("Compras generales no disponibles:", e); return []; });
-          }
-          return p;
-        })).then(function(snaps){ procesar(nombre, snaps); }).catch(function(e){
+        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); }).catch(function(e){
           e.message = nombre + ": " + (e.code || e.message);
           throw e;
         });
@@ -1830,29 +1781,23 @@
     function reescucharHijos(){
       desuscribirHijos.forEach(function(fn){ try{ fn(); }catch(e){} });
       desuscribirHijos = [];
-      var apiarioIds = idsDeApiariosEnNube();
+      var apiarioIds = idsDeApiariosLocales(store);
       COLECCIONES.filter(function(n){ return n!=="apiarios"; }).forEach(function(nombre){
         consultasPara(nombre, apiarioIds).forEach(function(q){
-          desuscribirHijos.push(onSnapshot(q, function(snap){ procesarSnapshot(nombre, snap); }, function(e){
-            console.warn("No se pudo escuchar "+nombre+":", e);
-          }));
+          desuscribirHijos.push(onSnapshot(q, function(snap){ procesarSnapshot(nombre, snap); }));
         });
       });
     }
 
     var idsPrevios = null;
-    var etiquetas = ["apiarios(propios)", "apiarios(colaborador)"];
-    consultasPara("apiarios", null).forEach(function(q, i){
-      // includeMetadataChanges: para enterarse cuando un apiario recién
-      // creado en este teléfono ya quedó confirmado en la nube.
-      onSnapshot(q, {includeMetadataChanges:true}, function(snap){
+    consultasPara("apiarios", null).forEach(function(q){
+      onSnapshot(q, function(snap){
         procesarSnapshot("apiarios", snap);
-        registrarApiariosEnNube(etiquetas[i], snap);
         // Si cambió el conjunto de apiarios a los que este usuario tiene
         // acceso (le compartieron uno nuevo, o le quitaron uno), hay que
         // volver a suscribirse a las 7 colecciones hijas con el filtro
         // actualizado.
-        var idsAhora = idsDeApiariosEnNube().slice().sort().join(",");
+        var idsAhora = idsDeApiariosLocales(store).slice().sort().join(",");
         if(idsAhora !== idsPrevios){ idsPrevios = idsAhora; reescucharHijos(); }
       });
     });
@@ -1877,11 +1822,6 @@
         // Limpieza: "colaboradores" (sin usar, de antes de esta función) ya
         // no hace falta — se quita para no dejar un campo suelto en Firestore.
         if("colaboradores" in ap) delete ap.colaboradores;
-      });
-      // Compras generales (sin apiario): se marcan con el dueño para que
-      // las reglas sepan de quién son.
-      (store.inversiones||[]).forEach(function(inv){
-        if(!inv.apiarioId && !inv.propietarioId) inv.propietarioId = auth.currentUser.uid;
       });
     }
     // Importante: los cambios a "ultimoEnviado" (qué se considera ya
