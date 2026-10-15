@@ -1738,13 +1738,27 @@
       procesar("apiarios", snapsApiarios);
       var apiarioIds = idsDeApiariosLocales(store);
       var otras = COLECCIONES.filter(function(n){ return n!=="apiarios"; });
-      return Promise.all(otras.map(function(nombre){
+      // Cada una de las otras 7 colecciones se trae por separado y con
+      // Promise.allSettled (en vez de Promise.all): si una sola falla — por
+      // ejemplo una colección que el usuario nunca ha usado y que las
+      // reglas rechazan por alguna razón — las demás igual se traen y se
+      // guardan bien. Antes, un solo fallo tumbaba TODA la sincronización
+      // inicial (incluyendo apiarios/colmenas/revisiones que sí
+      // funcionaban), y además dejaba sincronizacionActiva en false, lo que
+      // también bloqueaba que las subidas futuras llegaran a la nube.
+      return Promise.allSettled(otras.map(function(nombre){
         var qs = consultasPara(nombre, apiarioIds);
-        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); }).catch(function(e){
-          e.message = nombre + ": " + (e.code || e.message);
-          throw e;
+        return Promise.all(qs.map(function(q){ return getDocs(q); })).then(function(snaps){ procesar(nombre, snaps); });
+      })).then(function(resultados){
+        var fallidas = [];
+        resultados.forEach(function(r, i){
+          if(r.status === "rejected"){
+            var e = r.reason;
+            fallidas.push(otras[i] + ": " + ((e && (e.code || e.message)) || "error"));
+          }
         });
-      }));
+        return fallidas.length ? {fallidas: fallidas} : null;
+      });
     });
   }
 
@@ -2374,11 +2388,38 @@
     return datos;
   }
 
+  // IDs de los apiarios de ejemplo que trae seed() ("Apiario El Zapote",
+  // "Apiario La Ceiba"). En algún momento, antes de que existiera la
+  // protección de guardar() contra subir datos de demo, estos quedaron
+  // guardados en este teléfono y, al dejar de ser store.esDemo=true (en
+  // cuanto el usuario hacía cualquier cosa real), quedaban "adoptados" como
+  // si fueran apiarios de verdad — procesar() en jalarInicial solo AGREGA
+  // lo que trae la nube, nunca quita lo que ya hay localmente, así que
+  // nunca desaparecían solos. Esto los quita del teléfono la primera vez
+  // que se carga la app después de que el usuario ya dejó de estar en modo
+  // demo (si todavía está en modo demo, se dejan — son el ejemplo normal
+  // que ve alguien que recién abre la app por primera vez).
+  var IDS_DEMO_SEED = ["ap_zapote","ap_ceiba"];
+  var COLECCIONES_HIJAS = ["colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas"];
+  function limpiarDatosDemoResiduales(datos){
+    if(!datos || datos.esDemo) return datos;
+    var teniaApiarios = datos.apiarios && datos.apiarios.length;
+    if(teniaApiarios){
+      datos.apiarios = datos.apiarios.filter(function(a){ return IDS_DEMO_SEED.indexOf(a.id)===-1; });
+    }
+    COLECCIONES_HIJAS.forEach(function(nombre){
+      if(datos[nombre] && datos[nombre].length){
+        datos[nombre] = datos[nombre].filter(function(it){ return IDS_DEMO_SEED.indexOf(it.apiarioId)===-1; });
+      }
+    });
+    return datos;
+  }
+
   function cargar(){
     try{
       var raw = localStorage.getItem(STORE_KEY);
       if(raw){
-        return normalizarDatos(JSON.parse(raw));
+        return limpiarDatosDemoResiduales(normalizarDatos(JSON.parse(raw)));
       }
     }catch(e){}
     return seed();
@@ -7424,7 +7465,7 @@
       if(usuario){
         ocultarAcceso();
         if(btnCerrarSesionApp) btnCerrarSesionApp.hidden = false;
-        sync.jalarInicial(store).then(function(){
+        sync.jalarInicial(store).then(function(resultado){
           sincronizacionActiva = true;
           actualizarAvisoSincronizacion();
           guardar();
@@ -7444,6 +7485,17 @@
             }
           });
           revisarInvitacionesPendientes(sync);
+          // jalarInicial ya no tumba todo por una sola colección fallida
+          // (ver el comentario ahí) — si algo quedó sin traer, se avisa
+          // aparte, sin bloquear el resto de la app ni marcarla como
+          // "Sin sincronizar" (porque sí se sincronizó, solo que no al 100%).
+          if(resultado && resultado.fallidas && resultado.fallidas.length){
+            confirmarApp(
+              "Tus apiarios se sincronizaron bien, pero no se pudo traer todo (" +
+              resultado.fallidas.join(" · ") + "). El resto de la app sigue " +
+              "funcionando normal — toma una foto de este mensaje para revisarlo."
+            );
+          }
         }).catch(function(e){
           console.error("No se pudo traer los datos de la nube, se sigue con lo local:", e);
           sincronizacionActiva = false;
