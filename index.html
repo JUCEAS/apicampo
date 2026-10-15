@@ -878,7 +878,7 @@
       <div class="wrap-chips" id="chipsUsuario" style="justify-content:flex-end;"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="cardSeleccionColmena">
       <div class="row between">
         <p class="section-title">Colmena</p>
         <button class="btn-line btn" id="btnEscanear" style="padding:7px 11px; font-size:12.5px;">
@@ -891,9 +891,12 @@
     </div>
 
     <div class="card" id="cardDictado" style="display:none;">
-      <div class="row between">
-        <p class="section-title">Revisión — <span id="colmenaActivaLabel" class="mono"></span></p>
+      <div class="row between" style="align-items:center;">
+        <button class="btn-line btn" id="btnCambiarColmena" type="button" style="padding:6px 10px; font-size:12.5px;">‹ Cambiar colmena</button>
         <span class="badge badge-neutral" id="fechaHoy"></span>
+      </div>
+      <div class="row between" style="margin-top:6px;">
+        <p class="section-title">Revisión — <span id="colmenaActivaLabel" class="mono"></span></p>
       </div>
 
       <div class="mic-wrap">
@@ -4692,16 +4695,40 @@
     if(colmenaEnRevision && !lista.some(function(c){return c.id===colmenaEnRevision;})){
       colmenaEnRevision = null;
       $("#cardDictado").style.display = "none";
+      $("#cardSeleccionColmena").style.display = "";
     }
   }
+
+  // Al elegir una colmena, se oculta la tarjeta de selección y solo queda
+  // la de revisión en pantalla — así, con guantes puestos en el apiario, no
+  // hay que bajar toda la pantalla pasando la rejilla de colmenas para
+  // empezar a dictar. "Cambiar colmena" (o guardar la revisión) regresa a
+  // la rejilla.
+  function mostrarTarjetaRevision(){
+    $("#cardSeleccionColmena").style.display = "none";
+    $("#cardDictado").style.display = "flex";
+    $("#cardDictado").style.flexDirection = "column";
+    var main = $("#tab-revisar");
+    if(main && main.scrollIntoView) main.scrollIntoView({block:"start"});
+    else window.scrollTo(0,0);
+  }
+  function mostrarSelectorColmenas(){
+    colmenaEnRevision = null;
+    $("#cardDictado").style.display = "none";
+    $("#cardSeleccionColmena").style.display = "";
+    renderRevisarColmenas();
+    var main = $("#tab-revisar");
+    if(main && main.scrollIntoView) main.scrollIntoView({block:"start"});
+    else window.scrollTo(0,0);
+  }
+  $("#btnCambiarColmena").addEventListener("click", mostrarSelectorColmenas);
 
   var marcosActuales = [];
   function seleccionarColmenaRevision(colmenaId){
     colmenaEnRevision = colmenaId;
     var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
     renderRevisarColmenas();
-    $("#cardDictado").style.display = "flex";
-    $("#cardDictado").style.flexDirection = "column";
+    mostrarTarjetaRevision();
     $("#colmenaActivaLabel").textContent = "#"+c.numero+" · "+apiarioNombre(c.apiarioId);
     $("#fechaHoy").textContent = fechaCorta(Date.now());
     $("#txtDictado").value = "";
@@ -5013,11 +5040,13 @@
     store.esDemo = false;
     guardar();
     toast("Revisión guardada");
-    var cId = colmenaEnRevision;
-    seleccionarColmenaRevision(cId);
     ultimaRevisionGuardada = r;
-    $("#filaInformeUltimaRevision").hidden = false;
-    renderRevisarColmenas();
+    // En vez de dejar la misma colmena lista para otra revisión, se vuelve
+    // de una vez a la rejilla de colmenas — así, con guantes puestos en el
+    // apiario, queda lista para tocar la siguiente colmena sin tener que
+    // buscar "Cambiar colmena" a mano. (Compartir/imprimir esta revisión
+    // sigue disponible desde Historial.)
+    mostrarSelectorColmenas();
   }
   $("#btnGuardarRevision").addEventListener("click", guardarRevisionActual);
   $("#btnGuardarRevisionTop").addEventListener("click", guardarRevisionActual);
