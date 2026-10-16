@@ -5088,6 +5088,19 @@
   var reconocimiento = null;
   var escuchando = false;
   var detenerManual = false;
+  // Verdadero solo durante el breve tramo en que se cambia del motor en
+  // línea al motor sin conexión por un error de red (ver onerror más abajo).
+  // El "onend" del motor en línea llega DESPUÉS de ese cambio (porque se
+  // llamó reconocimiento.stop() para dar paso a Vosk) y antes se usaba para
+  // decidir qué hacer — pero para entonces Vosk ya pudo haber arrancado bien
+  // y hasta haber puesto detenerManual de vuelta en false, así que ese onend
+  // tardío interpretaba todo mal: o apagaba el micrófono como si el usuario
+  // lo hubiera detenido a mano (aunque Vosk ya estuviera escuchando), o —
+  // peor — arrancaba OTRA sesión en línea encima de Vosk, duplicando
+  // micrófonos y provocando justo el "se apaga con cada pausa" que se
+  // reportó en el campo. Con esta bandera, ese onend tardío simplemente no
+  // hace nada: quien manda el estado final es Vosk (o su manejo de error).
+  var pasandoAOffline = false;
   var motorActual = null;     // "online" | "offline"
   var dictadoBase = "";       // texto que ya estaba en el cuadro antes de empezar a dictar
   var dictadoAcumulado = "";  // texto final ya confirmado durante esta sesión de dictado (puede abarcar varios reinicios)
@@ -5155,9 +5168,17 @@
       // Si se cae la señal a media dictada y ya tenemos el modelo offline
       // preparado, seguimos sin que el usuario tenga que hacer nada.
       if(ev.error==="network" && voskListo){
+        pasandoAOffline = true;
         detenerManual = true;
         try{ reconocimiento.stop(); }catch(e){}
         iniciarVosk().catch(function(){
+          // Vosk no pudo tomar el control — ahora sí queda apagado de
+          // verdad, así que el estado/mensaje se pone aquí (el "onend" de
+          // arriba ya no lo hace por la bandera pasandoAOffline).
+          pasandoAOffline = false;
+          escuchando = false;
+          $("#btnMic").classList.remove("listening");
+          if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
           $("#micStatus").textContent = "Se perdió la señal y no se pudo pasar al modo sin conexión. Escribe directo.";
         });
         return;
@@ -5176,6 +5197,13 @@
       }
     };
     reconocimiento.onend = function(){
+      if(pasandoAOffline){
+        // Este onend es "tardío": pertenece a la sesión en línea que se
+        // detuvo para dar paso a Vosk. No tocar escuchando/UI aquí — quien
+        // decide el estado final es iniciarVosk (éxito) o su .catch (falla).
+        pasandoAOffline = false;
+        return;
+      }
       if(detenerManual){
         escuchando = false;
         $("#btnMic").classList.remove("listening");
