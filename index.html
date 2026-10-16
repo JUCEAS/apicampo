@@ -283,6 +283,14 @@
   }
   .chip.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
   .chip.ghost{ background:transparent; }
+  /* Chips de enfermedad: en vez del color normal de "activo" (ámbar), se
+     marcan en rojo de alerta al seleccionarse, para que salten a la vista
+     entre guantes y sol. Las más graves (loque americana/europea,
+     escarabajo, tropilaelaps) llevan un rojo más intenso que el resto
+     (varroa, nosema, cría yesificada), siguiendo la misma gravedad que ya
+     usa el resto de la app (ver estadoRevision). */
+  #diseaseChips .chip.active{ background:var(--critical); border-color:var(--critical); color:#fff; }
+  #diseaseChips .chip.active.grave{ background:#7A2318; border-color:#7A2318; }
 
   .chip-user{ display:inline-flex; align-items:stretch; }
   .chip-user .chip{ border-top-right-radius:0; border-bottom-right-radius:0; padding-right:9px; }
@@ -895,8 +903,9 @@
         <button class="btn-line btn" id="btnCambiarColmena" type="button" style="padding:6px 10px; font-size:12.5px;">‹ Cambiar colmena</button>
         <span class="badge badge-neutral" id="fechaHoy"></span>
       </div>
-      <div class="row between" style="margin-top:6px;">
-        <p class="section-title">Revisión — <span id="colmenaActivaLabel" class="mono"></span></p>
+      <div class="row between" style="margin-top:6px; align-items:center; flex-wrap:wrap; gap:6px;">
+        <p class="section-title" style="margin:0;">Revisión — <span id="colmenaActivaLabel" class="mono"></span></p>
+        <span class="badge badge-critico" id="colmenaActivaAlerta" hidden>⚠ Enfermedad detectada</span>
       </div>
 
       <div class="mic-wrap">
@@ -4990,12 +4999,18 @@
     });
   }
 
+  // Las mismas 4 que ya se tratan como "crítico" en estadoRevision() — una
+  // vez detectadas ahí merecen el rojo más oscuro aquí también, en vez de
+  // tratarlas igual que una varroa baja o una cría yesificada leve.
+  var ENFERMEDADES_GRAVES = ["Loque americana","Loque europea","Escarabajo de la colmena","Tropilaelaps"];
+
   function renderDiseaseChips(){
     var wrap = $("#diseaseChips");
     wrap.innerHTML = "";
     ENFERMEDADES_LISTA.forEach(function(nombre){
       var activo = camposActuales.enfermedades.indexOf(nombre)!==-1;
-      var chip = el("button",{class:"chip"+(activo?" active":""), text:nombre});
+      var clase = "chip"+(activo?" active":"")+(activo && ENFERMEDADES_GRAVES.indexOf(nombre)!==-1 ? " grave" : "");
+      var chip = el("button",{class:clase, text:nombre});
       chip.addEventListener("click", function(){
         var i = camposActuales.enfermedades.indexOf(nombre);
         if(i===-1) camposActuales.enfermedades.push(nombre); else camposActuales.enfermedades.splice(i,1);
@@ -5005,6 +5020,21 @@
     });
     var inVarroa = $("#inVarroaPorcentaje");
     if(inVarroa) inVarroa.value = (camposActuales.varroaPorcentaje!=null) ? camposActuales.varroaPorcentaje : "";
+    actualizarAlertaColmenaActiva();
+  }
+
+  // Alerta visual arriba, junto al nombre de la colmena que se está
+  // revisando — así se nota aunque el usuario no tenga la vista puesta en
+  // los chips de enfermedad (por ejemplo, mientras revisa otros campos).
+  function actualizarAlertaColmenaActiva(){
+    var badge = $("#colmenaActivaAlerta");
+    if(!badge) return;
+    var hay = camposActuales && camposActuales.enfermedades && camposActuales.enfermedades.length>0;
+    badge.hidden = !hay;
+    if(hay){
+      var grave = camposActuales.enfermedades.some(function(e){ return ENFERMEDADES_GRAVES.indexOf(e)!==-1; });
+      badge.textContent = grave ? "⚠ Enfermedad grave" : "⚠ Enfermedad detectada";
+    }
   }
   $("#inVarroaPorcentaje").addEventListener("input", function(){
     var v = $("#inVarroaPorcentaje").value;
