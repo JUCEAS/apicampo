@@ -4713,6 +4713,8 @@
     else window.scrollTo(0,0);
   }
   function mostrarSelectorColmenas(){
+    detenerDictadoSiEscuchando();
+    dictadoBase = ""; dictadoAcumulado = "";
     colmenaEnRevision = null;
     $("#cardDictado").style.display = "none";
     $("#cardSeleccionColmena").style.display = "";
@@ -4725,6 +4727,13 @@
 
   var marcosActuales = [];
   function seleccionarColmenaRevision(colmenaId){
+    // Si el micrófono se quedó escuchando de la colmena anterior (por
+    // ejemplo, se guardó o se cambió de colmena sin detenerlo a mano), se
+    // detiene y se limpia el texto acumulado de esa sesión — si no, un
+    // resultado de voz que llegue tarde podía "pegar" el dictado de la
+    // colmena anterior en esta.
+    detenerDictadoSiEscuchando();
+    dictadoBase = ""; dictadoAcumulado = "";
     colmenaEnRevision = colmenaId;
     var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
     renderRevisarColmenas();
@@ -5509,13 +5518,26 @@
     if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
   }
 
+  // Para cuando el micrófono quede escuchando y se cambie de colmena sin
+  // haberlo detenido a mano (por ejemplo, tocar "Guardar" o "Cambiar
+  // colmena" todavía dictando). Antes, si eso pasaba, el reconocimiento
+  // seguía activo en segundo plano y el próximo resultado de voz escribía
+  // sobre la tarjeta de la colmena NUEVA usando dictadoBase/dictadoAcumulado
+  // que todavía eran los de la colmena anterior — así era como el texto (y
+  // los campos que se leen de él) de la revisión pasada se "pegaba" en la
+  // siguiente.
+  function detenerDictadoSiEscuchando(){
+    if(!escuchando) return;
+    if(motorActual==="offline"){ detenerVosk(); }
+    else { detenerManual = true; if(reconocimiento) try{ reconocimiento.stop(); }catch(e){} }
+  }
+
   /* ---- Botón del micrófono: elige el motor solo ---- */
   $("#btnMic").addEventListener("click", function(){
     if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
 
     if(escuchando){
-      if(motorActual==="offline"){ detenerVosk(); }
-      else { detenerManual = true; if(reconocimiento) reconocimiento.stop(); }
+      detenerDictadoSiEscuchando();
       return;
     }
 
