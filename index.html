@@ -959,7 +959,12 @@
     <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Elige arriba un apiario específico (no "Todos") y toca esto <b>antes de ir al campo, con señal o WiFi</b> — así el mapa de esa zona ya va a estar guardado en el teléfono cuando llegues sin cobertura. Tu punto azul ("Tú estás aquí") funciona sin señal de todas formas — es el fondo con calles/terreno lo que necesita esta descarga.</p>
     <div id="descargaZonaEstado"></div>
     <div class="card" style="padding:0; overflow:hidden;">
-      <div id="mapaLeaflet" style="width:100%; height:320px;"></div>
+      <!-- position+z-index aquí (aparte del "overflow:hidden" de la tarjeta
+           que lo envuelve) "sella" el mapa en su propia capa de apilamiento:
+           sin esto, los marcadores y círculos internos de Leaflet (que usan
+           valores de z-index muy altos) se escapaban al bajar la pantalla y
+           quedaban pintados encima de la barra de pestañas de abajo. -->
+      <div id="mapaLeaflet" style="width:100%; height:320px; position:relative; z-index:0;"></div>
       <div id="mapaOffline" hidden style="padding:16px;">
         <p style="margin:0; font-size:13.5px; color:var(--muted);">El mapa necesita internet para cargar las calles y el terreno (se descargan de OpenStreetMap). Conéctate una vez y se guardará para consultarlo luego con menos señal.</p>
       </div>
