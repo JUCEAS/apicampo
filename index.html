@@ -911,12 +911,20 @@
       </div>
 
       <div class="mic-wrap">
-        <button class="mic-btn" id="btnMic" aria-label="Dictar revisión">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </button>
-        <div class="mic-status" id="micStatus">Toca para dictar la revisión</div>
-        <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;" id="micHint">El dictado usa reconocimiento en línea cuando hay señal. Prepara el modo sin señal abajo para dictar en el apiario.</div>
-        <div id="voskPrep" style="width:100%; margin-top:2px;"></div>
+        <!-- #micCluster (botón + estado) se MUEVE aquí o a la pestaña Notas
+             según dónde se esté dictando — es el mismo motor de voz para las
+             dos pantallas, ver moverClusterMicA(). Este div es su "casa" en
+             esta pestaña. -->
+        <div id="micWrapRevisar">
+          <div id="micCluster">
+            <button class="mic-btn" id="btnMic" aria-label="Dictar">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <div class="mic-status" id="micStatus">Toca para dictar</div>
+            <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;" id="micHint">El dictado usa reconocimiento en línea cuando hay señal. Prepara el modo sin señal abajo para dictar en el apiario.</div>
+            <div id="voskPrep" style="width:100%; margin-top:2px;"></div>
+          </div>
+        </div>
         <button class="btn btn-primary btn-block" id="btnGuardarRevisionTop" style="margin-top:4px;">Guardar revisión</button>
       </div>
 
@@ -1112,6 +1120,44 @@
     <div id="inversionRepartoSocios"></div>
   </main>
 
+  <!-- ===================== TAB: NOTAS ===================== -->
+  <main id="tab-notas" hidden>
+    <div class="wrap-chips" id="chipsNotas"></div>
+
+    <div class="card" id="cardNuevaNota">
+      <p class="section-title" style="margin-bottom:8px;">Nueva nota</p>
+      <div class="mic-wrap">
+        <!-- #micCluster se muda aquí mientras esta pestaña está abierta —
+             ver moverClusterMicA(). -->
+        <div id="micWrapNota"></div>
+      </div>
+      <div class="field">
+        <label for="txtNota">Nota (puedes editarla o escribir directo)</label>
+        <textarea id="txtNota" placeholder="Ej: le prestamos el ahumador a Don Chepe, recordar comprar azúcar…"></textarea>
+      </div>
+      <div class="row" style="gap:8px; margin-top:4px; flex-wrap:wrap;">
+        <div class="field" style="flex:1; min-width:150px; margin:0;">
+          <label for="selNotaApiario">¿De qué apiario? (opcional)</label>
+          <select id="selNotaApiario" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px; background:var(--surface-2); color:var(--ink);"></select>
+        </div>
+        <div class="field" style="flex:1; min-width:150px; margin:0;">
+          <label for="inNotaFecha">¿Para cuándo? (opcional)</label>
+          <input type="date" id="inNotaFecha">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="btnGuardarNota" style="margin-top:10px;">Guardar nota</button>
+    </div>
+
+    <div class="row between" style="margin:14px 0 8px; align-items:center;">
+      <p class="section-title" style="margin:0;">Notas guardadas</p>
+      <button class="btn-line btn" id="btnVerNotasHechas" type="button" style="padding:6px 10px; font-size:12px;">Ver resueltas</button>
+    </div>
+    <div class="card" id="cardListaNotas" style="padding:4px 14px;">
+      <div id="listaNotas"></div>
+      <div class="empty" id="notasEmpty" hidden>No tienes notas pendientes.</div>
+    </div>
+  </main>
+
   <nav class="tabbar">
     <button data-tab="apiarios" class="active">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.7"/></svg>
@@ -1140,6 +1186,11 @@
     <button data-tab="inversion">
       <svg viewBox="0 0 24 24" fill="none"><path d="M4 19h16M7 19v-6M12 19v-9M17 19v-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Inversión
+    </button>
+    <button data-tab="notas" style="position:relative;">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v4h4M9 11h6M9 14.5h6M9 18h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      Notas
+      <span id="notasBadgeTab" hidden style="position:absolute; top:3px; right:14px; min-width:15px; height:15px; border-radius:999px; background:var(--critical); color:#fff; font-size:9.5px; font-weight:700; line-height:15px; text-align:center; padding:0 3px;"></span>
     </button>
   </nav>
 </div>
@@ -1661,7 +1712,7 @@
 
   // Estas son las 8 colecciones que se sincronizan entre dispositivos.
   // "config", "usuarios" y "usuarioActual" quedan solo en este teléfono.
-  var COLECCIONES = ["apiarios","colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas"];
+  var COLECCIONES = ["apiarios","colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas","notas"];
 
   var ultimoEnviado = {};     // coleccion -> {id: "json de la última versión ya sincronizada"}
   var sincronizando = false;
@@ -1694,6 +1745,13 @@
   // no implica poder ver los apiarios de otras personas. El cambio real y
   // definitivo está en las reglas de seguridad de Firestore (fuera de este
   // archivo) — este archivo ya no pide una consulta sin filtro para nadie.
+  // Colecciones donde un documento puede NO estar ligado a ningún apiario
+  // (apiarioId:null) — una compra general, o una nota general. Esos
+  // documentos no pueden traerse con el filtro "apiarioId in [...]" de abajo
+  // (null no es ninguno de esos valores), así que para estas se agrega
+  // además una consulta por dueño (propietarioId == mi uid).
+  var COLECCIONES_CON_GENERAL = ["inversiones","notas"];
+
   function consultasPara(nombre, apiarioIdsPermitidos){
     if(!auth.currentUser) return [];
     if(nombre==="apiarios"){
@@ -1702,13 +1760,19 @@
         query(collection(db,"apiarios"), where("colaboradoresUids","array-contains",auth.currentUser.uid))
       ];
     }
-    // Las otras 7 colecciones cuelgan de un apiario (campo apiarioId): se
+    // Las demás colecciones cuelgan de un apiario (campo apiarioId): se
     // filtran por los apiarios a los que ya se tiene acceso. Firestore
     // permite hasta 30 valores por cada "in", de sobra para una sociedad.
-    if(!apiarioIdsPermitidos || !apiarioIdsPermitidos.length) return [];
-    var grupos = [];
-    for(var i=0;i<apiarioIdsPermitidos.length;i+=30) grupos.push(apiarioIdsPermitidos.slice(i,i+30));
-    return grupos.map(function(g){ return query(collection(db,nombre), where("apiarioId","in",g)); });
+    var out = [];
+    if(apiarioIdsPermitidos && apiarioIdsPermitidos.length){
+      var grupos = [];
+      for(var i=0;i<apiarioIdsPermitidos.length;i+=30) grupos.push(apiarioIdsPermitidos.slice(i,i+30));
+      grupos.forEach(function(g){ out.push(query(collection(db,nombre), where("apiarioId","in",g))); });
+    }
+    if(COLECCIONES_CON_GENERAL.indexOf(nombre)!==-1){
+      out.push(query(collection(db,nombre), where("propietarioId","==",auth.currentUser.uid)));
+    }
+    return out;
   }
 
   function idsDeApiariosLocales(store){
@@ -2380,6 +2444,13 @@
       ap.socios.forEach(function(s){ if(s.sinGiras===undefined) s.sinGiras = false; });
     });
     if(!datos.cosechas) datos.cosechas = [];
+    if(!datos.notas) datos.notas = [];
+    (datos.notas||[]).forEach(function(n){
+      if(n.hecha===undefined) n.hecha = false;
+      if(n.fechaHecha===undefined) n.fechaHecha = null;
+      if(n.fechaObjetivo===undefined) n.fechaObjetivo = null;
+      if(n.apiarioId===undefined) n.apiarioId = null;
+    });
     // Las compras registradas antes de que existiera el paso de
     // "confirmar compra" se tratan como ya realizadas (así no
     // desaparecen de golpe del historial ni parecen "pendientes").
@@ -2419,7 +2490,7 @@
   // demo (si todavía está en modo demo, se dejan — son el ejemplo normal
   // que ve alguien que recién abre la app por primera vez).
   var IDS_DEMO_SEED = ["ap_zapote","ap_ceiba"];
-  var COLECCIONES_HIJAS = ["colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas"];
+  var COLECCIONES_HIJAS = ["colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas","notas"];
   function limpiarDatosDemoResiduales(datos){
     if(!datos || datos.esDemo) return datos;
     var teniaApiarios = datos.apiarios && datos.apiarios.length;
@@ -2825,7 +2896,21 @@
     });
   }
 
+  // Recuerda la última pestaña mostrada, para saber cuándo se cambia de
+  // verdad (y así no cortar un dictado activo solo porque se tocó otra vez
+  // la misma pestaña en la que ya se estaba).
+  var tabActualNombre = "apiarios";
   function cambiarTab(tab){
+    if(tab!==tabActualNombre){
+      // Cambiar de pantalla detiene cualquier dictado que haya quedado
+      // activo (revisión o nota) y limpia el texto acumulado — si no, un
+      // resultado de voz tardío podía escribir sobre la pantalla nueva (fue
+      // justo el bug de "se pega el texto de la colmena anterior" que ya se
+      // corrigió para Revisar; aplica igual aquí entre Revisar y Notas).
+      detenerDictadoSiEscuchando();
+      dictadoBase = ""; dictadoAcumulado = "";
+    }
+    tabActualNombre = tab;
     $all("main[id^='tab-']").forEach(function(m){ m.hidden = (m.id !== "tab-"+tab); });
     $all("nav.tabbar button").forEach(function(b){ b.classList.toggle("active", b.dataset.tab===tab); });
     var subs = {
@@ -2835,17 +2920,20 @@
       mapa: "Radio de vuelo de las abejas",
       historial: "Todas las revisiones",
       produccion: "Proyección de miel e ingreso",
-      inversion: "Cuánto has comprado e invertido"
+      inversion: "Cuánto has comprado e invertido",
+      notas: "Recordatorios y pendientes, por voz"
     };
     $("#topbarSub").textContent = subs[tab]||"";
     actualizarBannerApiarioActivo();
     if(tab==="apiarios") renderApiarios();
     if(tab==="colmenas") renderColmenas();
-    if(tab==="revisar") renderRevisarColmenas();
+    if(tab==="revisar"){ moverClusterMicA("micWrapRevisar","revision"); renderRevisarColmenas(); }
     if(tab==="mapa") renderMapa();
     if(tab==="historial") renderHistorial();
     if(tab==="produccion") renderProduccion();
     if(tab==="inversion") renderInversion();
+    if(tab==="notas"){ moverClusterMicA("micWrapNota","nota"); renderNotas(); }
+    actualizarBadgeNotas();
   }
   $all("nav.tabbar button").forEach(function(b){
     b.addEventListener("click", function(){ cambiarTab(b.dataset.tab); });
@@ -2881,6 +2969,7 @@
         (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
         (proximaGira ? '<p style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">🚐 Próxima gira: <b>'+escaparHtml(proximaGira.nombre)+'</b>'+(proximaGiraFecha ? ' · aprox. '+fechaCorta(proximaGiraFecha) : '')+'</p>' : '')+
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
+        notasPendientesApiarioHtml(ap.id)+
         ultimoTrabajoHtml(ap.id);
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
       var b1 = el("button",{class:"btn "+(esActivo?"btn-primary":"btn-line"), style:"flex:1; padding:8px; font-size:13px;", text: esActivo ? "✓ Trabajando aquí" : "Trabajar aquí"});
@@ -5166,6 +5255,14 @@
     renderMarcosGrid();
   }
 
+  // El motor de voz (en línea y sin conexión, con todo su manejo de
+  // reinicios/errores) es uno solo y sirve a MÁS de una pantalla ahora
+  // (la revisión por dictado, y las notas de voz) — en vez de que el motor
+  // llame siempre a actualizarCuadroDictado() por su nombre, llama a esta
+  // variable, que cada pantalla apunta hacia su propia función justo antes
+  // de arrancar a escuchar (ver los botones de micrófono más abajo).
+  var alActualizarDictado = actualizarCuadroDictado;
+
   /* ---- Motor "online" (Web Speech API) ---- */
   function initReconocimiento(){
     if(!SpeechRecognitionCtor) return null;
@@ -5210,7 +5307,7 @@
           interino += r[0].transcript;
         }
       }
-      actualizarCuadroDictado(interino);
+      alActualizarDictado(interino);
     };
     reconocimiento.onerror = function(ev){
       // Si se cae la señal a media dictada y ya tenemos el modelo offline
@@ -5255,7 +5352,7 @@
       if(detenerManual){
         escuchando = false;
         $("#btnMic").classList.remove("listening");
-        $("#micStatus").textContent = "Toca para dictar la revisión";
+        $("#micStatus").textContent = "Toca para dictar";
         if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
         return;
       }
@@ -5607,7 +5704,7 @@
     if(voskMicStream){ voskMicStream.getTracks().forEach(function(t){ t.stop(); }); voskMicStream=null; }
     escuchando = false;
     $("#btnMic").classList.remove("listening");
-    $("#micStatus").textContent = "Toca para dictar la revisión";
+    $("#micStatus").textContent = "Toca para dictar";
     if($("#btnVozGlobal")) $("#btnVozGlobal").classList.remove("desactivado");
   }
 
@@ -5625,17 +5722,27 @@
     else { detenerManual = true; if(reconocimiento) try{ reconocimiento.stop(); }catch(e){} }
   }
 
+  // El botón y el estado de abajo (#btnMic/#micStatus/#micHint/#voskPrep) son
+  // un solo grupo de elementos ("#micCluster") que se MUEVE de pestaña en
+  // pestaña según dónde se vaya a dictar (ver moverClusterMicA más abajo) —
+  // así hay un solo motor de voz de verdad, sin duplicar toda su lógica de
+  // reinicios/errores para cada pantalla que necesite dictado. "modoMic"
+  // dice a cuál de esas pantallas pertenece ahora mismo.
+  var modoMic = "revision"; // "revision" | "nota"
+  function elementoDictadoActivo(){ return modoMic==="nota" ? $("#txtNota") : $("#txtDictado"); }
+
   /* ---- Botón del micrófono: elige el motor solo ---- */
   $("#btnMic").addEventListener("click", function(){
-    if(!colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
+    if(modoMic==="revision" && !colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
 
     if(escuchando){
       detenerDictadoSiEscuchando();
       return;
     }
 
+    alActualizarDictado = modoMic==="nota" ? actualizarCuadroNota : actualizarCuadroDictado;
     dictadoAcumulado = "";
-    var base = $("#txtDictado").value;
+    var base = elementoDictadoActivo().value;
     dictadoBase = base && !/\s$/.test(base) ? base+" " : base;
 
     var hayNativo = !!SpeechRecognitionCtor;
@@ -7080,7 +7187,13 @@
     store.inversiones.push({
       id: uid("inv"), categoria: inversionCategoriaSel, detalle: detalle,
       cantidad: cantidad, precioUnitario: precio, total: total,
-      apiarioId: apiarioId, fecha: Date.now(), registradoPor: store.usuarioActual,
+      apiarioId: apiarioId,
+      // Las compras SIN apiario ("compra general") se guardan y se leen en
+      // la nube por dueño, no por apiario — las reglas de Firestore ya
+      // esperaban este campo (compraGeneralPropia) pero el cliente nunca lo
+      // llenaba, así que una compra general nunca llegaba a sincronizarse.
+      propietarioId: apiarioId ? null : uidUsuarioNube(),
+      fecha: Date.now(), registradoPor: store.usuarioActual,
       reparto: reparto, confirmada: false, fechaCompra: null, fechaUso: null, usos: []
     });
     store.esDemo = false;
@@ -7822,6 +7935,202 @@
     }
     setTimeout(function(){ esperarNube(intentos-1); }, 100);
   }
+
+  /* ============================================================
+     NOTAS — recordatorios por voz (con o sin fecha), ligados a un
+     apiario o generales. Usan el MISMO motor de dictado que la pestaña
+     Revisar (ver modoMic/elementoDictadoActivo/alActualizarDictado más
+     arriba) — el botón y su estado se mudan de pestaña en pestaña en vez
+     de duplicar toda la lógica de reinicios/errores del micrófono.
+     ============================================================ */
+
+  // "Hoy" se compara por fecha completa, no por hora exacta — así una nota
+  // puesta "para hoy" no se marca vencida apenas pasan unos minutos.
+  function inicioDeHoy(){
+    var d = new Date();
+    d.setHours(0,0,0,0);
+    return d.getTime();
+  }
+  function notaVencida(n){
+    return !n.hecha && n.fechaObjetivo!=null && n.fechaObjetivo < inicioDeHoy();
+  }
+  // filtro: undefined = todas, null = solo generales, "<id>" = ese apiario
+  function notasFiltradas(filtro, incluirHechas){
+    return store.notas.filter(function(n){
+      if(!incluirHechas && n.hecha) return false;
+      if(filtro===undefined) return true;
+      return (n.apiarioId||null) === filtro;
+    });
+  }
+  function notasPendientesDe(apiarioId){
+    return store.notas.filter(function(n){ return !n.hecha && (n.apiarioId||null)===apiarioId; });
+  }
+  function notasPendientesApiarioHtml(apiarioId){
+    var pend = notasPendientesDe(apiarioId);
+    if(!pend.length) return "";
+    var hayVencida = pend.some(notaVencida);
+    return '<div style="margin-top:4px;"><span class="badge '+(hayVencida?"badge-critico":"badge-atencion")+'">📝 '+pend.length+' nota'+(pend.length===1?"":"s")+' pendiente'+(pend.length===1?"":"s")+(hayVencida?" · vencida":"")+'</span></div>';
+  }
+  function notasPendientesTotalInfo(){
+    var pend = store.notas.filter(function(n){ return !n.hecha; });
+    return { total: pend.length, vencida: pend.some(notaVencida) };
+  }
+  function actualizarBadgeNotas(){
+    var badge = $("#notasBadgeTab");
+    if(!badge) return;
+    var info = notasPendientesTotalInfo();
+    badge.hidden = info.total===0;
+    if(info.total>0){
+      badge.textContent = info.total>99 ? "99+" : String(info.total);
+      badge.style.background = info.vencida ? "var(--critical)" : "var(--warn)";
+    }
+  }
+
+  // Mueve el grupo de botón+estado del micrófono (#micCluster) a la pestaña
+  // que lo necesita ahora. Reubicar un nodo existente con appendChild no le
+  // quita sus listeners (siguen siendo el MISMO botón #btnMic de siempre),
+  // así que todo el motor de voz sigue funcionando sin tocarlo.
+  function moverClusterMicA(idSlot, modo){
+    var cluster = $("#micCluster");
+    var destino = $("#"+idSlot);
+    if(cluster && destino && cluster.parentNode!==destino) destino.appendChild(cluster);
+    modoMic = modo;
+  }
+
+  // Versión simple de actualizarCuadroDictado() para las notas: solo texto
+  // libre, sin parseInspeccion ni marcos ni enfermedades — una nota no tiene
+  // "campos entendidos" que extraer.
+  function actualizarCuadroNota(interino){
+    var partes = [dictadoBase, dictadoAcumulado, interino].filter(function(s){ return s && s.length; });
+    $("#txtNota").value = partes.join(" ").replace(/\s+/g," ");
+  }
+
+  var notasVerHechas = false;
+  var notasFiltroActual; // undefined = todas
+
+  function poblarSelectApiarioNota(){
+    var sel = $("#selNotaApiario");
+    var actual = sel.value;
+    sel.innerHTML = "";
+    sel.appendChild(el("option",{value:"", text:"General (sin apiario)"}));
+    store.apiarios.forEach(function(ap){
+      var opt = el("option",{value:ap.id, text:ap.nombre});
+      sel.appendChild(opt);
+    });
+    if(actual) sel.value = actual;
+  }
+
+  function renderChipsNotas(){
+    var wrap = $("#chipsNotas");
+    wrap.innerHTML = "";
+    var chipTodas = el("button",{class:"chip"+(notasFiltroActual===undefined?" active":""), type:"button", text:"Todas"});
+    chipTodas.addEventListener("click", function(){ notasFiltroActual = undefined; renderNotas(); });
+    wrap.appendChild(chipTodas);
+    var chipGeneral = el("button",{class:"chip"+(notasFiltroActual===null?" active":""), type:"button", text:"General"});
+    chipGeneral.addEventListener("click", function(){ notasFiltroActual = null; renderNotas(); });
+    wrap.appendChild(chipGeneral);
+    store.apiarios.forEach(function(ap){
+      var chip = el("button",{class:"chip"+(notasFiltroActual===ap.id?" active":""), type:"button", text:ap.nombre});
+      chip.addEventListener("click", function(){ notasFiltroActual = ap.id; renderNotas(); });
+      wrap.appendChild(chip);
+    });
+  }
+
+  function etiquetaApiarioNota(n){
+    if(!n.apiarioId) return "General";
+    return apiarioNombre(n.apiarioId);
+  }
+
+  function renderListaNotas(){
+    var wrap = $("#listaNotas");
+    wrap.innerHTML = "";
+    var lista = notasFiltradas(notasFiltroActual, notasVerHechas)
+      .slice()
+      .sort(function(a,b){
+        // Pendientes con fecha primero (la más próxima arriba), luego
+        // pendientes sin fecha (más reciente arriba), luego las hechas.
+        if(!!a.hecha !== !!b.hecha) return a.hecha ? 1 : -1;
+        if(a.fechaObjetivo!=null && b.fechaObjetivo!=null) return a.fechaObjetivo-b.fechaObjetivo;
+        if(a.fechaObjetivo!=null) return -1;
+        if(b.fechaObjetivo!=null) return 1;
+        return b.fecha-a.fecha;
+      });
+    $("#notasEmpty").hidden = lista.length>0;
+    lista.forEach(function(n){
+      var vencida = notaVencida(n);
+      var row = el("div",{class:"tx-row"});
+      var top = el("div",{class:"top"});
+      var btnHecha = el("button",{class:"icon-btn", title: n.hecha?"Marcar como pendiente":"Marcar como hecha", "aria-label":"Marcar nota"});
+      btnHecha.style.color = n.hecha ? "var(--good)" : "var(--muted)";
+      btnHecha.innerHTML = n.hecha
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8 12.5 10.5 15 16 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/></svg>';
+      btnHecha.addEventListener("click", function(){
+        n.hecha = !n.hecha;
+        n.fechaHecha = n.hecha ? Date.now() : null;
+        store.esDemo = false;
+        guardar();
+        renderNotas();
+      });
+      var who = el("span",{class:"who", style:"flex:1; font-weight:600; "+(n.hecha?"text-decoration:line-through; color:var(--muted);":""), text:n.texto});
+      top.appendChild(btnHecha);
+      top.appendChild(who);
+      if(n.fechaObjetivo!=null){
+        var tagFecha = el("span",{class:"badge "+(vencida?"badge-critico":"badge-neutral"), text:(vencida?"⚠ ":"📅 ")+fechaCorta(n.fechaObjetivo)});
+        top.appendChild(tagFecha);
+      }
+      row.appendChild(top);
+      var when = el("div",{class:"when", text: etiquetaApiarioNota(n)+" · creada "+fechaCorta(n.fecha)});
+      row.appendChild(when);
+      var btnBorrar = el("button",{class:"btn-line btn", style:"padding:4px 9px; font-size:11.5px; margin-top:4px;", text:"Eliminar"});
+      btnBorrar.addEventListener("click", function(){
+        confirmarApp("¿Eliminar esta nota? No se puede deshacer.").then(function(ok){
+          if(!ok) return;
+          var i = store.notas.indexOf(n);
+          if(i!==-1) store.notas.splice(i,1);
+          store.esDemo = false;
+          guardar();
+          renderNotas();
+        });
+      });
+      row.appendChild(btnBorrar);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderNotas(){
+    poblarSelectApiarioNota();
+    renderChipsNotas();
+    renderListaNotas();
+    actualizarBadgeNotas();
+    $("#btnVerNotasHechas").textContent = notasVerHechas ? "Ver solo pendientes" : "Ver resueltas";
+  }
+  $("#btnVerNotasHechas").addEventListener("click", function(){
+    notasVerHechas = !notasVerHechas;
+    renderNotas();
+  });
+
+  $("#btnGuardarNota").addEventListener("click", function(){
+    var texto = $("#txtNota").value.trim();
+    if(!texto){ toast("Dicta o escribe algo primero"); return; }
+    detenerDictadoSiEscuchando();
+    var apiarioId = $("#selNotaApiario").value || null;
+    var fechaStr = $("#inNotaFecha").value;
+    var fechaObjetivo = fechaStr ? new Date(fechaStr+"T12:00:00").getTime() : null;
+    store.notas.push({
+      id: uid("nota"), texto: texto, apiarioId: apiarioId,
+      propietarioId: apiarioId ? null : uidUsuarioNube(),
+      fecha: Date.now(), fechaObjetivo: fechaObjetivo,
+      hecha: false, fechaHecha: null, registradoPor: store.usuarioActual
+    });
+    store.esDemo = false;
+    guardar();
+    $("#txtNota").value = "";
+    dictadoBase = ""; dictadoAcumulado = "";
+    $("#inNotaFecha").value = "";
+    toast("Nota guardada");
+    renderNotas();
+  });
 
   mostrarPasoAcceso("accesoCargando");
   esperarNube(150);
