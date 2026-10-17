@@ -505,6 +505,8 @@
   .hive-tile .tag-varroa-ok{ color:#2E6B32; background:#DCEFDC; }
   .hive-tile .tag-varroa-atencion{ color:#5C4A1E; background:#EFE6C8; }
   .hive-tile .tag-varroa-critico{ color:#fff; background:#B4472F; }
+  .hive-tile .tag-enfermedad{ color:#fff; background:#B4472F; }
+  .hive-tile .tag-enfermedad-grave{ color:#fff; background:#7A2318; }
   .hive-tile .fecha-rev{
     font-family:"IBM Plex Mono",monospace; font-size:8.5px; font-weight:500;
     color:var(--muted); margin-top:1px;
@@ -2650,6 +2652,17 @@
     if(c.varroaPorcentaje!=null){
       var claseVarroa = c.varroaPorcentaje>=6 ? "tag-varroa-critico" : (c.varroaPorcentaje>=3 ? "tag-varroa-atencion" : "tag-varroa-ok");
       partes.push('<span class="tag-info '+claseVarroa+'" title="Porcentaje de infestación de varroa en la última revisión">🦟 varroa '+c.varroaPorcentaje+'%</span>');
+    }
+    // Enfermedades detectadas en la última revisión: antes no aparecían como
+    // etiqueta en la ficha de la colmena (solo quedaban dentro de la
+    // revisión). "Varroa" se omite aquí si ya se mostró arriba con su
+    // porcentaje, para no repetir la misma etiqueta dos veces.
+    if(c.enfermedades && c.enfermedades.length){
+      c.enfermedades.forEach(function(nombre){
+        if(nombre==="Varroa" && c.varroaPorcentaje!=null) return;
+        var clase = ENFERMEDADES_GRAVES.indexOf(nombre)!==-1 ? "tag-enfermedad-grave" : "tag-enfermedad";
+        partes.push('<span class="tag-info '+clase+'" title="Enfermedad detectada en la última revisión">⚠ '+escaparHtml(nombre)+'</span>');
+      });
     }
     return partes.join("");
   }
@@ -5361,7 +5374,24 @@
     [/\bsin tenía\b/gi, "sin cría"],
     [/\bhay tenía\b/gi, "hay cría"],
     [/\bno hay tenía\b/gi, "no hay cría"],
-    [/\bno tenemos tenía\b/gi, "no tenemos cría"]
+    [/\bno tenemos tenía\b/gi, "no tenemos cría"],
+    /* Nombres de enfermedades: el modelo "small" no los trae en su
+       vocabulario, así que en vez de reconocer la palabra técnica completa
+       la parte en sílabas/palabras comunes que sí conoce y que más se le
+       parecen por sonido — quedan "separados" en vez de pegados, y como el
+       resto de la app (parseInspeccion) busca la palabra exacta y junta
+       ("loque americana", "nosema", etc.), así no los detecta. Aquí se
+       vuelven a unir antes de que seguir el resto del proceso. */
+    [/\bba?\s*rro+\s*a\b/gi, "varroa"],      // "varroa" → "barro a" / "ba rroa" (confusión b/v + se separa)
+    [/\barroba\b/gi, "varroa"],              // "varroa" → "arroba" (palabra común que conoce)
+    [/\blo\s*que\s+american[ao]s?\b/gi, "loque americana"],   // "loque" → "lo que" (dos palabras comunes)
+    [/\blo\s*ca\s+american[ao]s?\b/gi, "loque americana"],
+    [/\blo\s*que\s+europe[ao]s?\b/gi, "loque europea"],
+    [/\blo\s*ca\s+europe[ao]s?\b/gi, "loque europea"],
+    [/\bno\s*[sc]ema\b/gi, "nosema"],        // "nosema" → "no sema" / "no cema"
+    [/\bno\s*semosis\b/gi, "nosemosis"],
+    [/\btropi\s*la?\s*e?l?a?ps\b/gi, "tropilaelaps"],   // "tropilaelaps" → "tropi la eps" / variantes
+    [/\btropi\s*la\s*laps\b/gi, "tropilaelaps"]
   ];
 
   function corregirDictadoOffline(texto){
@@ -5764,6 +5794,7 @@
     });
     dibujarMapa();
     renderMapaOverlapList();
+    descargarZonaMapaAutomatica();
   }
   // Arranca mostrando el apiario de trabajo actual (no "todos"), para no
   // tener que volver a elegirlo cada vez que se entra al mapa.
@@ -5858,11 +5889,16 @@
   var ZOOM_MIN_DESCARGA = 12, ZOOM_MAX_DESCARGA = 16; // suficiente detalle sin bajar miles de imágenes
 
   var descargandoZonaMapa = false;
-  async function descargarZonaMapa(ap, tiles){
+  // "silencioso": para la descarga automática de fondo (ver
+  // descargarZonaMapaAutomatica más abajo) — sin barra de progreso ni toast,
+  // para no interrumpir mientras se navega la app normal. La descarga manual
+  // (el botón) sigue mostrando todo como antes.
+  async function descargarZonaMapa(ap, tiles, silencioso){
     descargandoZonaMapa = true;
-    var estado = $("#descargaZonaEstado");
+    var estado = silencioso ? null : $("#descargaZonaEstado");
     var hechos = 0, fallidos = 0;
     function pintar(){
+      if(!estado) return;
       estado.innerHTML =
         '<div class="vosk-btn" style="cursor:default;">Descargando mapa de "'+escaparHtml(ap.nombre)+'"… '+hechos+'/'+tiles.length+'</div>'+
         '<div class="vosk-bar-wrap"><div class="vosk-bar" style="width:'+Math.round(hechos/tiles.length*100)+'%;"></div></div>'+
@@ -5894,14 +5930,35 @@
       for(var i=0;i<6;i++) corredores.push(siguiente());
       await Promise.all(corredores);
       descargandoZonaMapa = false;
-      estado.innerHTML = '<div class="vosk-ready">✓ Mapa de "'+escaparHtml(ap.nombre)+'" guardado — ya se puede ver sin señal'+(fallidos?(" ("+fallidos+" imágenes no se pudieron guardar; puedes volver a intentar con mejor señal)"):"")+'</div>';
-      toast("Listo — ya puedes ver esta zona sin señal");
+      if(estado){
+        estado.innerHTML = '<div class="vosk-ready">✓ Mapa de "'+escaparHtml(ap.nombre)+'" guardado — ya se puede ver sin señal'+(fallidos?(" ("+fallidos+" imágenes no se pudieron guardar; puedes volver a intentar con mejor señal)"):"")+'</div>';
+        toast("Listo — ya puedes ver esta zona sin señal");
+      }
     }catch(e){
       console.error(e);
       descargandoZonaMapa = false;
-      estado.innerHTML = "";
-      toast("No se pudo descargar el mapa de esta zona. Intenta de nuevo con mejor señal.");
+      if(estado){
+        estado.innerHTML = "";
+        toast("No se pudo descargar el mapa de esta zona. Intenta de nuevo con mejor señal.");
+      }
     }
+  }
+
+  // Descarga automática en segundo plano: antes había que acordarse de
+  // tocar "Descargar el mapa de esta zona" con señal ANTES de ir al campo —
+  // si se le olvidaba a uno (lo más probable es que haya sido justo eso),
+  // el mapa se quedaba sin fondo al perder la señal. Ahora, cada vez que se
+  // abre la pestaña Mapa con un apiario específico elegido (no "Todos") y
+  // hay señal en ese momento, se descarga sola y sin avisos — así, para
+  // cuando se vaya al campo, lo más probable es que ya esté guardada. Los
+  // tiles que ya estaban en caché de una vez anterior no se vuelven a pedir
+  // (ver "yaEstaba" arriba), así que repetir esto no gasta datos de más.
+  function descargarZonaMapaAutomatica(){
+    if(descargandoZonaMapa || mapaModo==="todos" || navigator.onLine===false) return;
+    var ap = store.apiarios.find(function(a){ return a.id===mapaModo; });
+    if(!ap || ap.lat==null || ap.lng==null) return;
+    var tiles = tilesParaZona(ap.lat, ap.lng, RADIO_DESCARGA_KM, ZOOM_MIN_DESCARGA, ZOOM_MAX_DESCARGA);
+    descargarZonaMapa(ap, tiles, true);
   }
 
   $("#btnDescargarZonaMapa").addEventListener("click", function(){
