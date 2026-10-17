@@ -2971,6 +2971,13 @@
         '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
         notasPendientesApiarioHtml(ap.id)+
         ultimoTrabajoHtml(ap.id);
+      var btnNotasAp = card.querySelector("[data-ir-notas]");
+      if(btnNotasAp){
+        btnNotasAp.addEventListener("click", function(){
+          notasFiltroActual = ap.id;
+          cambiarTab("notas");
+        });
+      }
       var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
       var b1 = el("button",{class:"btn "+(esActivo?"btn-primary":"btn-line"), style:"flex:1; padding:8px; font-size:13px;", text: esActivo ? "✓ Trabajando aquí" : "Trabajar aquí"});
       b1.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("colmenas"); });
@@ -7965,11 +7972,14 @@
   function notasPendientesDe(apiarioId){
     return store.notas.filter(function(n){ return !n.hecha && (n.apiarioId||null)===apiarioId; });
   }
+  // "data-ir-notas" marca el botón que, al tocarlo, lleva directo a la
+  // pestaña Notas ya filtrada a este apiario — ver el listener que se agrega
+  // después de pintar cada tarjeta en renderApiarios().
   function notasPendientesApiarioHtml(apiarioId){
     var pend = notasPendientesDe(apiarioId);
     if(!pend.length) return "";
     var hayVencida = pend.some(notaVencida);
-    return '<div style="margin-top:4px;"><span class="badge '+(hayVencida?"badge-critico":"badge-atencion")+'">📝 '+pend.length+' nota'+(pend.length===1?"":"s")+' pendiente'+(pend.length===1?"":"s")+(hayVencida?" · vencida":"")+'</span></div>';
+    return '<button type="button" data-ir-notas="1" class="badge '+(hayVencida?"badge-critico":"badge-atencion")+'" style="margin-top:4px; border:none; cursor:pointer; display:inline-flex; font-family:inherit;">⭐ '+pend.length+' nota'+(pend.length===1?"":"s")+' pendiente'+(pend.length===1?"":"s")+(hayVencida?" · vencida":"")+'</button>';
   }
   function notasPendientesTotalInfo(){
     var pend = store.notas.filter(function(n){ return !n.hecha; });
