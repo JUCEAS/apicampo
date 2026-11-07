@@ -858,7 +858,7 @@
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.0</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.1</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -1746,6 +1746,50 @@
   var COLECCIONES = ["apiarios","colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas","notas"];
 
   var ultimoEnviado = {};     // coleccion -> {id: "json de la última versión ya sincronizada"}
+
+  /* Firma estable de un documento: el mismo contenido da siempre el mismo
+     texto, sin importar en qué orden vengan los campos (Firestore no
+     respeta el orden). Antes se usaba JSON.stringify directo, y al abrir
+     la app muchos registros parecían "distintos" a los de la nube solo por
+     el orden de sus campos, y se volvían a subir enteros. */
+  function firmaDe(v){
+    if(v === null || typeof v !== "object") return JSON.stringify(v === undefined ? null : v);
+    if(Array.isArray(v)) return "[" + v.map(firmaDe).join(",") + "]";
+    return "{" + Object.keys(v).filter(function(k){ return v[k] !== undefined; }).sort().map(function(k){
+      return JSON.stringify(k) + ":" + firmaDe(v[k]);
+    }).join(",") + "}";
+  }
+  function hashCorto(s){
+    var h = 5381;
+    for(var i=0;i<s.length;i++){ h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
+    return (h >>> 0).toString(36) + s.length.toString(36);
+  }
+
+  /* "Línea base": cómo estaba cada documento la última vez que este
+     teléfono quedó igual que la nube. Se guarda en el teléfono (por
+     usuario) y permite saber, al abrir la app, quién cambió qué:
+     - cambió solo en la nube (otro teléfono) -> se trae la versión de la nube
+     - cambió solo aquí -> se sube
+     - se borró en otro teléfono y aquí no se tocó -> se borra aquí también
+     Sin esto, lo editado en otro teléfono no llegaba y lo borrado reaparecía. */
+  function claveLineaBase(){ return auth.currentUser ? "apicampo:sync:" + auth.currentUser.uid : null; }
+  function leerLineaBase(){
+    var k = claveLineaBase(); if(!k) return {};
+    try{ return JSON.parse(localStorage.getItem(k) || "{}") || {}; }catch(e){ return {}; }
+  }
+  var guardarLineaBaseTimer = null;
+  function guardarLineaBase(){
+    clearTimeout(guardarLineaBaseTimer);
+    guardarLineaBaseTimer = setTimeout(function(){
+      var k = claveLineaBase(); if(!k) return;
+      var base = {};
+      Object.keys(ultimoEnviado).forEach(function(nombre){
+        var m = base[nombre] = {};
+        Object.keys(ultimoEnviado[nombre]).forEach(function(id){ m[id] = hashCorto(ultimoEnviado[nombre][id]); });
+      });
+      try{ localStorage.setItem(k, JSON.stringify(base)); }catch(e){}
+    }, 400);
+  }
   var sincronizando = false;
   var pendienteResync = false;
 
@@ -1813,23 +1857,54 @@
   // Trae lo que ya existe en Firestore (de otros dispositivos/socios) y lo
   // fusiona con lo que ya hay en el store local, sin borrar nada local.
   function jalarInicial(store){
+    var lineaBase = leerLineaBase();
     function procesar(nombre, snapshots){
       var local = store[nombre] || (store[nombre] = []);
       var localPorId = {};
-      local.forEach(function(item){ localPorId[item.id] = item; });
+      local.forEach(function(item){ if(item && item.id) localPorId[item.id] = item; });
+      var base = lineaBase[nombre] || {};
       var conocidos = ultimoEnviado[nombre] = {};
-      // Fase 4 (migración de datos existentes): solo lo que YA está en la
-      // nube se marca aquí como "ya sincronizado". Lo que solo existe en
-      // este teléfono se deja SIN marca a propósito: así, cuando guardar()
-      // dispare sincronizar() justo después de este primer login, esos
-      // documentos se ven como nuevos y se suben solos a Firestore.
+      var enNube = {};
+      // Lo que está en la nube.
       snapshots.forEach(function(snap){
         snap.forEach(function(d){
+          if(enNube[d.id]) return;
           var item = d.data(); item.id = d.id;
-          if(!localPorId[d.id]){ local.push(item); localPorId[d.id] = item; }
-          conocidos[d.id] = JSON.stringify(item);
+          enNube[d.id] = true;
+          var fNube = firmaDe(item), hNube = hashCorto(fNube);
+          var hBase = base[d.id];
+          var actual = localPorId[d.id];
+          if(!actual){
+            // No está aquí: es nuevo de otro teléfono, o se borró aquí sin señal.
+            if(hBase && hBase === hNube){
+              conocidos[d.id] = fNube;   // se borró aquí: sincronizar() lo borrará en la nube
+              return;
+            }
+            local.push(item); localPorId[d.id] = item;
+          } else {
+            var hLocal = hashCorto(firmaDe(actual));
+            if(hLocal !== hNube && hBase && hBase === hLocal){
+              // Aquí no se tocó desde la última vez, pero en la nube sí: gana la nube.
+              var idx = local.indexOf(actual);
+              if(idx >= 0) local[idx] = item;
+              localPorId[d.id] = item;
+            }
+            // Si cambió aquí, se queda lo de aquí y sincronizar() lo sube.
+          }
+          conocidos[d.id] = fNube;
         });
       });
+      // Lo que está aquí y ya no está en la nube.
+      for(var k = local.length - 1; k >= 0; k--){
+        var it = local[k];
+        if(!it || !it.id || enNube[it.id]) continue;
+        var hb = base[it.id];
+        if(hb && hb === hashCorto(firmaDe(it))){
+          // Se borró en otro teléfono (o te quitaron el acceso) y aquí no se tocó: se quita.
+          local.splice(k, 1);
+        }
+        // Si nunca estuvo en la nube, o se editó aquí, se queda y se sube.
+      }
     }
     // Primero se traen los apiarios (para saber a cuáles se tiene acceso) y
     // solo después las 7 colecciones que dependen de esa lista.
@@ -1871,6 +1946,7 @@
             fallidas.push(otras[i] + ": " + ((e && (e.code || e.message)) || "error"));
           }
         });
+        guardarLineaBase();
         return fallidas.length ? {fallidas: fallidas} : null;
       });
     });
@@ -1896,13 +1972,13 @@
           return;
         }
         var item = cambio.doc.data(); item.id = id;
-        var firmaNueva = JSON.stringify(item);
+        var firmaNueva = firmaDe(item);
         if(conocidos[id] === firmaNueva) return; // este cambio lo originamos nosotros mismos al sincronizar()
         if(idx>=0) lista[idx] = item; else lista.push(item);
         conocidos[id] = firmaNueva;
         huboCambio = true;
       });
-      if(huboCambio) avisar();
+      if(huboCambio){ guardarLineaBase(); avisar(); }
     }
 
     var desuscribirHijos = [];
@@ -1936,7 +2012,14 @@
   function sincronizar(store){
     if(sincronizando){ pendienteResync = true; return Promise.resolve(); }
     sincronizando = true;
-    var batch = writeBatch(db);
+    // Las escrituras se juntan en una lista y se envían en lotes de 400
+    // (Firestore no acepta más de 500 por lote; antes, un primer envío
+    // grande fallaba siempre).
+    var operaciones = [];
+    var batch = {
+      set: function(ref, datos){ operaciones.push({tipo:"set", ref:ref, datos:datos}); },
+      delete: function(ref){ operaciones.push({tipo:"del", ref:ref}); }
+    };
     var huboEscritura = false;
     // Los apiarios son la unidad de permisos (Fase 3): cualquiera que no
     // tenga dueño todavía (por ejemplo, uno creado antes de esta fase) se
@@ -1970,7 +2053,7 @@
       lista.forEach(function(item){
         if(!item || !item.id) return;
         vistos[item.id] = true;
-        var firma = JSON.stringify(item);
+        var firma = firmaDe(item);
         if(conocidos[item.id] === firma) return;
         var datos = Object.assign({}, item);
         delete datos.id;
@@ -1986,15 +2069,48 @@
         }
       });
     });
-    var terminar = huboEscritura ? batch.commit() : Promise.resolve();
-    return terminar.then(function(){
-      // Éxito: recién ahora se marca todo como sincronizado de verdad.
-      COLECCIONES.forEach(function(nombre){
-        var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
-        var pendientes = pendientesPorColeccion[nombre];
-        Object.keys(pendientes.set).forEach(function(id){ conocidos[id] = pendientes.set[id]; });
-        pendientes.del.forEach(function(id){ delete conocidos[id]; });
+    // Marca como sincronizado solo lo que de verdad llegó a la nube.
+    function marcarHecho(op){
+      var nombre = op.ref.parent.id, id = op.ref.id;
+      var conocidos = ultimoEnviado[nombre] || (ultimoEnviado[nombre] = {});
+      var pendientes = pendientesPorColeccion[nombre];
+      if(op.tipo === "set") conocidos[id] = pendientes.set[id];
+      else delete conocidos[id];
+    }
+    function enviarLote(ops){
+      var b = writeBatch(db);
+      ops.forEach(function(op){ if(op.tipo === "set") b.set(op.ref, op.datos); else b.delete(op.ref); });
+      return b.commit().then(function(){ ops.forEach(marcarHecho); }, function(e){
+        // Si el lote completo falla por un solo documento rechazado (por
+        // ejemplo, un apiario compartido que ya no se puede editar), se
+        // envía uno por uno para que el resto sí llegue. Lo rechazado por
+        // permisos se da por cerrado para no trabar la sincronización.
+        if(!e || e.code !== "permission-denied") throw e;
+        return ops.reduce(function(cadena, op){
+          return cadena.then(function(){
+            var b1 = writeBatch(db);
+            if(op.tipo === "set") b1.set(op.ref, op.datos); else b1.delete(op.ref);
+            return b1.commit().then(function(){ marcarHecho(op); }, function(e1){
+              if(e1 && e1.code === "permission-denied"){
+                console.warn("La nube rechazó este cambio (sin permiso), se descarta:", op.ref.path);
+                var conocidos = ultimoEnviado[op.ref.parent.id] || {};
+                var pendientes = pendientesPorColeccion[op.ref.parent.id];
+                if(op.tipo === "set") conocidos[op.ref.id] = pendientes.set[op.ref.id];
+                else delete conocidos[op.ref.id];
+                return;
+              }
+              throw e1;
+            });
+          });
+        }, Promise.resolve());
       });
+    }
+    var terminar = Promise.resolve();
+    for(var n = 0; n < operaciones.length; n += 400){
+      (function(lote){ terminar = terminar.then(function(){ return enviarLote(lote); }); })(operaciones.slice(n, n + 400));
+    }
+    return terminar.then(function(){
+      if(huboEscritura) guardarLineaBase();
     }).catch(function(e){
       console.error("No se pudo sincronizar con la nube (se sigue guardando en este teléfono; se reintentará más adelante):", e);
     }).then(function(){
@@ -2545,8 +2661,30 @@
     }catch(e){}
     return normalizarDatos(seed());
   }
+  var avisoAlmacenamientoMostrado = {};
+  function avisarAlmacenamiento(fallo){
+    var tipo = fallo ? "fallo" : "lleno";
+    if(avisoAlmacenamientoMostrado[tipo]) return;
+    avisoAlmacenamientoMostrado[tipo] = true;
+    var msg = fallo
+      ? "⚠ El teléfono NO pudo guardar el último cambio (sin espacio). Si tienes señal, ya está en la nube. Descarga un respaldo en Historial › Respaldo y libera espacio."
+      : "El espacio de ApiCampo en este teléfono está casi lleno. Descarga un respaldo en Historial › Respaldo.";
+    setTimeout(function(){
+      if(typeof confirmarApp==="function") confirmarApp(msg); else alert(msg);
+    }, 0);
+  }
   function guardar(){
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
+    var json = null;
+    try{
+      json = JSON.stringify(store);
+      localStorage.setItem(STORE_KEY, json);
+      if(json.length > 4000000) avisarAlmacenamiento(false); // ~80% del espacio del navegador
+    }catch(e){
+      // Antes este error se ignoraba: si el teléfono se quedaba sin espacio,
+      // los datos nuevos dejaban de guardarse sin que nadie se enterara.
+      console.error("No se pudo guardar en el teléfono:", e);
+      avisarAlmacenamiento(true);
+    }
     // Empuja los cambios a Firestore solo si ya hay sesión y ya se hizo la
     // primera sincronización, y nunca mientras los datos sean los de demo
     // (así nunca se sube "Apiario El Zapote" de ejemplo a la nube de nadie).
@@ -3859,7 +3997,7 @@
   // El QR lleva un enlace a ApiCampo: así se puede leer con la cámara normal
   // del teléfono (abre la app en esa colmena) o con la cámara dentro de la app.
   var URL_APP_QR = "https://juceas.github.io/apicampo/";
-  function qrPayload(colmena){ return URL_APP_QR+"?c="+colmena.apiarioId+"~"+colmena.numero; }
+  function qrPayload(colmena){ return URL_APP_QR+"?q="+encodeURIComponent(colmena.id); }
 
   // Tamaño del código QR en la vista de impresión del navegador. Se genera al
   // doble de lo que se ve en pantalla (ver "width"/"height" abajo) para que
@@ -6000,16 +6138,30 @@
      ("COLMENA|apiarioId|numero") y las nuevas (enlace con ?c=apiarioId|numero,
      que también abre ApiCampo desde la cámara normal del teléfono). */
   function interpretarQR(data){
-    var t = String(data||"").trim(), ref = null;
+    var t = String(data||"").trim(), ref = null, idColmena = null;
     if(t.indexOf("COLMENA|")===0){ ref = t.slice(8); }
+    else if(t.indexOf("COLMENAID|")===0){ idColmena = t.slice(10); }
     else {
-      try{ var u = new URL(t); ref = u.searchParams.get("c"); }catch(e){ ref = null; }
+      try{ var u = new URL(t); idColmena = u.searchParams.get("q"); ref = u.searchParams.get("c"); }catch(e){ ref = null; }
     }
-    if(!ref) return {error:"Ese código no es de una colmena de ApiCampo."};
+    var noEs = {error:"Ese código no es de una colmena de ApiCampo."};
+    // Etiqueta nueva: código único de la colmena, sigue sirviendo aunque se mueva de apiario.
+    if(idColmena){
+      var porId = store.colmenas.find(function(x){ return x.id===idColmena; });
+      return porId ? {colmena:porId} : {error:"Esa colmena no está en tus apiarios (¿se borró o es de otra cuenta?)."};
+    }
+    if(!ref) return noEs;
+    // Etiquetas anteriores: apiario + número.
     var partes = ref.split(/[|~]/);
     var apId = partes[0], num = parseInt(partes[1],10);
-    if(!apId || isNaN(num)) return {error:"Ese código no es de una colmena de ApiCampo."};
+    if(!apId || isNaN(num)) return noEs;
     var c = store.colmenas.find(function(x){ return x.apiarioId===apId && x.numero===num; });
+    if(!c){
+      // La colmena pudo haberse movido a otro apiario: se busca en su historial de traslados.
+      c = store.colmenas.find(function(x){
+        return x.numero===num && (x.historialMovimientos||[]).some(function(m){ return m.deApiarioId===apId; });
+      });
+    }
     if(!c) return {error:"No encuentro la colmena #"+num+" en tus apiarios.", numero:num, apiarioId:apId};
     return {colmena:c};
   }
@@ -6096,13 +6248,24 @@
      La etiqueta trae un enlace (…/apicampo/?c=apiarioId|numero). Al abrirlo,
      ApiCampo espera a tener los datos (también los de la nube) y abre la colmena. */
   var qrPendienteRef = null;
-  try{ qrPendienteRef = new URLSearchParams(location.search).get("c"); }catch(e){}
-  if(qrPendienteRef){ try{ history.replaceState(null, "", location.pathname); }catch(e){} }
+  try{
+    var _ps = new URLSearchParams(location.search);
+    if(_ps.get("q")) qrPendienteRef = "COLMENAID|"+_ps.get("q");
+    else if(_ps.get("c")) qrPendienteRef = "COLMENA|"+_ps.get("c");
+  }catch(e){}
+  // Se guarda un momento en la sesión por si la app se recarga sola al actualizarse.
+  if(qrPendienteRef){
+    try{ sessionStorage.setItem("apicampoQR", qrPendienteRef); }catch(e){}
+    try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  } else {
+    try{ qrPendienteRef = sessionStorage.getItem("apicampoQR"); }catch(e){}
+  }
   // Se llama al arrancar, ya con los datos de la nube cargados.
   function abrirQRPendiente(){
     if(!qrPendienteRef) return;
-    var r = interpretarQR("COLMENA|"+qrPendienteRef);
+    var r = interpretarQR(qrPendienteRef);
     qrPendienteRef = null;
+    try{ sessionStorage.removeItem("apicampoQR"); }catch(e){}
     if(r.colmena) abrirColmenaDeQR(r.colmena);
     else toast(r.error);
   }
@@ -7888,7 +8051,10 @@
     // para que se vea de inmediato — así no hace falta desinstalar y volver a
     // instalar cada vez que se actualiza algo.
     var yaSeRecargoPorActualizacion = false;
+    // En la primera visita (sin versión anterior instalada) no hace falta recargar.
+    var habiaVersionInstalada = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener("controllerchange", function(){
+      if(!habiaVersionInstalada) return;
       if(yaSeRecargoPorActualizacion) return;
       yaSeRecargoPorActualizacion = true;
       window.location.reload();
@@ -7898,7 +8064,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "2.0";
+  var VERSION_APP = "2.1";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
@@ -7940,10 +8106,36 @@
   /* ============================================================
      12. ARRANQUE
      ============================================================ */
+  // La primera vez muestra el inicio; las siguientes (por ejemplo, cuando
+  // termina de llegar lo de la nube) solo refrescan la pantalla actual, sin
+  // sacar a la persona de donde está trabajando.
+  var appArrancada = false;
   function arrancarConDatosLocales(){
     renderApiarios();
-    cambiarTab("apiarios");
+    if(!appArrancada){
+      appArrancada = true;
+      cambiarTab("apiarios");
+    } else {
+      cambiarTab(tabActualNombre);
+    }
     abrirQRPendiente();
+  }
+
+  /* Arranque inmediato: si este teléfono ya tiene apiarios guardados, la app
+     abre de una vez con ellos (con o sin señal) y la nube se conecta por
+     detrás. Antes se esperaban hasta 15 segundos a la nube y, sin señal,
+     había que tocar "Seguir sin internet" cada vez. */
+  var arranqueLocalHecho = false;
+  function tieneDatosLocales(){
+    return !store.esDemo && store.apiarios && store.apiarios.length>0;
+  }
+  function arrancarSinEsperarNube(){
+    if(arranqueLocalHecho) return;
+    arranqueLocalHecho = true;
+    sincronizacionActiva = false;
+    actualizarAvisoSincronizacion();
+    ocultarAcceso();
+    arrancarConDatosLocales();
   }
 
   // Revisa, justo después de iniciar sesión, si alguien invitó a este correo
@@ -8000,7 +8192,9 @@
   // pide el número de teléfono; si ya hay sesión, trae lo que haya en la
   // nube, lo fusiona con lo local y arranca la app normal.
   function iniciarAppConNube(sync){
-    mostrarPasoAcceso("accesoCargando");
+    // Si la app ya abrió con los datos del teléfono, la conexión con la nube
+    // se hace por detrás, sin tapar la pantalla.
+    if(!arranqueLocalHecho) mostrarPasoAcceso("accesoCargando");
 
     var btnCerrarSesionApp = $("#btnCerrarSesionApp");
     if(btnCerrarSesionApp) btnCerrarSesionApp.onclick = function(){
@@ -8050,6 +8244,9 @@
           sincronizacionActiva = false;
           actualizarAvisoSincronizacion();
           arrancarConDatosLocales();
+          // Sin señal es lo normal en el apiario: no se interrumpe con un mensaje.
+          var sinSenal = navigator.onLine===false || (e && (e.code==="unavailable" || e.code==="deadline-exceeded"));
+          if(sinSenal) return;
           // Antes esto quedaba solo en la consola (invisible para quien no
           // sabe abrirla en el teléfono). Ahora se avisa en pantalla con el
           // motivo real, para poder diagnosticar por qué no sincronizó en
@@ -8195,6 +8392,8 @@
       return;
     }
     if(intentos<=0){
+      // Ya se está trabajando con los datos del teléfono: solo queda el aviso "Sin sincronizar".
+      if(arranqueLocalHecho) return;
       mostrarErrorConexionNube();
       return;
     }
@@ -8400,6 +8599,7 @@
   });
 
   mostrarPasoAcceso("accesoCargando");
+  if(tieneDatosLocales()) arrancarSinEsperarNube();
   esperarNube(150);
 
 })();

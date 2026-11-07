@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v68";
+var CACHE_NAME = "apicampo-cache-v69";
 
 /* Caché aparte para el modelo de voz offline (~34MB): no lleva número de
    versión de la app, así que NO se borra cuando la app se actualiza (ver
@@ -133,7 +133,8 @@ self.addEventListener("fetch", function(event){
       return fetch(req).then(function(res){
         var esExterno = EXTERNOS.some(function(u){ return req.url.indexOf(u.split("?")[0].split("&")[0]) === 0 || req.url === u; });
         var mismoOrigen = req.url.indexOf(self.location.origin) === 0;
-        if(res && (res.ok || res.type === "opaque") && (mismoOrigen || esExterno || req.url.indexOf("fonts.g") !== -1 || req.url.indexOf("cdnjs.cloudflare.com") !== -1)){
+        if(res && (res.ok || res.type === "opaque") && (mismoOrigen || esExterno || req.url.indexOf("fonts.g") !== -1 || req.url.indexOf("cdnjs.cloudflare.com") !== -1 ||
+            req.url.indexOf("https://www.gstatic.com/firebasejs/") === 0)){
           var copia = res.clone();
           caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copia); });
         }

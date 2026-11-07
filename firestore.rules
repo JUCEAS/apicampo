@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    function esDuenoOColaboradorDe(apiario) {
+      return apiario != null && estaAutenticado() &&
+        (request.auth.uid == apiario.propietarioId ||
+         request.auth.uid in apiario.get('colaboradoresUids', []));
+    }
+
+    function esDuenoDe(apiario) {
+      return apiario != null && estaAutenticado() && request.auth.uid == apiario.propietarioId;
+    }
+
+    function apiarioDe(apiarioId) {
+      return exists(/databases/$(database)/documents/apiarios/$(apiarioId))
+        ? get(/databases/$(database)/documents/apiarios/$(apiarioId)).data
+        : null;
+    }
+
+    function apiarioDespuesDe(apiarioId) {
+      return existsAfter(/databases/$(database)/documents/apiarios/$(apiarioId))
+        ? getAfter(/databases/$(database)/documents/apiarios/$(apiarioId)).data
+        : null;
+    }
+
+    function invitacionValidaPara(apiarioId) {
+      return estaAutenticado() && request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/invitaciones/$(apiarioId + '_' + request.auth.token.email));
+    }
+
+    function soloSeAgregaASiMismo(antes, despues) {
+      return despues.colaboradoresUids is list &&
+        despues.colaboradoresUids.size() == (antes.colaboradoresUids is list ? antes.colaboradoresUids.size() : 0) + 1 &&
+        request.auth.uid in despues.colaboradoresUids &&
+        (antes.colaboradoresUids is list ? despues.colaboradoresUids.hasAll(antes.colaboradoresUids) : true);
+    }
+
+    // CORRECCIÓN 1: nadie puede cambiar el dueño de un apiario.
+    function noCambiaDueno() {
+      return request.resource.data.propietarioId == resource.data.propietarioId;
+    }
+
+    // CORRECCIÓN 1: un colaborador puede editar el apiario (giras, socios,
+    // nombre...), pero no el dueño ni la lista de colaboradores.
+    function cambiosPermitidosAColaborador() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['propietarioId', 'colaboradoresUids', 'colaboradoresInfo']);
+    }
+
+    match /apiarios/{apiarioId} {
+      allow read: if esDuenoOColaboradorDe(resource.data);
+      allow create: if estaAutenticado() && request.resource.data.propietarioId == request.auth.uid;
+      allow update: if
+        (esDuenoDe(resource.data) && noCambiaDueno()) ||
+        (esDuenoOColaboradorDe(resource.data) && cambiosPermitidosAColaborador()) ||
+        (invitacionValidaPara(apiarioId) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['colaboradoresUids','colaboradoresInfo']) &&
+         soloSeAgregaASiMismo(resource.data, request.resource.data));
+      allow delete: if request.auth.uid == resource.data.propietarioId;
+    }
+
+    match /invitaciones/{invId} {
+      // CORRECCIÓN 2: solo el dueño real del apiario puede invitar a alguien.
+      allow create: if estaAutenticado() && request.resource.data.propietarioId == request.auth.uid &&
+        invId == request.resource.data.apiarioId + '_' + request.resource.data.correoInvitado &&
+        esDuenoDe(apiarioDe(request.resource.data.apiarioId));
+      allow read, delete: if estaAutenticado() &&
+        (request.auth.uid == resource.data.propietarioId || request.auth.token.email == resource.data.correoInvitado);
+      allow update: if false;
+    }
+
+    function coleccionHija(apiarioId) {
+      return esDuenoOColaboradorDe(apiarioDe(apiarioId));
+    }
+
+    function coleccionHijaAlEscribir(apiarioId) {
+      return esDuenoOColaboradorDe(apiarioDespuesDe(apiarioId));
+    }
+
+    // CORRECCIÓN 3: al editar un registro, el apiario nuevo también debe ser
+    // propio o compartido (antes se podía pasar un registro a un apiario ajeno).
+    match /colmenas/{docId} {
+      allow read, delete: if coleccionHija(resource.data.apiarioId);
+      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+    }
+    match /revisiones/{docId} {
+      allow read, delete: if coleccionHija(resource.data.apiarioId);
+      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+    }
+    match /tratamientos/{docId} {
+      allow read, delete: if coleccionHija(resource.data.apiarioId);
+      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+    }
+    match /alimentaciones/{docId} {
+      allow read, delete: if coleccionHija(resource.data.apiarioId);
+      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+    }
+    match /trabajos/{docId} {
+      allow read, delete: if coleccionHija(resource.data.apiarioId);
+      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+    }
+    match /cosechas/{docId} {
+      allow read, delete: if coleccionHija(resource.data.apiarioId);
+      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+    }
+
+    function documentoGeneralPropio(d) {
+      return estaAutenticado() && d.get('propietarioId', null) == request.auth.uid;
+    }
+
+    // Permiso sobre un documento que puede ser "general" (sin apiario) o de un apiario.
+    function puedeLeerGeneralOHijo(d) {
+      return d.get('apiarioId', null) == null ? documentoGeneralPropio(d) : coleccionHija(d.apiarioId);
+    }
+    function puedeEscribirGeneralOHijo(d) {
+      return d.get('apiarioId', null) == null
+        ? documentoGeneralPropio(d)
+        : (estaAutenticado() && coleccionHijaAlEscribir(d.apiarioId));
+    }
+
+    match /inversiones/{docId} {
+      allow read, delete: if puedeLeerGeneralOHijo(resource.data);
+      allow update: if puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
+      allow create: if puedeEscribirGeneralOHijo(request.resource.data);
+    }
+
+    match /notas/{docId} {
+      allow read, delete: if puedeLeerGeneralOHijo(resource.data);
+      allow update: if puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
+      allow create: if puedeEscribirGeneralOHijo(request.resource.data);
+    }
+  }
+}
