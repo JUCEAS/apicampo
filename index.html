@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.7</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.8</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -6000,6 +6000,9 @@
   var voskModel = null;        // instancia ya cargada en memoria (WASM)
   var voskListo = false;       // el modelo ya está descargado en el teléfono (no implica que esté cargado en memoria)
   var voskDescargando = false;
+  var CLAVE_VOZ_GUARDADA = "apicampo:vozGuardada";   // marca: alguna vez se guardó el modelo en este teléfono
+  var CLAVE_VOZ_INTENTO = "apicampo:vozIntentoAuto"; // última descarga automática (para no repetirla a cada rato)
+  var voskBorrado = false;                            // se guardó antes, pero el teléfono lo borró
   var voskRecognizer = null;
   var voskAudioCtx = null;
   var voskScriptNode = null;
@@ -6079,6 +6082,15 @@
     if(voskListo){
       cont.innerHTML = '<div class="vosk-ready">✓ Dictado sin señal listo — se usa solo cuando no hay internet</div>';
       $("#micHint").textContent = "Funciona con o sin señal.";
+      try{
+        if(navigator.storage && navigator.storage.persisted){
+          navigator.storage.persisted().then(function(p){
+            if(!p && voskListo && $("#voskPrep") && !$("#voskAvisoInstalar")){
+              $("#voskPrep").insertAdjacentHTML("beforeend", '<div id="voskAvisoInstalar" style="font-size:11.5px; color:var(--muted); text-align:center;">Para que el teléfono no lo borre: instala ApiCampo en tu pantalla de inicio (menú ⋮ › Instalar app).</div>');
+            }
+          });
+        }
+      }catch(e){}
       return;
     }
     if(voskDescargando){
@@ -6088,7 +6100,8 @@
         '<div style="font-size:11px; color:var(--muted); text-align:center; margin-top:4px;">No cierres la app mientras descarga (una sola vez, ~34&nbsp;MB).</div>';
       return;
     }
-    cont.innerHTML = '<button class="vosk-btn" id="btnPrepararVoz" type="button">⬇ Preparar dictado sin señal (34&nbsp;MB, una sola vez)</button>';
+    cont.innerHTML = (voskBorrado ? '<div style="font-size:12px; color:var(--critical); margin-bottom:6px;">El teléfono borró el modelo de voz (poco espacio o se limpiaron los datos del navegador). Instala ApiCampo en la pantalla de inicio para que no lo vuelva a borrar.</div>' : '') +
+      '<button class="vosk-btn" id="btnPrepararVoz" type="button">⬇ Preparar dictado sin señal (34&nbsp;MB, una sola vez)</button>';
     var btn = $("#btnPrepararVoz");
     if(btn) btn.addEventListener("click", function(){
       if(navigator.onLine===false){
@@ -6173,6 +6186,8 @@
       voskListo = true;
       renderVoskPrep();
       if(quedoGuardado){
+        try{ localStorage.setItem(CLAVE_VOZ_GUARDADA, String(Date.now())); }catch(e){}
+        voskBorrado = false;
         toast("Dictado sin señal listo");
       } else {
         toast("Dictado sin señal listo por ahora, pero no se pudo guardar de forma permanente — libera espacio en el teléfono y vuelve a prepararlo.");
@@ -6373,11 +6388,22 @@
   document.addEventListener("DOMContentLoaded", function(){
     hayModeloVozEnCache().then(function(listo){
       voskListo = listo;
+      try{ voskBorrado = !listo && !!localStorage.getItem(CLAVE_VOZ_GUARDADA); }catch(e){ voskBorrado = false; }
       renderVoskPrep();
       // Si ya estaba descargado de antes, reforzamos el pedido de espacio
       // protegido cada vez que se abre la app (no cuesta nada repetirlo).
-      if(listo) pedirAlmacenamientoPersistente();
-      else if(navigator.onLine!==false) descargarModeloVozAutomatico();
+      if(listo){ pedirAlmacenamientoPersistente(); return; }
+      if(navigator.onLine===false) return;
+      // Descarga automática solo si NO es con datos móviles (son 34 MB) y como
+      // máximo una vez cada 6 horas: antes, si el teléfono borraba el modelo,
+      // se bajaba otra vez en cada apertura de la app.
+      var c = navigator.connection;
+      var conDatos = !!(c && (c.type==="cellular" || c.saveData));
+      var ultimo = 0; try{ ultimo = parseInt(localStorage.getItem(CLAVE_VOZ_INTENTO)||"0",10)||0; }catch(e){}
+      var reciente = (Date.now()-ultimo) < 2*3600*1000;
+      if(conDatos || reciente) return;
+      try{ localStorage.setItem(CLAVE_VOZ_INTENTO, String(Date.now())); }catch(e){}
+      descargarModeloVozAutomatico();
     });
     if(!SpeechRecognitionCtor){
       var hint = $("#micHint");
@@ -8350,7 +8376,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.7";
+  var VERSION_APP = "3.8";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
