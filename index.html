@@ -157,6 +157,11 @@
     margin:0;
     line-height:1.1;
   }
+  header.topbar h1{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Dentro de un apiario: botón "‹ Inicio" a la izquierda y el nombre del apiario como título */
+  #app:not(.en-inicio) #topbarApiarioActivo{ order:-1; }
+  #app:not(.en-inicio) header.topbar .brand svg,
+  #app:not(.en-inicio) header.topbar .demo-pill{ display:none; }
   header.topbar .sub{
     font-size:12px;
     color:var(--muted);
@@ -246,6 +251,41 @@
     cursor:pointer;
   }
   nav.tabbar button svg{ width:21px; height:21px; }
+
+  /* ---------- Inicio: solo acciones principales y lista de apiarios ---------- */
+  #app.en-inicio nav.tabbar{ display:none; }
+  #app.en-inicio main{ padding-bottom:32px; }
+  .inicio-acciones{ display:grid; grid-template-columns:1.4fr 1fr; gap:10px; }
+  .inicio-acciones .btn{ padding:14px 10px; font-size:15px; }
+  .inicio-escanear{ display:flex; align-items:center; justify-content:center; gap:8px; padding:13px; font-size:14.5px; }
+  .apiario-fila{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left; cursor:pointer;
+    background:var(--surface); border:1.5px solid var(--line); border-radius:14px; padding:14px 14px;
+    font-family:inherit; color:var(--ink);
+  }
+  .apiario-fila:active{ background:var(--accent-soft); }
+  .apiario-fila .ico{ flex:none; width:40px; height:40px; border-radius:12px; background:var(--accent-soft); color:var(--accent-soft-ink); display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .apiario-fila .txt{ flex:1; min-width:0; }
+  .apiario-fila .nom{ display:block; font-size:16px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .apiario-fila .det{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+  .apiario-fila .flecha{ flex:none; color:var(--muted); font-size:22px; }
+  .apiario-fila .pend{ flex:none; background:var(--critical); color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 7px; }
+  details.apiario-opciones > summary{ cursor:pointer; list-style:none; font-size:13px; font-weight:600; color:var(--accent-soft-ink); padding:4px 0; }
+  details.apiario-opciones > summary::-webkit-details-marker{ display:none; }
+  details.apiario-opciones[open] > summary{ margin-bottom:8px; }
+
+  /* Cada pestaña ya está dentro de un apiario: no se elige apiario otra vez */
+  #chipsMapa, #chipsHistorialApiario, #chipsApiarioProduccion, #campoCosechaApiario{ display:none !important; }
+
+  /* ---------- Cámara QR incrustada ---------- */
+  .scan-inline{ position:relative; margin-top:10px; border-radius:14px; overflow:hidden; background:#000; aspect-ratio:4/3; }
+  .scan-inline[hidden]{ display:none; }
+  .scan-inline video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .scan-marco{ position:absolute; inset:14% 22%; border:2.5px solid rgba(255,255,255,.9); border-radius:16px; box-shadow:0 0 0 999px rgba(0,0,0,.25); }
+  .scan-inline.leido .scan-marco{ border-color:#5BD48A; }
+  .scan-msg{ font-size:12.5px; color:var(--muted); text-align:center; margin-top:6px; }
+  .scan-msg[hidden]{ display:none; }
+  .scan-msg.error{ color:var(--critical); font-weight:600; }
   nav.tabbar button.active{ color:var(--accent-soft-ink); background:var(--accent-soft); }
 
   /* ---------- Generic components ---------- */
@@ -801,7 +841,7 @@
   </div>
 </div>
 
-<div id="app">
+<div id="app" class="en-inicio">
 
   <header class="topbar">
     <div class="brand">
@@ -810,34 +850,36 @@
         <path d="M12 8 15.5 10V14L12 16 8.5 14V10L12 8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
       </svg>
       <div class="titles">
-        <h1>ApiCampo</h1>
-        <div class="sub" id="topbarSub">Registro de colmenas por dictado</div>
+        <h1 id="topbarTitulo">ApiCampo</h1>
+        <div class="sub" id="topbarSub">Tus apiarios</div>
       </div>
     </div>
     <button class="apiario-activo-pill" id="topbarApiarioActivo" hidden title="Cambiar el apiario en el que estás trabajando"></button>
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <span class="demo-pill">v1.0</span>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.0</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
   <main id="tab-apiarios">
-    <div class="row between">
-      <p class="section-title">Tus apiarios</p>
-      <div class="row" style="gap:8px;">
-        <button class="btn btn-line" id="btnSocios" style="padding:8px 12px;">👥 Socios</button>
-        <button class="btn btn-line" id="btnNuevoApiario" style="padding:8px 12px;">+ Nuevo</button>
-      </div>
+    <div class="inicio-acciones">
+      <button class="btn btn-primary" id="btnNuevoApiario">+ Nuevo apiario</button>
+      <button class="btn btn-line" id="btnSocios">👥 Socios</button>
     </div>
-    <div id="listaApiarios" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <button class="btn btn-line btn-block inicio-escanear" id="btnEscanearInicio">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      Escanear QR de una colmena
+    </button>
+    <p class="section-title" style="margin:4px 0 -6px;">Tus apiarios</p>
+    <div id="listaApiarios" style="display:flex; flex-direction:column; gap:8px;"></div>
 
-    <div id="warnOverlap"></div>
+    <div id="warnOverlap" hidden></div>
 
     <div class="card" id="cardInstalar" hidden style="background:var(--accent-soft); border-color:transparent;">
       <p class="section-title" style="margin-bottom:6px; color:var(--accent-soft-ink);">Instala ApiCampo en tu teléfono</p>
       <p style="font-size:12.5px; color:var(--accent-soft-ink); line-height:1.5; margin:0 0 10px;">
-        Se agrega un ícono a tu pantalla de inicio y abre como una app, sin barra del navegador — y ya queda lista para usarse sin internet.
+        Queda como app y funciona sin internet.
       </p>
       <button class="btn btn-primary btn-block" id="btnInstalarApp">Instalar app</button>
     </div>
@@ -848,18 +890,11 @@
       </p>
     </div>
 
-    <div class="card" style="background:var(--surface-2); border-style:dashed;">
-      <p class="section-title" style="margin-bottom:6px;">Sobre los datos de ejemplo</p>
-      <p style="font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 10px;">
-        Este prototipo trae dos apiarios y varias colmenas de ejemplo para que veas cómo se llena.
-        Los datos se guardan solo en este teléfono (en este navegador), no salen a ningún servidor.
-      </p>
-      <button class="btn btn-line btn-block" id="btnReset">Borrar todo y empezar de cero</button>
-    </div>
   </main>
 
   <!-- ===================== TAB: COLMENAS ===================== -->
   <main id="tab-colmenas" hidden>
+    <div id="apiarioDetalle"></div>
     <div class="row between" style="flex-wrap:wrap; row-gap:8px;">
       <p class="section-title" id="tituloColmenas">Colmenas</p>
       <div class="row" style="gap:6px; flex-wrap:wrap;">
@@ -893,9 +928,15 @@
         <p class="section-title">Colmena</p>
         <button class="btn-line btn" id="btnEscanear" style="padding:7px 11px; font-size:12.5px;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          Escanear QR
+          <span id="btnEscanearTxt">Abrir cámara</span>
         </button>
       </div>
+      <!-- Cámara incrustada: lee el QR de la colmena aquí mismo -->
+      <div class="scan-inline" id="scanInline" hidden>
+        <video id="scanInlineVideo" autoplay playsinline muted></video>
+        <div class="scan-marco"></div>
+      </div>
+      <div class="scan-msg" id="scanInlineMsg" hidden></div>
       <div class="hive-grid" id="hiveGridRevisar" style="margin-top:10px;"></div>
       <div class="empty" id="hiveEmptyRevisar" hidden>Agrega colmenas primero en la pestaña Colmenas.</div>
     </div>
@@ -921,7 +962,7 @@
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             </button>
             <div class="mic-status" id="micStatus">Toca para dictar</div>
-            <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;" id="micHint">El dictado usa reconocimiento en línea cuando hay señal. Prepara el modo sin señal abajo para dictar en el apiario.</div>
+            <div style="font-size:11px; color:var(--muted); text-align:center; margin-top:-4px;" id="micHint">Sin señal: prepara el dictado offline abajo.</div>
             <div id="voskPrep" style="width:100%; margin-top:2px;"></div>
           </div>
         </div>
@@ -951,7 +992,7 @@
         <div class="row between" style="margin-bottom:8px;">
           <p class="section-title" style="margin:0;">Marcos — <span id="marcosTituloTipo" class="mono"></span></p>
         </div>
-        <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Toca cada marco para marcar qué tiene. También puedes dictarlo: "marco 3 cría, marco 4 miel".</p>
+        <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Toca un marco o díctalo: "marco 3 cría".</p>
         <div class="frame-legend" style="margin-bottom:8px;">
           <span><span class="sw" style="background:var(--f-vacio);"></span>Vacío</span>
           <span><span class="sw" style="background:var(--f-cria);"></span>Cría</span>
@@ -975,7 +1016,7 @@
     <div class="wrap-chips" id="chipsMapa"></div>
     <button class="btn btn-line btn-block" id="btnMiUbicacion" style="margin:2px 0 8px;">📍 Mostrar mi ubicación en el mapa</button>
     <button class="btn btn-line btn-block" id="btnDescargarZonaMapa" style="margin:0 0 4px;">⬇ Descargar el mapa de esta zona para verlo sin señal</button>
-    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Elige arriba un apiario específico (no "Todos") y toca esto <b>antes de ir al campo, con señal o WiFi</b> — así el mapa de esa zona ya va a estar guardado en el teléfono cuando llegues sin cobertura. Tu punto azul ("Tú estás aquí") funciona sin señal de todas formas — es el fondo con calles/terreno lo que necesita esta descarga.</p>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Descárgalo con señal para verlo en el campo.</p>
     <div id="descargaZonaEstado"></div>
     <div class="card" style="padding:0; overflow:hidden;">
       <!-- position+z-index aquí (aparte del "overflow:hidden" de la tarjeta
@@ -985,16 +1026,14 @@
            quedaban pintados encima de la barra de pestañas de abajo. -->
       <div id="mapaLeaflet" style="width:100%; height:320px; position:relative; z-index:0;"></div>
       <div id="mapaOffline" hidden style="padding:16px;">
-        <p style="margin:0; font-size:13.5px; color:var(--muted);">El mapa necesita internet para cargar las calles y el terreno (se descargan de OpenStreetMap). Conéctate una vez y se guardará para consultarlo luego con menos señal.</p>
+        <p style="margin:0; font-size:13.5px; color:var(--muted);">El mapa necesita internet la primera vez.</p>
       </div>
       <div class="legend" style="margin:0; padding:10px 14px;">
         <span><span class="sw"></span>Radio 2.5 km (pecoreo habitual)</span>
         <span><span class="sw dash"></span>Radio 5 km (margen amplio)</span>
       </div>
     </div>
-    <p class="map-caption">
-      Mapa real (OpenStreetMap), calculado con las coordenadas de cada apiario. Toca un punto para ver su nombre y coordenadas.
-    </p>
+    <p class="map-caption">Toca un punto para ver sus datos.</p>
     <div id="mapaOverlapList" style="display:flex; flex-direction:column; gap:8px;"></div>
   </main>
 
@@ -1022,14 +1061,13 @@
     <div class="card">
       <p class="section-title" style="margin-bottom:8px;">Respaldo y restauración</p>
       <p style="font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
-        Todo lo que registras vive únicamente en este teléfono. Si lo pierdes, se daña o desinstalas la app sin haber
-        descargado un respaldo, esos datos no se pueden recuperar — descarga uno seguido (por ejemplo, cada vez que
-        cambias de apiario o después de una gira grande) y guárdalo en tu correo o en la nube.
+        Descarga un respaldo de vez en cuando y guárdalo en tu correo.
       </p>
       <button class="btn btn-primary btn-block" id="btnDescargarRespaldo" style="margin-bottom:8px;">⬇ Descargar respaldo (archivo .json)</button>
       <button class="btn btn-line btn-block" id="btnRestaurarRespaldo" style="margin-bottom:8px;">⬆ Restaurar desde un respaldo</button>
       <input type="file" id="inRestaurarArchivo" accept="application/json,.json" hidden>
-      <button class="btn btn-line btn-block" id="btnExportar">Ver / copiar todos los datos como texto</button>
+      <button class="btn btn-line btn-block" id="btnExportar" style="margin-bottom:8px;">Ver / copiar todos los datos como texto</button>
+      <button class="btn btn-line btn-block" id="btnReset" style="color:var(--critical); border-color:var(--critical);">Borrar todo y empezar de cero</button>
     </div>
   </main>
 
@@ -1037,9 +1075,7 @@
   <main id="tab-produccion" hidden>
     <div class="card">
       <p class="section-title" style="margin-bottom:8px;">Supuestos de cálculo</p>
-      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
-        Es una proyección, no la cosecha real: toma los marcos marcados como "miel" en la última revisión de cada colmena, calcula cuánta miel salen de ellos, y la convierte a botellas envasadas. Ajusta estos números a tu experiencia — un marco Langstroth profundo bien operculado suele rondar 2.5 a 3 kg de miel.
-      </p>
+      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">Proyección según los marcos de miel de la última revisión.</p>
       <div class="field">
         <label for="inKgMarco">Kg de miel por marco lleno</label>
         <input type="text" id="inKgMarco" inputmode="decimal">
@@ -1065,17 +1101,12 @@
       <div class="empty" id="prodEmpty" hidden>Ninguna colmena de este apiario tiene marcos de miel registrados todavía.</div>
     </div>
 
-    <p class="map-caption">
-      El rendimiento promedio nacional en Honduras ronda 17 kg por colmena al año, y puede subir a 25–30 kg con buen manejo
-      (Secretaría de Agricultura y Ganadería). Esa es una cosecha anual completa, distinta de este cálculo por marcos de una sola revisión — úsalo solo como referencia.
-    </p>
+    <p class="map-caption">Referencia Honduras: 17 kg por colmena al año (25–30 kg con buen manejo).</p>
 
     <div class="card" style="margin-top:14px;">
       <p class="section-title" style="margin-bottom:8px;">Registrar cosecha real</p>
-      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">
-        Lo de arriba es una proyección. Aquí anotas lo que de verdad envasaste — y si el apiario es en sociedad, se reparte solo en partes iguales entre los socios.
-      </p>
-      <div class="field">
+      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">Lo que de verdad envasaste. En sociedad se reparte entre los socios.</p>
+      <div class="field" id="campoCosechaApiario">
         <label for="selCosechaApiario">Apiario</label>
         <select id="selCosechaApiario" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px;"></select>
       </div>
@@ -1159,9 +1190,9 @@
   </main>
 
   <nav class="tabbar">
-    <button data-tab="apiarios" class="active">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.7"/></svg>
-      Apiarios
+    <button data-tab="apiarios">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7M6 9.5V20h12V9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Inicio
     </button>
     <button data-tab="colmenas">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8 15 9.7v3.6L12 15l-3-1.7V9.7L12 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -1276,7 +1307,7 @@
           <input type="text" id="inNumeroHasta" inputmode="numeric">
         </div>
       </div>
-      <p style="font-size:12px; color:var(--muted); margin:6px 0 0;">Se crea una colmena por cada número del rango, todas del mismo tipo. Si algún número ya existe en este apiario, se omite y no se duplica.</p>
+      <p style="font-size:12px; color:var(--muted); margin:6px 0 0;">Una colmena por número; los repetidos se omiten.</p>
     </div>
     <div class="field">
       <label>Tipo de colmena</label>
@@ -1333,7 +1364,7 @@
       <video id="scanVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
       <div style="position:absolute; inset:16%; border:2.5px solid rgba(255,255,255,0.85); border-radius:16px;"></div>
     </div>
-    <div id="scanMsg" style="font-size:12.5px; color:var(--muted); text-align:center;">Apunta la cámara al código QR de la colmena.</div>
+    <div id="scanMsg" class="scan-msg">Apunta la cámara al código QR de la colmena.</div>
     <button class="btn btn-line btn-block" id="btnCerrarScan">Cerrar</button>
   </div>
 </div>
@@ -1347,7 +1378,7 @@
 <div class="modal-backdrop" id="modalExport" hidden>
   <div class="modal">
     <h2>Todos tus datos</h2>
-    <p style="font-size:12.5px; color:var(--muted); margin:0;">Toca "Copiar" y pega este texto donde quieras guardarlo. Si necesitas restaurar unos datos guardados así, pégalos aquí encima y toca "Restaurar desde este texto".</p>
+    <p style="font-size:12.5px; color:var(--muted); margin:0;">Copia este texto y guárdalo como respaldo.</p>
     <textarea class="export-area mono" id="exportText"></textarea>
     <div class="row" style="gap:10px;">
       <button class="btn btn-line" style="flex:1;" id="btnCerrarExport">Cerrar</button>
@@ -1502,7 +1533,7 @@
 <div class="modal-backdrop" id="modalColaboradores" hidden>
   <div class="modal">
     <h2 id="colabTitulo">Colaboradores</h2>
-    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Las personas que agregues aquí verán y podrán registrar revisiones en este apiario desde su propia cuenta, sincronizado igual que en tu teléfono.</p>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Podrán ver y registrar revisiones desde su cuenta.</p>
     <p class="section-title" style="margin:0 0 6px;">Personas con acceso ahora</p>
     <div id="colabLista" style="margin-bottom:6px;"></div>
     <div class="empty" id="colabEmpty" hidden>Todavía nadie ha aceptado — cuando alguien acepte una invitación, va a aparecer aquí arriba, con su botón para quitarle el acceso.</div>
@@ -1518,7 +1549,7 @@
     </div>
     <button type="button" class="btn btn-primary btn-block" id="btnInvitarColaborador" style="margin-top:2px;">+ Crear invitación y avisar por WhatsApp</button>
     <p class="section-title" style="margin:14px 0 6px;">Invitaciones pendientes (todavía sin aceptar)</p>
-    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">La "✕" de aquí solo cancela la invitación — <b>no le quita el acceso a nadie que ya haya aceptado</b>. Cuando esa persona acepte, va a desaparecer de esta lista y va a aparecer arriba, en "Personas con acceso ahora"; es ahí donde se le puede quitar el acceso de verdad.</p>
+    <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">La ✕ cancela la invitación; no quita acceso a quien ya aceptó.</p>
     <div id="colabInvitacionesLista"></div>
     <div class="empty" id="colabInvitacionesEmpty" hidden>No hay invitaciones esperando respuesta.</div>
     <button class="btn btn-line btn-block" id="btnCerrarColaboradores" style="margin-top:12px;">Cerrar</button>
@@ -1529,7 +1560,7 @@
 <div class="modal-backdrop" id="modalSocios" hidden>
   <div class="modal">
     <h2>Socios</h2>
-    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Administra aquí a las personas con las que compartes apiarios, en vez de hacerlo apiario por apiario.</p>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Personas con las que compartes apiarios.</p>
 
     <p class="section-title" style="margin:0 0 6px;">Tus socios actuales</p>
     <div id="sociosLista" style="margin-bottom:6px;"></div>
@@ -2512,7 +2543,7 @@
         return limpiarDatosDemoResiduales(normalizarDatos(JSON.parse(raw)));
       }
     }catch(e){}
-    return seed();
+    return normalizarDatos(seed());
   }
   function guardar(){
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
@@ -2865,17 +2896,34 @@
     mapaModo = id || "todos";
     histApiario = id || "todos";
     prodApiarioFiltro = id || "todos";
+    notasFiltroActual = id || undefined;
     actualizarBannerApiarioActivo();
   }
 
-  // Pequeño indicador siempre visible de en qué apiario se está trabajando,
-  // con un toque directo a la pestaña Apiarios para cambiarlo.
+  // Abre la pantalla propia de un apiario (su barra de pestañas queda
+  // filtrada solo a ese apiario).
+  function abrirApiario(id, tab){
+    fijarApiarioActivo(id);
+    cambiarTab(tab || "colmenas");
+    window.scrollTo(0,0);
+  }
+
+  // Dentro de un apiario, el botón de arriba muestra su nombre y regresa al inicio.
   function actualizarBannerApiarioActivo(){
     var el = $("#topbarApiarioActivo");
     if(!el) return;
-    if(!apiarioActivo || !store.apiarios.length){ el.hidden = true; return; }
+    if(tabActualNombre==="apiarios" || !apiarioActivo || !store.apiarios.length){ el.hidden = true; return; }
     el.hidden = false;
-    el.textContent = "📍 "+apiarioNombre(apiarioActivo)+" · cambiar";
+    el.textContent = "‹ Inicio";
+  }
+
+  // Asegura que los filtros de cada pestaña apunten al apiario abierto.
+  function forzarFiltrosApiario(){
+    if(!apiarioActivo) return;
+    mapaModo = apiarioActivo;
+    histApiario = apiarioActivo;
+    prodApiarioFiltro = apiarioActivo;
+    if(notasFiltroActual !== null) notasFiltroActual = apiarioActivo;
   }
 
   var colmenaEnRevision = null;
@@ -2910,24 +2958,22 @@
       detenerDictadoSiEscuchando();
       dictadoBase = ""; dictadoAcumulado = "";
     }
+    // Fuera del inicio todo es de un apiario: si no hay ninguno abierto, se regresa al inicio.
+    if(tab!=="apiarios" && (!apiarioActivo || !store.apiarios.some(function(a){ return a.id===apiarioActivo; }))){
+      tab = "apiarios";
+    }
+    if(tab!=="revisar") detenerCamaraInline();
+    if(tab!=="apiarios") forzarFiltrosApiario();
     tabActualNombre = tab;
+    $("#app").classList.toggle("en-inicio", tab==="apiarios");
     $all("main[id^='tab-']").forEach(function(m){ m.hidden = (m.id !== "tab-"+tab); });
     $all("nav.tabbar button").forEach(function(b){ b.classList.toggle("active", b.dataset.tab===tab); });
-    var subs = {
-      apiarios:"Registro de colmenas por dictado",
-      colmenas: apiarioActivo? apiarioNombre(apiarioActivo) : "Selecciona un apiario",
-      revisar: "Dicta lo que ves y la ficha se llena sola",
-      mapa: "Radio de vuelo de las abejas",
-      historial: "Todas las revisiones",
-      produccion: "Proyección de miel e ingreso",
-      inversion: "Cuánto has comprado e invertido",
-      notas: "Recordatorios y pendientes, por voz"
-    };
-    $("#topbarSub").textContent = subs[tab]||"";
+    $("#topbarTitulo").textContent = tab==="apiarios" ? "ApiCampo" : apiarioNombre(apiarioActivo);
+    $("#topbarSub").textContent = tab==="apiarios" ? "Tus apiarios" : "ApiCampo";
     actualizarBannerApiarioActivo();
     if(tab==="apiarios") renderApiarios();
     if(tab==="colmenas") renderColmenas();
-    if(tab==="revisar"){ moverClusterMicA("micWrapRevisar","revision"); renderRevisarColmenas(); }
+    if(tab==="revisar"){ moverClusterMicA("micWrapRevisar","revision"); renderRevisarColmenas(); autoIniciarCamaraInline(); }
     if(tab==="mapa") renderMapa();
     if(tab==="historial") renderHistorial();
     if(tab==="produccion") renderProduccion();
@@ -2945,6 +2991,7 @@
   /* ============================================================
      5. TAB APIARIOS
      ============================================================ */
+  // Inicio: solo la lista de apiarios. Tocar uno abre su propia pantalla.
   function renderApiarios(){
     var wrap = $("#listaApiarios");
     wrap.innerHTML = "";
@@ -2953,14 +3000,38 @@
     }
     store.apiarios.forEach(function(ap){
       var n = colmenasDe(ap.id).length;
+      var pend = notasPendientesDe(ap.id).length;
+      var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
+      var fila = el("button",{class:"apiario-fila", type:"button"});
+      fila.innerHTML =
+        '<span class="ico">🐝</span>'+
+        '<span class="txt"><span class="nom">'+escaparHtml(ap.nombre)+'</span>'+
+        '<span class="det">'+n+' colmena'+(n===1?'':'s')+(esSociedad ? ' · 👥 '+ap.socios.length+' socios' : '')+'</span></span>'+
+        (pend ? '<span class="pend" title="Notas pendientes">⭐ '+pend+'</span>' : '')+
+        '<span class="flecha">›</span>';
+      fila.addEventListener("click", function(){ abrirApiario(ap.id); });
+      wrap.appendChild(fila);
+    });
+    renderApiarioDetalle();
+  }
+
+  // Tarjeta con los datos y opciones del apiario abierto (arriba de sus colmenas).
+  function renderApiarioDetalle(){
+    var wrap = $("#apiarioDetalle");
+    if(!wrap) return;
+    var abierto = !!wrap.querySelector("details.apiario-opciones[open]") && wrap.dataset.ap===apiarioActivo;
+    wrap.dataset.ap = apiarioActivo || "";
+    wrap.innerHTML = "";
+    var ap = store.apiarios.find(function(a){ return a.id===apiarioActivo; });
+    if(!ap) return;
+      var n = colmenasDe(ap.id).length;
       var esActivo = ap.id===apiarioActivo;
-      var card = el("div",{class:"card apiario-card"+(esActivo?" trabajando":"")});
+      var card = el("div",{class:"card apiario-card"});
       var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
       var proximaGira = esSociedad ? calcularProximoTurnoGira(ap) : null;
       var proximaGiraFecha = esSociedad ? fechaProximaGiraEstimada(ap) : null;
       var resumenTiposHtml = resumenTiposColmenasHtml(ap.id);
       card.innerHTML =
-        (esActivo ? '<span class="trabajando-tag">📍 Trabajando aquí</span>' : '')+
         '<div class="top">'+
           '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
           (resumenTiposHtml ? '<div class="mono" style="font-size:11px; color:var(--muted); text-align:right; line-height:1.5; white-space:nowrap;" title="Colmenas por tipo">'+resumenTiposHtml+'</div>' : '')+
@@ -2978,12 +3049,8 @@
           cambiarTab("notas");
         });
       }
-      var actions = el("div",{class:"row",style:"gap:8px; margin-top:2px;"});
-      var b1 = el("button",{class:"btn "+(esActivo?"btn-primary":"btn-line"), style:"flex:1; padding:8px; font-size:13px;", text: esActivo ? "✓ Trabajando aquí" : "Trabajar aquí"});
-      b1.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("colmenas"); });
-      var b2 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"Ver en mapa"});
-      b2.addEventListener("click", function(){ fijarApiarioActivo(ap.id); mapaModo = ap.id; cambiarTab("mapa"); });
-      actions.appendChild(b1); actions.appendChild(b2);
+      var actions = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
+
       // Un colaborador (no dueño) no puede borrar el apiario — las reglas de
       // Firestore ya lo rechazan del lado del servidor, pero si se dejara el
       // botón visible, el intento fallido de borrar dejaría ATASCADA toda la
@@ -2997,22 +3064,27 @@
         var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
         b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         b3.addEventListener("click", function(){ eliminarApiario(ap); });
+        b3.className = "btn btn-line"; b3.style.cssText = "flex:1; padding:8px; font-size:13px; color:var(--critical); border-color:var(--critical);";
+        b3.innerHTML = "🗑 Eliminar apiario";
         actions.appendChild(b3);
       }
-      card.appendChild(actions);
+      var opciones = el("details",{class:"apiario-opciones"});
+      opciones.appendChild(el("summary",{text:"⚙ Opciones del apiario"}));
+      if(abierto) opciones.open = true;
+      card.appendChild(opciones);
       var actions2 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
       var b5 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"✏️ Editar apiario"});
       b5.addEventListener("click", function(){ abrirModalEditarApiario(ap); });
       var b4 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"🛠 Registrar trabajo"});
       b4.addEventListener("click", function(){ abrirModalTrabajo(ap); });
       actions2.appendChild(b5); actions2.appendChild(b4);
-      card.appendChild(actions2);
+      opciones.appendChild(actions2);
       if(esSociedad){
         var actions3 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
         var b6 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"🚐 Turnos de gira"});
         b6.addEventListener("click", function(){ abrirModalGiras(ap); });
         actions3.appendChild(b6);
-        card.appendChild(actions3);
+        opciones.appendChild(actions3);
       }
       // Compartir el apiario con otra cuenta (un socio real, con su propio
       // correo) solo tiene sentido con sincronización en la nube activa, y
@@ -3022,11 +3094,10 @@
         var b7 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"👥 Colaboradores en la nube"});
         b7.addEventListener("click", function(){ abrirModalColaboradores(ap); });
         actions4.appendChild(b7);
-        card.appendChild(actions4);
+        opciones.appendChild(actions4);
       }
+      if(actions.children.length) opciones.appendChild(actions);
       wrap.appendChild(card);
-    });
-    renderOverlapWarning();
   }
 
   function renderOverlapWarning(){
@@ -3246,12 +3317,9 @@
     fijarApiarioActivo(ap.id);
     $("#modalApiario").hidden = true;
     apiarioEditando = null;
-    // Ya se guardó: se limpia el formulario y se regresa de forma explícita
-    // a la pantalla principal (Apiarios), sin depender de en qué pestaña
-    // estaba abierto el modal.
-    cambiarTab("apiarios");
+    // Ya se guardó: se abre de una vez la pantalla del apiario nuevo para agregarle colmenas.
     renderApiarios();
-    window.scrollTo(0,0);
+    abrirApiario(ap.id, "colmenas");
     toast("Apiario agregado");
   });
 
@@ -3678,6 +3746,7 @@
      6. TAB COLMENAS
      ============================================================ */
   function renderColmenas(){
+    renderApiarioDetalle();
     $("#tituloColmenas").textContent = apiarioActivo ? ("Colmenas — "+apiarioNombre(apiarioActivo)) : "Colmenas";
     var grid = $("#hiveGrid");
     grid.innerHTML = "";
@@ -3787,7 +3856,10 @@
     abrirDetalleColmena(c.id);
   });
 
-  function qrPayload(colmena){ return "COLMENA|"+colmena.apiarioId+"|"+colmena.numero; }
+  // El QR lleva un enlace a ApiCampo: así se puede leer con la cámara normal
+  // del teléfono (abre la app en esa colmena) o con la cámara dentro de la app.
+  var URL_APP_QR = "https://juceas.github.io/apicampo/";
+  function qrPayload(colmena){ return URL_APP_QR+"?c="+colmena.apiarioId+"~"+colmena.numero; }
 
   // Tamaño del código QR en la vista de impresión del navegador. Se genera al
   // doble de lo que se ve en pantalla (ver "width"/"height" abajo) para que
@@ -4351,6 +4423,7 @@
       store.esDemo = false;
       guardar();
       if(apiarioActivo===ap.id) fijarApiarioActivo(store.apiarios[0] ? store.apiarios[0].id : null);
+      cambiarTab("apiarios");
       renderApiarios();
       toast("Apiario \""+ap.nombre+"\" eliminado");
     });
@@ -4842,6 +4915,7 @@
     $("#cardDictado").style.display = "none";
     $("#cardSeleccionColmena").style.display = "";
     renderRevisarColmenas();
+    autoIniciarCamaraInline();
     var main = $("#tab-revisar");
     if(main && main.scrollIntoView) main.scrollIntoView({block:"start"});
     else window.scrollTo(0,0);
@@ -4858,6 +4932,7 @@
     detenerDictadoSiEscuchando();
     dictadoBase = ""; dictadoAcumulado = "";
     colmenaEnRevision = colmenaId;
+    detenerCamaraInline();
     var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
     renderRevisarColmenas();
     mostrarTarjetaRevision();
@@ -5516,7 +5591,7 @@
     }
     if(voskListo){
       cont.innerHTML = '<div class="vosk-ready">✓ Dictado sin señal listo — se usa solo cuando no hay internet</div>';
-      $("#micHint").textContent = "El dictado funciona con o sin señal — la app elige el modo sola.";
+      $("#micHint").textContent = "Funciona con o sin señal.";
       return;
     }
     if(voskDescargando){
@@ -5819,7 +5894,7 @@
     });
     if(!SpeechRecognitionCtor){
       var hint = $("#micHint");
-      if(hint) hint.textContent = "Este navegador no tiene dictado en línea — prepara el modo sin señal para poder dictar.";
+      if(hint) hint.textContent = "Prepara el dictado sin señal para poder dictar.";
     }
   });
 
@@ -5841,55 +5916,195 @@
     }, 500);
   }
 
-  /* ---- Escanear QR con la cámara ---- */
-  var scanStream = null, scanTimer = null;
-  $("#btnEscanear").addEventListener("click", function(){
-    $("#modalScan").hidden = false;
-    $("#scanMsg").textContent = "Apunta la cámara al código QR de la colmena.";
+  /* ---- Escanear QR con la cámara ----
+     Motor único para la cámara incrustada (pestaña Revisar) y para el
+     escáner del inicio. Usa el lector nativo del teléfono (BarcodeDetector,
+     muy rápido en Android) y, si no existe, jsQR sobre una imagen reducida. */
+  function crearLectorQR(){
+    var det = null;
+    try{
+      if("BarcodeDetector" in window) det = new window.BarcodeDetector({formats:["qr_code"]});
+    }catch(e){ det = null; }
+    var canvas = document.createElement("canvas");
+    var ctx = canvas.getContext("2d", {willReadFrequently:true});
+    return function leer(video){
+      if(video.readyState < 2 || !video.videoWidth) return Promise.resolve(null);
+      if(det){
+        return det.detect(video).then(function(r){ return (r && r[0] && r[0].rawValue) || null; })
+          .catch(function(){ det = null; return null; });
+      }
+      if(!window.jsQR) return Promise.resolve(null);
+      var esc = Math.min(1, 640/video.videoWidth);
+      canvas.width = Math.round(video.videoWidth*esc);
+      canvas.height = Math.round(video.videoHeight*esc);
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      var img = ctx.getImageData(0,0,canvas.width,canvas.height);
+      var r = window.jsQR(img.data, img.width, img.height, {inversionAttempts:"dontInvert"});
+      return Promise.resolve(r && r.data ? r.data : null);
+    };
+  }
+
+  function sonidoLecturaQR(){
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ac = new AC(), o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = 1200; g.gain.value = 0.08;
+      o.connect(g); g.connect(ac.destination); o.start();
+      setTimeout(function(){ o.stop(); ac.close(); }, 120);
+    }catch(e){}
+    if(navigator.vibrate) navigator.vibrate(60);
+  }
+
+  /* Enciende la cámara trasera en un <video> y llama alLeer(texto) con cada
+     código leído. Devuelve una función para apagarla. */
+  function iniciarCamaraQR(video, msgEl, alLeer){
+    var activo = true, stream = null, leer = crearLectorQR(), ultimo = "", ultimoT = 0;
+    function msg(t, error){ if(msgEl){ msgEl.hidden = false; msgEl.textContent = t; msgEl.classList.toggle("error", !!error); } }
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      $("#scanMsg").textContent = "Este navegador no puede usar la cámara aquí. Toca el número de la colmena en la lista.";
-      return;
+      msg("Este teléfono no permite usar la cámara aquí. Toca la colmena en la lista.", true);
+      return function(){};
     }
-    navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(stream){
-      scanStream = stream;
-      var video = $("#scanVideo");
-      video.srcObject = stream;
-      video.play();
-      var canvas = document.createElement("canvas");
-      var ctx = canvas.getContext("2d");
-      scanTimer = setInterval(function(){
-        if(!window.jsQR || video.readyState !== video.HAVE_ENOUGH_DATA) return;
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        var img = ctx.getImageData(0,0,canvas.width,canvas.height);
-        var code = window.jsQR(img.data, img.width, img.height);
-        if(code && code.data){
-          procesarQR(code.data);
-        }
-      }, 350);
-    }).catch(function(err){
-      $("#scanMsg").textContent = "No se pudo abrir la cámara. Toca el número de la colmena en la lista.";
+    msg("Apunta al código QR de la colmena.");
+    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:1280}}, audio:false})
+      .then(function(s){
+        if(!activo){ s.getTracks().forEach(function(t){ t.stop(); }); return; }
+        stream = s;
+        video.srcObject = s;
+        video.setAttribute("playsinline","");
+        var pl = video.play(); if(pl && pl.catch) pl.catch(function(){});
+        (function ciclo(){
+          if(!activo) return;
+          leer(video).then(function(texto){
+            if(!activo) return;
+            var ahora = Date.now();
+            if(texto && !(texto===ultimo && ahora-ultimoT<2500)){
+              ultimo = texto; ultimoT = ahora;
+              alLeer(texto);
+            }
+            setTimeout(ciclo, 150);
+          });
+        })();
+      })
+      .catch(function(err){
+        var negado = err && (err.name==="NotAllowedError" || err.name==="SecurityError");
+        msg(negado ? "Diste permiso negado a la cámara. Actívalo en los ajustes del navegador para ApiCampo." : "No se pudo abrir la cámara. Toca la colmena en la lista.", true);
+      });
+    return function detener(){
+      activo = false;
+      if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+      try{ video.srcObject = null; }catch(e){}
+    };
+  }
+
+  /* Interpreta el texto de un QR. Acepta las etiquetas viejas
+     ("COLMENA|apiarioId|numero") y las nuevas (enlace con ?c=apiarioId|numero,
+     que también abre ApiCampo desde la cámara normal del teléfono). */
+  function interpretarQR(data){
+    var t = String(data||"").trim(), ref = null;
+    if(t.indexOf("COLMENA|")===0){ ref = t.slice(8); }
+    else {
+      try{ var u = new URL(t); ref = u.searchParams.get("c"); }catch(e){ ref = null; }
+    }
+    if(!ref) return {error:"Ese código no es de una colmena de ApiCampo."};
+    var partes = ref.split(/[|~]/);
+    var apId = partes[0], num = parseInt(partes[1],10);
+    if(!apId || isNaN(num)) return {error:"Ese código no es de una colmena de ApiCampo."};
+    var c = store.colmenas.find(function(x){ return x.apiarioId===apId && x.numero===num; });
+    if(!c) return {error:"No encuentro la colmena #"+num+" en tus apiarios.", numero:num, apiarioId:apId};
+    return {colmena:c};
+  }
+
+  // Abre la colmena leída: su apiario, pestaña Revisar, lista para dictar.
+  function abrirColmenaDeQR(c){
+    if(apiarioActivo!==c.apiarioId) fijarApiarioActivo(c.apiarioId);
+    cambiarTab("revisar");
+    seleccionarColmenaRevision(c.id);
+    toast("Colmena #"+c.numero+" · "+apiarioNombre(c.apiarioId));
+  }
+
+  /* -- Cámara incrustada en la pestaña Revisar -- */
+  var detenerInline = null;
+  function camaraInlineEncendida(){ return !!detenerInline; }
+  function encenderCamaraInline(){
+    if(detenerInline) return;
+    $("#scanInline").hidden = false;
+    $("#scanInline").classList.remove("leido");
+    $("#btnEscanearTxt").textContent = "Cerrar cámara";
+    detenerInline = iniciarCamaraQR($("#scanInlineVideo"), $("#scanInlineMsg"), function(texto){
+      var r = interpretarQR(texto);
+      if(r.error){ $("#scanInlineMsg").hidden = false; $("#scanInlineMsg").textContent = r.error; $("#scanInlineMsg").classList.add("error"); return; }
+      sonidoLecturaQR();
+      $("#scanInline").classList.add("leido");
+      detenerCamaraInline();
+      abrirColmenaDeQR(r.colmena);
     });
+    try{ sessionStorage.removeItem("apicampoCamaraCerrada"); }catch(e){}
+  }
+  function detenerCamaraInline(){
+    if(detenerInline){ detenerInline(); detenerInline = null; }
+    var box = $("#scanInline"); if(box) box.hidden = true;
+    var m = $("#scanInlineMsg"); if(m){ m.hidden = true; m.classList.remove("error"); }
+    var b = $("#btnEscanearTxt"); if(b) b.textContent = "Abrir cámara";
+  }
+  $("#btnEscanear").addEventListener("click", function(){
+    if(camaraInlineEncendida()){
+      detenerCamaraInline();
+      try{ sessionStorage.setItem("apicampoCamaraCerrada","1"); }catch(e){}
+    } else encenderCamaraInline();
   });
+  // Al entrar a Revisar sin colmena elegida, la cámara se enciende sola si
+  // ya diste permiso (no vuelve a preguntar).
+  function autoIniciarCamaraInline(){
+    if(colmenaEnRevision || camaraInlineEncendida()) return;
+    if($("#cardSeleccionColmena").style.display==="none") return;
+    var cerradaAMano = false;
+    try{ cerradaAMano = sessionStorage.getItem("apicampoCamaraCerrada")==="1"; }catch(e){}
+    if(cerradaAMano) return;
+    if(!navigator.permissions || !navigator.permissions.query){ return; }
+    navigator.permissions.query({name:"camera"}).then(function(p){
+      if(p.state==="granted" && tabActualNombre==="revisar" && !colmenaEnRevision) encenderCamaraInline();
+    }).catch(function(){});
+  }
+  // Si la pantalla se apaga o se cambia de app, se suelta la cámara.
+  document.addEventListener("visibilitychange", function(){
+    if(document.hidden) detenerCamaraInline();
+    else if(tabActualNombre==="revisar") autoIniciarCamaraInline();
+  });
+
+  /* -- Escáner del inicio (pantalla completa) -- */
+  var detenerModal = null;
+  function abrirEscanerModal(){
+    $("#modalScan").hidden = false;
+    $("#scanMsg").classList.remove("error");
+    detenerModal = iniciarCamaraQR($("#scanVideo"), $("#scanMsg"), function(texto){
+      var r = interpretarQR(texto);
+      if(r.error){ $("#scanMsg").textContent = r.error; $("#scanMsg").classList.add("error"); return; }
+      sonidoLecturaQR();
+      cerrarScan();
+      abrirColmenaDeQR(r.colmena);
+    });
+  }
   function cerrarScan(){
     $("#modalScan").hidden = true;
-    if(scanTimer){ clearInterval(scanTimer); scanTimer = null; }
-    if(scanStream){ scanStream.getTracks().forEach(function(t){ t.stop(); }); scanStream = null; }
+    if(detenerModal){ detenerModal(); detenerModal = null; }
   }
+  $("#btnEscanearInicio").addEventListener("click", abrirEscanerModal);
   $("#btnCerrarScan").addEventListener("click", cerrarScan);
   $("#modalScan").addEventListener("click", function(e){ if(e.target===this) cerrarScan(); });
 
-  function procesarQR(data){
-    var partes = String(data).split("|");
-    if(partes[0]!=="COLMENA" || partes.length<3) return;
-    var apId = partes[1], num = parseInt(partes[2],10);
-    var c = store.colmenas.find(function(x){ return x.apiarioId===apId && x.numero===num; });
-    if(!c) return;
-    cerrarScan();
-    fijarApiarioActivo(apId);
-    renderRevisarColmenas();
-    seleccionarColmenaRevision(c.id);
-    toast("Colmena #"+num+" identificada por QR");
+  /* -- QR leído con la cámara normal del teléfono --
+     La etiqueta trae un enlace (…/apicampo/?c=apiarioId|numero). Al abrirlo,
+     ApiCampo espera a tener los datos (también los de la nube) y abre la colmena. */
+  var qrPendienteRef = null;
+  try{ qrPendienteRef = new URLSearchParams(location.search).get("c"); }catch(e){}
+  if(qrPendienteRef){ try{ history.replaceState(null, "", location.pathname); }catch(e){} }
+  // Se llama al arrancar, ya con los datos de la nube cargados.
+  function abrirQRPendiente(){
+    if(!qrPendienteRef) return;
+    var r = interpretarQR("COLMENA|"+qrPendienteRef);
+    qrPendienteRef = null;
+    if(r.colmena) abrirColmenaDeQR(r.colmena);
+    else toast(r.error);
   }
 
   /* ============================================================
@@ -6839,7 +7054,7 @@
   function inicializarFormCosecha(){
     if(!$("#inCosechaFecha").value){ $("#inCosechaFecha").value = new Date().toISOString().slice(0,10); }
     var actual = $("#selCosechaApiario").value;
-    poblarSelectApiarioCosecha(actual || (prodApiarioFiltro!=="todos" ? prodApiarioFiltro : (apiarioActivo||"")));
+    poblarSelectApiarioCosecha(apiarioActivo || actual || "");
     actualizarRepartoPreviewCosecha();
   }
   $("#selCosechaApiario").addEventListener("change", actualizarRepartoPreviewCosecha);
@@ -6975,6 +7190,7 @@
   var CATEGORIAS_INVERSION = GRUPOS_INVERSION.reduce(function(acc,g){ return acc.concat(g.items); }, []);
   var inversionCategoriaSel = CATEGORIAS_INVERSION[0];
   var inversionFiltro = "todas";
+  var inversionAlcance = "apiario"; // "apiario" = solo el apiario abierto · "generales" = compras sin apiario
   var inversionVista = "pendiente"; // "pendiente" = por comprar (proyección) · "historial" = ya confirmadas
   var fechaInversionContexto = null;
 
@@ -7219,6 +7435,10 @@
       var tb = confirmadas ? (b.fechaCompra||b.fecha) : b.fecha;
       return tb-ta;
     });
+    // Solo las compras del apiario abierto (o las generales, si se eligió ese chip).
+    lista = lista.filter(function(i){
+      return inversionAlcance==="generales" ? !i.apiarioId : i.apiarioId===apiarioActivo;
+    });
     if(inversionFiltro==="todas") return lista;
     return lista.filter(function(i){ return i.categoria===inversionFiltro; });
   }
@@ -7233,6 +7453,12 @@
 
     var wrap = $("#chipsCategoriaInversion");
     wrap.innerHTML = "";
+    [["apiario","Este apiario"],["generales","Compras generales"]].forEach(function(o){
+      var ch = el("button",{class:"chip"+(inversionAlcance===o[0]?" active":""), text:o[1]});
+      ch.addEventListener("click", function(){ inversionAlcance=o[0]; renderInversion(); });
+      wrap.appendChild(ch);
+    });
+    wrap.appendChild(el("span",{style:"flex-basis:100%; height:0;"}));
     var chipTodas = el("button",{class:"chip"+(inversionFiltro==="todas"?" active":""), text:"Todas"});
     chipTodas.addEventListener("click", function(){ inversionFiltro="todas"; renderInversion(); });
     wrap.appendChild(chipTodas);
@@ -7644,9 +7870,18 @@
      ============================================================ */
   if("serviceWorker" in navigator){
     window.addEventListener("load", function(){
-      navigator.serviceWorker.register("sw.js").then(function(reg){
-        // Cada vez que se abre la app, revisa si hay una versión nueva publicada.
+      navigator.serviceWorker.register("sw.js", {updateViaCache:"none"}).then(function(reg){
+        // Cada vez que se abre la app (y cada vez que se vuelve a ella), revisa si hay una versión nueva.
         reg.update().catch(function(){});
+        document.addEventListener("visibilitychange", function(){
+          if(!document.hidden) reg.update().catch(function(){});
+        });
+        reg.addEventListener("updatefound", function(){
+          var nuevo = reg.installing;
+          if(nuevo) nuevo.addEventListener("statechange", function(){
+            if(nuevo.state==="installed" && navigator.serviceWorker.controller) nuevo.postMessage("activar-ya");
+          });
+        });
       }).catch(function(){ /* si falla, la app sigue funcionando en el navegador */ });
     });
     // En cuanto la versión nueva queda activa, recarga la página una sola vez
@@ -7659,6 +7894,28 @@
       window.location.reload();
     });
   }
+
+  /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
+     datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
+     bajar de internet. */
+  var VERSION_APP = "2.0";
+  $("#btnVersionApp").addEventListener("click", function(){
+    if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
+    confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
+      if(!ok) return;
+      toast("Actualizando…");
+      var tareas = [];
+      if(window.caches) tareas.push(caches.keys().then(function(ns){
+        return Promise.all(ns.filter(function(n){ return n.indexOf("apicampo-cache")===0; }).map(function(n){ return caches.delete(n); }));
+      }));
+      if(navigator.serviceWorker) tareas.push(navigator.serviceWorker.getRegistrations().then(function(rs){
+        return Promise.all(rs.map(function(r){ return r.unregister(); }));
+      }));
+      Promise.all(tareas).catch(function(){}).then(function(){
+        location.replace(location.pathname+"?v="+Date.now());
+      });
+    });
+  });
 
   var enStandalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   var eventoInstalacion = null;
@@ -7686,6 +7943,7 @@
   function arrancarConDatosLocales(){
     renderApiarios();
     cambiarTab("apiarios");
+    abrirQRPendiente();
   }
 
   // Revisa, justo después de iniciar sesión, si alguien invitó a este correo
@@ -7970,7 +8228,7 @@
     });
   }
   function notasPendientesDe(apiarioId){
-    return store.notas.filter(function(n){ return !n.hecha && (n.apiarioId||null)===apiarioId; });
+    return (store.notas||[]).filter(function(n){ return !n.hecha && (n.apiarioId||null)===apiarioId; });
   }
   // "data-ir-notas" marca el botón que, al tocarlo, lleva directo a la
   // pestaña Notas ya filtrada a este apiario — ver el listener que se agrega
@@ -8027,23 +8285,22 @@
       var opt = el("option",{value:ap.id, text:ap.nombre});
       sel.appendChild(opt);
     });
-    if(actual) sel.value = actual;
+    // Por defecto, el apiario abierto (respeta "General" si se eligió en este mismo apiario).
+    sel.value = (actual==="" && sel.dataset.ap===apiarioActivo) ? "" : (apiarioActivo || "");
+    sel.dataset.ap = apiarioActivo || "";
   }
 
   function renderChipsNotas(){
     var wrap = $("#chipsNotas");
     wrap.innerHTML = "";
-    var chipTodas = el("button",{class:"chip"+(notasFiltroActual===undefined?" active":""), type:"button", text:"Todas"});
-    chipTodas.addEventListener("click", function(){ notasFiltroActual = undefined; renderNotas(); });
-    wrap.appendChild(chipTodas);
-    var chipGeneral = el("button",{class:"chip"+(notasFiltroActual===null?" active":""), type:"button", text:"General"});
+    // Dentro de un apiario: sus notas, o las generales (sin apiario).
+    if(notasFiltroActual!==null) notasFiltroActual = apiarioActivo;
+    var chipAp = el("button",{class:"chip"+(notasFiltroActual===apiarioActivo?" active":""), type:"button", text:"Este apiario"});
+    chipAp.addEventListener("click", function(){ notasFiltroActual = apiarioActivo; renderNotas(); });
+    wrap.appendChild(chipAp);
+    var chipGeneral = el("button",{class:"chip"+(notasFiltroActual===null?" active":""), type:"button", text:"Generales"});
     chipGeneral.addEventListener("click", function(){ notasFiltroActual = null; renderNotas(); });
     wrap.appendChild(chipGeneral);
-    store.apiarios.forEach(function(ap){
-      var chip = el("button",{class:"chip"+(notasFiltroActual===ap.id?" active":""), type:"button", text:ap.nombre});
-      chip.addEventListener("click", function(){ notasFiltroActual = ap.id; renderNotas(); });
-      wrap.appendChild(chip);
-    });
   }
 
   function etiquetaApiarioNota(n){

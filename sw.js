@@ -2,7 +2,7 @@
    Objetivo: que la app abra y funcione aunque no haya internet,
    incluso si el teléfono estuvo apagado o sin señal desde la instalación. */
 
-var CACHE_NAME = "apicampo-cache-v67";
+var CACHE_NAME = "apicampo-cache-v68";
 
 /* Caché aparte para el modelo de voz offline (~34MB): no lleva número de
    versión de la app, así que NO se borra cuando la app se actualiza (ver
@@ -83,7 +83,9 @@ self.addEventListener("fetch", function(event){
 
   if(req.mode === "navigate"){
     event.respondWith(
-      fetch(req).then(function(res){
+      // cache:"no-store": siempre trae la página recién publicada (GitHub Pages
+      // deja que el navegador guarde la vieja hasta 10 minutos si no se pide así).
+      fetch(req, {cache:"no-store"}).then(function(res){
         var copia = res.clone();
         caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copia); });
         return res;
@@ -139,4 +141,9 @@ self.addEventListener("fetch", function(event){
       }).catch(function(){});
     })
   );
+});
+
+/* La app puede pedir que el service worker nuevo se active de una vez. */
+self.addEventListener("message", function(event){
+  if(event.data === "activar-ya") self.skipWaiting();
 });
