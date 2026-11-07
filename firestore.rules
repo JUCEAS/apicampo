@@ -34,13 +34,13 @@ service cloud.firestore {
     function duenoVigente(apiarioId) {
       return planVigenteDeUid(apiarioDespuesDe(apiarioId).propietarioId);
     }
-    // Invitar socios: solo plan Pro Sociedades (o la prueba gratis) vigente.
+    // Invitar socios: solo plan Pro Sociedades vigente (la prueba gratis no lo incluye).
     function puedeInvitar() {
       return esAdmin() ||
         (estaAutenticado() &&
          exists(/databases/$(database)/documents/planes/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.vence > request.time.toMillis() &&
-         get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.plan in ['pro','prueba']);
+         get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.plan == 'pro');
     }
 
     function esDuenoOColaboradorDe(apiario) {
