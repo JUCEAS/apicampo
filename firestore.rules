@@ -18,8 +18,10 @@ service cloud.firestore {
     function membresiaVigente() {
       return esAdmin() ||
         (estaAutenticado() &&
-         exists(/databases/$(database)/documents/planes/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.vence > request.time.toMillis());
+         ((exists(/databases/$(database)/documents/planes/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.vence > request.time.toMillis()) ||
+          (exists(/databases/$(database)/documents/provisional/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/provisional/$(request.auth.uid)).data.hasta > request.time.toMillis())));
     }
 
     function esDuenoOColaboradorDe(apiario) {
@@ -77,6 +79,29 @@ service cloud.firestore {
         request.resource.data.vence <= request.time.toMillis() + 31 * 86400000;
       allow update, delete: if esAdmin();
       allow create: if esAdmin();
+    }
+
+    // Activación provisional de 3 días mientras se revisa un comprobante.
+    // La persona solo puede crearla una vez; el administrador puede reiniciarla.
+    match /provisional/{uid} {
+      allow read: if estaAutenticado() && (request.auth.uid == uid || esAdmin());
+      allow create: if estaAutenticado() && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['hasta']) &&
+        request.resource.data.hasta <= request.time.toMillis() + 3 * 86400000 + 3600000;
+      allow write: if esAdmin();
+    }
+
+    // Comprobantes de pago (foto reducida dentro del documento).
+    match /pagos/{pagoId} {
+      allow read: if estaAutenticado() && (resource.data.uid == request.auth.uid || esAdmin());
+      allow create: if estaAutenticado() &&
+        request.resource.data.keys().hasOnly(['uid','correo','plan','periodo','monto','foto','estado','creado']) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.estado == 'pendiente' &&
+        request.resource.data.plan in ['basico','pro'] &&
+        request.resource.data.periodo in ['mes','anio'] &&
+        request.resource.data.foto is string && request.resource.data.foto.size() < 600000;
+      allow update, delete: if esAdmin();
     }
 
     // Datos de pago (WhatsApp, cuenta) que ve cada usuario; solo el admin los cambia.
