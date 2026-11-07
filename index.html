@@ -233,7 +233,7 @@
     border-top:1px solid var(--line);
     padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
     display:grid;
-    grid-template-columns:repeat(6,1fr);
+    grid-template-columns:repeat(5,1fr);
     gap:2px;
   }
   nav.tabbar button{
@@ -270,9 +270,19 @@
   .apiario-fila .det{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
   .apiario-fila .flecha{ flex:none; color:var(--muted); font-size:22px; }
   .apiario-fila .pend{ flex:none; background:var(--critical); color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 7px; }
-  details.apiario-opciones > summary{ cursor:pointer; list-style:none; font-size:13px; font-weight:600; color:var(--accent-soft-ink); padding:4px 0; }
-  details.apiario-opciones > summary::-webkit-details-marker{ display:none; }
-  details.apiario-opciones[open] > summary{ margin-bottom:8px; }
+
+  /* ---------- Pestaña Datos del apiario ---------- */
+  .dato-card{ display:flex; flex-direction:column; gap:0; }
+  .dato-card .section-title{ margin:0 0 6px; }
+  .dato-fila{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .dato-fila:last-child{ border-bottom:none; }
+  .dato-k{ color:var(--muted); flex:none; }
+  .dato-v{ text-align:right; min-width:0; word-break:break-word; }
+  .dato-sub{ color:var(--muted); font-size:13px; }
+  .dato-vacio{ color:var(--muted); font-style:italic; }
+  .dato-acciones{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .dato-btn{ padding:13px 8px; font-size:14px; }
+  .dato-peligro{ margin-top:12px; width:100%; color:var(--critical); border-color:var(--critical); }
 
   /* Cada pestaña ya está dentro de un apiario: no se elige apiario otra vez */
   #chipsMapa, #chipsHistorialApiario, #chipsApiarioProduccion, #campoCosechaApiario{ display:none !important; }
@@ -858,7 +868,7 @@
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.1</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.2</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -894,7 +904,6 @@
 
   <!-- ===================== TAB: COLMENAS ===================== -->
   <main id="tab-colmenas" hidden>
-    <div id="apiarioDetalle"></div>
     <div class="row between" style="flex-wrap:wrap; row-gap:8px;">
       <p class="section-title" id="tituloColmenas">Colmenas</p>
       <div class="row" style="gap:6px; flex-wrap:wrap;">
@@ -1151,6 +1160,11 @@
     <div id="inversionRepartoSocios"></div>
   </main>
 
+  <!-- ===================== TAB: DATOS DEL APIARIO ===================== -->
+  <main id="tab-datos" hidden>
+    <div id="apiarioDetalle" style="display:flex; flex-direction:column; gap:12px;"></div>
+  </main>
+
   <!-- ===================== TAB: NOTAS ===================== -->
   <main id="tab-notas" hidden>
     <div class="wrap-chips" id="chipsNotas"></div>
@@ -1193,6 +1207,10 @@
     <button data-tab="apiarios">
       <svg viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7M6 9.5V20h12V9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Inicio
+    </button>
+    <button data-tab="datos">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor"/></svg>
+      Datos
     </button>
     <button data-tab="colmenas">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8 15 9.7v3.6L12 15l-3-1.7V9.7L12 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -3111,6 +3129,7 @@
     actualizarBannerApiarioActivo();
     if(tab==="apiarios") renderApiarios();
     if(tab==="colmenas") renderColmenas();
+    if(tab==="datos") renderApiarioDetalle();
     if(tab==="revisar"){ moverClusterMicA("micWrapRevisar","revision"); renderRevisarColmenas(); autoIniciarCamaraInline(); }
     if(tab==="mapa") renderMapa();
     if(tab==="historial") renderHistorial();
@@ -3153,89 +3172,91 @@
     renderApiarioDetalle();
   }
 
-  // Tarjeta con los datos y opciones del apiario abierto (arriba de sus colmenas).
+  // Pestaña "Datos": ficha y opciones del apiario abierto, siempre a la vista.
   function renderApiarioDetalle(){
     var wrap = $("#apiarioDetalle");
     if(!wrap) return;
-    var abierto = !!wrap.querySelector("details.apiario-opciones[open]") && wrap.dataset.ap===apiarioActivo;
-    wrap.dataset.ap = apiarioActivo || "";
     wrap.innerHTML = "";
     var ap = store.apiarios.find(function(a){ return a.id===apiarioActivo; });
     if(!ap) return;
-      var n = colmenasDe(ap.id).length;
-      var esActivo = ap.id===apiarioActivo;
-      var card = el("div",{class:"card apiario-card"});
-      var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
-      var proximaGira = esSociedad ? calcularProximoTurnoGira(ap) : null;
-      var proximaGiraFecha = esSociedad ? fechaProximaGiraEstimada(ap) : null;
-      var resumenTiposHtml = resumenTiposColmenasHtml(ap.id);
-      card.innerHTML =
-        '<div class="top">'+
-          '<div><h3>'+escaparHtml(ap.nombre)+'</h3><div class="coords mono">'+ap.lat.toFixed(4)+', '+ap.lng.toFixed(4)+'</div></div>'+
-          (resumenTiposHtml ? '<div class="mono" style="font-size:11px; color:var(--muted); text-align:right; line-height:1.5; white-space:nowrap;" title="Colmenas por tipo">'+resumenTiposHtml+'</div>' : '')+
-        '</div>'+
-        (ap.senasa ? '<div class="coords mono" style="margin-top:-2px;" title="Número de registro SENASA">SENASA: '+escaparHtml(ap.senasa)+'</div>' : '')+
-        (esSociedad ? '<div class="badge-sociedad" title="'+escaparHtml(ap.socios.map(function(s){return s.nombre;}).join(", "))+'">👥 '+ap.socios.length+' socios</div>' : '')+
-        (proximaGira ? '<p style="font-size:11.5px; color:var(--muted); margin:4px 0 0;">🚐 Próxima gira: <b>'+escaparHtml(proximaGira.nombre)+'</b>'+(proximaGiraFecha ? ' · aprox. '+fechaCorta(proximaGiraFecha) : '')+'</p>' : '')+
-        '<div class="stat-mini"><span><b>'+n+'</b> colmenas</span><span>radio de vuelo hasta <b>5 km</b></span></div>'+
-        notasPendientesApiarioHtml(ap.id)+
-        ultimoTrabajoHtml(ap.id);
-      var btnNotasAp = card.querySelector("[data-ir-notas]");
-      if(btnNotasAp){
-        btnNotasAp.addEventListener("click", function(){
-          notasFiltroActual = ap.id;
-          cambiarTab("notas");
-        });
-      }
-      var actions = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
+    var n = colmenasDe(ap.id).length;
+    var esSociedad = ap.modoPropiedad==="sociedad" && ap.socios && ap.socios.length>0;
+    var esDueno = !ap.propietarioId || uidUsuarioNube()===ap.propietarioId;
+    var tipos = (resumenTiposColmenasHtml(ap.id)||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 
-      // Un colaborador (no dueño) no puede borrar el apiario — las reglas de
-      // Firestore ya lo rechazan del lado del servidor, pero si se dejara el
-      // botón visible, el intento fallido de borrar dejaría ATASCADA toda la
-      // sincronización de esa persona (un solo intento de escritura sin
-      // permiso hace fallar el lote completo de sincronizar(), no solo esa
-      // operación). Por eso aquí ni se ofrece el botón. Ya no hay excepción
-      // para la cuenta admin — a partir de ahora se trata exactamente igual
-      // que cualquier otra cuenta (ver nota en consultasPara()).
-      var puedeEliminarApiario = !ap.propietarioId || uidUsuarioNube()===ap.propietarioId;
-      if(puedeEliminarApiario){
-        var b3 = el("button",{class:"icon-btn", style:"color:var(--critical);", title:"Eliminar apiario", "aria-label":"Eliminar apiario"});
-        b3.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-        b3.addEventListener("click", function(){ eliminarApiario(ap); });
-        b3.className = "btn btn-line"; b3.style.cssText = "flex:1; padding:8px; font-size:13px; color:var(--critical); border-color:var(--critical);";
-        b3.innerHTML = "🗑 Eliminar apiario";
-        actions.appendChild(b3);
-      }
-      var opciones = el("details",{class:"apiario-opciones"});
-      opciones.appendChild(el("summary",{text:"⚙ Opciones del apiario"}));
-      if(abierto) opciones.open = true;
-      card.appendChild(opciones);
-      var actions2 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
-      var b5 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"✏️ Editar apiario"});
-      b5.addEventListener("click", function(){ abrirModalEditarApiario(ap); });
-      var b4 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"🛠 Registrar trabajo"});
-      b4.addEventListener("click", function(){ abrirModalTrabajo(ap); });
-      actions2.appendChild(b5); actions2.appendChild(b4);
-      opciones.appendChild(actions2);
-      if(esSociedad){
-        var actions3 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
-        var b6 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"🚐 Turnos de gira"});
-        b6.addEventListener("click", function(){ abrirModalGiras(ap); });
-        actions3.appendChild(b6);
-        opciones.appendChild(actions3);
-      }
-      // Compartir el apiario con otra cuenta (un socio real, con su propio
-      // correo) solo tiene sentido con sincronización en la nube activa, y
-      // solo el dueño puede invitar o quitar colaboradores.
-      if(sincronizacionActiva && ap.propietarioId && uidUsuarioNube()===ap.propietarioId){
-        var actions4 = el("div",{class:"row",style:"gap:8px; margin-top:6px;"});
-        var b7 = el("button",{class:"btn btn-line", style:"flex:1; padding:8px; font-size:13px;", text:"👥 Colaboradores en la nube"});
-        b7.addEventListener("click", function(){ abrirModalColaboradores(ap); });
-        actions4.appendChild(b7);
-        opciones.appendChild(actions4);
-      }
-      if(actions.children.length) opciones.appendChild(actions);
-      wrap.appendChild(card);
+    function fila(etiqueta, valorHtml){
+      return '<div class="dato-fila"><span class="dato-k">'+etiqueta+'</span><span class="dato-v">'+valorHtml+'</span></div>';
+    }
+    function boton(texto, fn, extra){
+      var b = el("button",{class:"btn btn-line dato-btn"+(extra?" "+extra:""), type:"button", text:texto});
+      b.addEventListener("click", fn);
+      return b;
+    }
+
+    // 1. Ficha
+    var ficha = el("div",{class:"card dato-card"});
+    ficha.innerHTML =
+      '<p class="section-title">Ficha del apiario</p>'+
+      fila("Nombre", '<b>'+escaparHtml(ap.nombre)+'</b>')+
+      fila("Ubicación", '<span class="mono">'+ap.lat.toFixed(5)+', '+ap.lng.toFixed(5)+'</span>')+
+      fila("Registro SENASA", ap.senasa ? '<span class="mono">'+escaparHtml(ap.senasa)+'</span>' : '<span class="dato-vacio">Sin registrar</span>')+
+      fila("Propiedad", esSociedad ? 'Sociedad · '+ap.socios.length+' socios' : 'Individual')+
+      fila("Colmenas", '<b>'+n+'</b>'+(tipos && n ? ' <span class="dato-sub">('+escaparHtml(tipos.replace(/Total:\s*\d+/i,"").trim())+')</span>' : ''))+
+      fila("Radio de vuelo", 'hasta 5 km')+
+      (ap.creado ? fila("Registrado", fechaCorta(ap.creado)) : '');
+    wrap.appendChild(ficha);
+
+    // 2. Socios y giras (solo si es en sociedad)
+    if(esSociedad){
+      var proximaGira = calcularProximoTurnoGira(ap);
+      var proximaGiraFecha = fechaProximaGiraEstimada(ap);
+      var soc = el("div",{class:"card dato-card"});
+      soc.innerHTML = '<p class="section-title">Socios</p>'+
+        ap.socios.map(function(s){
+          return fila(escaparHtml(s.nombre), s.telefono ? '<a href="tel:'+escaparHtml(s.telefono)+'">'+escaparHtml(s.telefono)+'</a>' : '');
+        }).join('')+
+        (proximaGira ? fila("Próxima gira", '<b>'+escaparHtml(proximaGira.nombre)+'</b>'+(proximaGiraFecha ? ' · aprox. '+fechaCorta(proximaGiraFecha) : '')) : '');
+      wrap.appendChild(soc);
+    }
+
+    // 3. Compartido en la nube (solo lo ve el dueño)
+    var colabs = ap.colaboradoresInfo || [];
+    if(sincronizacionActiva && esDueno && colabs.length){
+      var com = el("div",{class:"card dato-card"});
+      com.innerHTML = '<p class="section-title">Compartido con</p>'+
+        colabs.map(function(c){ return '<div class="dato-fila"><span class="dato-v">'+escaparHtml(c.correo||c.uid||"")+'</span></div>'; }).join('');
+      wrap.appendChild(com);
+    }
+
+    // 4. Actividad
+    var actividad = notasPendientesApiarioHtml(ap.id) + ultimoTrabajoHtml(ap.id);
+    if(actividad){
+      var act = el("div",{class:"card dato-card"});
+      act.innerHTML = '<p class="section-title">Actividad</p>' + actividad;
+      var btnNotasAp = act.querySelector("[data-ir-notas]");
+      if(btnNotasAp) btnNotasAp.addEventListener("click", function(){ notasFiltroActual = ap.id; cambiarTab("notas"); });
+      wrap.appendChild(act);
+    }
+
+    // 5. Opciones, siempre visibles
+    var opc = el("div",{class:"card dato-card"});
+    opc.appendChild(el("p",{class:"section-title", text:"Opciones"}));
+    var grid = el("div",{class:"dato-acciones"});
+    grid.appendChild(boton("✏️ Editar datos", function(){ abrirModalEditarApiario(ap); }));
+    grid.appendChild(boton("🛠 Registrar trabajo", function(){ abrirModalTrabajo(ap); }));
+    grid.appendChild(boton("📍 Ver en mapa", function(){ cambiarTab("mapa"); }));
+    if(esSociedad) grid.appendChild(boton("🚐 Turnos de gira", function(){ abrirModalGiras(ap); }));
+    // Compartir con otra cuenta: solo el dueño y con la nube activa.
+    if(sincronizacionActiva && ap.propietarioId && uidUsuarioNube()===ap.propietarioId){
+      grid.appendChild(boton("👥 Colaboradores", function(){ abrirModalColaboradores(ap); }));
+    }
+    opc.appendChild(grid);
+    // Un colaborador (no dueño) no puede borrar el apiario: las reglas de la
+    // nube lo rechazan y el intento trabaría la sincronización.
+    if(esDueno){
+      opc.appendChild(boton("🗑 Eliminar apiario", function(){ eliminarApiario(ap); }, "dato-peligro"));
+    }
+    wrap.appendChild(opc);
   }
 
   function renderOverlapWarning(){
@@ -3884,7 +3905,6 @@
      6. TAB COLMENAS
      ============================================================ */
   function renderColmenas(){
-    renderApiarioDetalle();
     $("#tituloColmenas").textContent = apiarioActivo ? ("Colmenas — "+apiarioNombre(apiarioActivo)) : "Colmenas";
     var grid = $("#hiveGrid");
     grid.innerHTML = "";
@@ -8064,7 +8084,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "2.1";
+  var VERSION_APP = "2.2";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
