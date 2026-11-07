@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.0</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.1</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -2700,7 +2700,12 @@
   var NOMBRES_PLAN = {prueba:"Prueba gratis", basico:"Básico", pro:"Pro", admin:"Administrador"};
   var LIMITE_COLMENAS = {basico:20};
   var DIA_MS_APP = 86400000;
-  var pagosInfo = {};
+  // Datos de pago que se muestran si el administrador no ha puesto otros en el panel (⚙).
+  var PAGOS_POR_DEFECTO = {
+    whatsapp: "50489677100",
+    texto: "Transferencia a nombre de Julio Cesar Aguilar:\n• Banco Atlántida · Ahorro · 2021124743\n• BAC Credomatic · Ahorro · 791393830\nDespués de pagar, avísame por WhatsApp con la foto del comprobante."
+  };
+  var pagosInfo = PAGOS_POR_DEFECTO;
   function clavePlan(){ var u = window.ApiCampoSync && window.ApiCampoSync.obtenerUsuario(); return u ? "apicampo:plan:"+u.uid : null; }
   function ponerPlan(p){
     planInfo = p;
@@ -2770,7 +2775,7 @@
     $("#modalMembresia").hidden = false;
     pintarEstadoMembresia();
     refrescarPlan().then(pintarEstadoMembresia);
-    window.ApiCampoSync.leerPagos().then(function(p){ pagosInfo = p||{}; pintarEstadoMembresia(); });
+    window.ApiCampoSync.leerPagos().then(function(p){ pagosInfo = (p && (p.texto||p.whatsapp)) ? p : PAGOS_POR_DEFECTO; pintarEstadoMembresia(); });
   }
   function pintarEstadoMembresia(){
     var e = $("#membresiaEstado");
@@ -8114,7 +8119,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.0";
+  var VERSION_APP = "3.1";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
