@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.9</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.0</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -938,6 +938,16 @@
     <div class="row between" style="align-items:center;">
       <span style="font-size:12px; color:var(--muted); font-weight:600;">Revisando como</span>
       <div class="wrap-chips" id="chipsUsuario" style="justify-content:flex-end;"></div>
+    </div>
+
+    <div class="card" id="mhPanel">
+      <button class="btn btn-primary btn-block" id="btnManosLibres" type="button">🎧 Modo manos libres</button>
+      <div id="mhActivo" hidden>
+        <p id="mhEstadoTxt" style="font-size:19px; font-weight:700; margin:0 0 6px;"></p>
+        <p id="mhOido" style="font-size:12.5px; color:var(--muted); margin:0 0 10px; min-height:18px;"></p>
+        <button class="btn btn-line btn-block" id="btnMhTerminar" type="button">⏹ Terminar manos libres</button>
+      </div>
+      <p id="mhAyuda" style="font-size:12px; color:var(--muted); margin:8px 0 0;">Di: «revisar colmena 4» · «guardar dictado» · «cancelar dictado» · «terminar manos libres»</p>
     </div>
 
     <div class="card" id="cardSeleccionColmena">
@@ -2769,6 +2779,7 @@
     planInfo = p;
     try{ var k = clavePlan(); if(k && p) localStorage.setItem(k, JSON.stringify(p)); }catch(e){}
     pintarMembresia();
+    if(typeof pintarBotonManosLibres==="function") pintarBotonManosLibres();
   }
   function plandeCache(){
     try{ var k = clavePlan(); var r = k && localStorage.getItem(k); return r ? JSON.parse(r) : null; }catch(e){ return null; }
@@ -5399,6 +5410,7 @@
     detenerDictadoSiEscuchando();
     dictadoBase = ""; dictadoAcumulado = "";
     colmenaEnRevision = null;
+    if(manosLibresActivo) mhEstado = "ordenes";
     $("#cardDictado").style.display = "none";
     $("#cardSeleccionColmena").style.display = "";
     renderRevisarColmenas();
@@ -5419,6 +5431,7 @@
     detenerDictadoSiEscuchando();
     dictadoBase = ""; dictadoAcumulado = "";
     colmenaEnRevision = colmenaId;
+    if(manosLibresActivo){ mhEstado = "dictando"; }
     detenerCamaraInline();
     var c = store.colmenas.find(function(x){ return x.id===colmenaId; });
     renderRevisarColmenas();
@@ -6318,6 +6331,7 @@
 
   /* ---- Botón del micrófono: elige el motor solo ---- */
   $("#btnMic").addEventListener("click", function(){
+    if(manosLibresActivo){ toast("Estás en modo manos libres. Di «terminar manos libres» o toca Terminar."); return; }
     if(modoMic==="revision" && !colmenaEnRevision){ toast("Selecciona una colmena primero"); return; }
 
     if(escuchando){
@@ -6447,6 +6461,285 @@
       }
     }, 500);
   }
+
+  /* ============================================================
+     MODO MANOS LIBRES (solo planes de pago)
+     Micrófono abierto: se maneja la revisión solo con la voz.
+       «revisar colmena 4» (o «colmena número 4») → abre la colmena y empieza a dictar
+       «guardar dictado» → guarda la revisión (y puede seguir: «guardar dictado, colmena 5»)
+       «cancelar dictado» · «terminar manos libres»
+     Usa el modelo sin señal (Vosk), responde con sonidos y voz, y mantiene
+     la pantalla encendida mientras está activo.
+     ============================================================ */
+  var manosLibresActivo = false;
+  var mhEstado = "ordenes";      // "ordenes" | "dictando"
+  var mhHablando = false;
+  var mhMic = null, mhCtx = null, mhNodo = null, mhRec = null, mhWake = null;
+
+  function manosLibresPermitido(){
+    if(!planInfo) return false;
+    if(planInfo.plan==="admin") return true;
+    if(planInfo.plan==="prueba") return false;
+    return !membresiaVencida();
+  }
+  function pintarBotonManosLibres(){
+    var b = $("#btnManosLibres"); if(!b) return;
+    var ok = manosLibresPermitido();
+    b.textContent = ok ? "🎧 Modo manos libres" : "🔒 Modo manos libres (planes de pago)";
+    b.classList.toggle("btn-primary", ok);
+    b.classList.toggle("btn-line", !ok);
+  }
+
+  var MH_UNI = {cero:0,un:1,uno:1,una:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,once:11,doce:12,trece:13,catorce:14,quince:15,dieciseis:16,diecisiete:17,dieciocho:18,diecinueve:19,veinte:20,veintiun:21,veintiuno:21,veintidos:22,veintitres:23,veinticuatro:24,veinticinco:25,veintiseis:26,veintisiete:27,veintiocho:28,veintinueve:29};
+  var MH_DEC = {treinta:30,cuarenta:40,cincuenta:50,sesenta:60,setenta:70,ochenta:80,noventa:90};
+  // Número hablado en español (hasta 199) a partir de la posición i de una lista de palabras ya normalizadas.
+  function mhNumero(tk, i){
+    var t = tk[i];
+    if(t===undefined) return null;
+    if(/^\d+$/.test(t)) return {n:parseInt(t,10), usados:1};
+    var base = 0, j = i;
+    if(t==="cien") return {n:100, usados:1};
+    if(t==="ciento"){ base = 100; j = i+1; }
+    var t2 = tk[j];
+    if(t2 in MH_DEC){
+      var n = base + MH_DEC[t2], usados = j-i+1;
+      if(tk[j+1]==="y" && (tk[j+2] in MH_UNI) && MH_UNI[tk[j+2]]>0 && MH_UNI[tk[j+2]]<10){ n += MH_UNI[tk[j+2]]; usados += 2; }
+      return {n:n, usados:usados};
+    }
+    if(t2 in MH_UNI) return {n:base+MH_UNI[t2], usados:j-i+1};
+    return base ? {n:100, usados:1} : null;
+  }
+  function mhNorm(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9ñ ]/g," ").trim(); }
+
+  // Convierte lo que se oyó en una lista de órdenes y de texto dictado.
+  function mhAnalizar(texto){
+    var orig = String(texto||"").trim().split(/\s+/).filter(Boolean);
+    var nt = orig.map(mhNorm);
+    var items = [], buf = [], i = 0;
+    function vaciar(){ if(buf.length){ items.push({tipo:"texto", val:buf.join(" ")}); buf = []; } }
+    while(i<nt.length){
+      var w = nt[i];
+      var dictadoDespues = function(k){ return nt[k]==="dictado" ? 1 : ((nt[k]==="el" && nt[k+1]==="dictado") ? 2 : 0); };
+      if((w==="guardar" || w==="guarda") && dictadoDespues(i+1)){ vaciar(); items.push({tipo:"guardar"}); i += 1+dictadoDespues(i+1); continue; }
+      if((w==="cancelar" || w==="borrar" || w==="descartar") && dictadoDespues(i+1)){ vaciar(); items.push({tipo:"cancelar"}); i += 1+dictadoDespues(i+1); continue; }
+      if((w==="terminar" || w==="salir") && (nt[i+1]==="manos" || (nt[i+1]==="de" && nt[i+2]==="manos"))){ vaciar(); items.push({tipo:"terminar"}); break; }
+      var k = i, revisar = false;
+      if(w==="revisar" || w==="revisa"){ revisar = true; k = i+1; }
+      if(nt[k]==="colmena"){
+        var m = k+1;
+        if(nt[m]==="numero" || nt[m]==="n") m++;
+        var num = mhNumero(nt, m);
+        if(num){
+          vaciar();
+          items.push({tipo:"abrir", n:num.n, revisar:revisar, orig:orig.slice(i, m+num.usados).join(" ")});
+          i = m + num.usados; continue;
+        }
+      }
+      buf.push(orig[i]); i++;
+    }
+    vaciar();
+    return items;
+  }
+  function mhEsRelleno(it){ return it.tipo==="texto" && /^(y|e|luego|despues|ahora|entonces)$/.test(mhNorm(it.val)); }
+
+  /* ---- Respuesta al usuario: sonidos y voz ---- */
+  function mhPitido(frecuencia, duracionMs, retrasoMs){
+    try{
+      if(!mhCtx) return;
+      var t0 = mhCtx.currentTime + (retrasoMs||0)/1000;
+      var osc = mhCtx.createOscillator(), g = mhCtx.createGain();
+      osc.frequency.value = frecuencia; osc.type = "sine";
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.35, t0+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+duracionMs/1000);
+      osc.connect(g); g.connect(mhCtx.destination);
+      osc.start(t0); osc.stop(t0+duracionMs/1000+0.05);
+    }catch(e){}
+  }
+  function mhSonido(tipo){
+    if(tipo==="ok"){ mhPitido(880,120,0); mhPitido(1320,160,150); }
+    else if(tipo==="error"){ mhPitido(300,300,0); }
+    else { mhPitido(660,120,0); }
+  }
+  function mhHablar(msg){
+    try{
+      if(!window.speechSynthesis) return;
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(msg);
+      u.lang = "es-MX"; u.rate = 1.05;
+      mhHablando = true;
+      var fin = function(){ setTimeout(function(){ mhHablando = false; }, 450); };
+      u.onend = fin; u.onerror = fin;
+      speechSynthesis.speak(u);
+      setTimeout(function(){ mhHablando = false; }, 9000); // seguro
+    }catch(e){ mhHablando = false; }
+  }
+  function mhPintar(){
+    var e = $("#mhEstadoTxt"); if(!e) return;
+    if(mhEstado==="dictando"){
+      var c = store.colmenas.find(function(x){ return x.id===colmenaEnRevision; });
+      e.textContent = "🎙 Dictando colmena "+(c?c.numero:"")+" — di «guardar dictado»";
+    }else{
+      e.textContent = "🎧 Esperando orden — di «revisar colmena» y el número";
+    }
+  }
+
+  function mhNumeroColmenaActual(){
+    var c = store.colmenas.find(function(x){ return x.id===colmenaEnRevision; });
+    return c ? c.numero : null;
+  }
+  function mhAbrirColmena(n){
+    var c = store.colmenas.find(function(x){ return x.numero===n && x.apiarioId===apiarioActivo; });
+    if(!c){ mhSonido("error"); mhHablar("No encuentro la colmena "+n); return; }
+    if(tabActualNombre!=="revisar") cambiarTab("revisar");
+    seleccionarColmenaRevision(c.id);
+    alActualizarDictado = actualizarCuadroDictado;
+    dictadoBase = ""; dictadoAcumulado = "";
+    mhEstado = "dictando";
+    mhSonido("listo");
+    mhPintar();
+    mhHablar("Colmena "+n+". Dicta.");
+  }
+
+  function mhProcesar(items){
+    for(var idx=0; idx<items.length; idx++){
+      var it = items[idx];
+      if(it.tipo==="texto"){
+        if(mhEstado==="dictando"){
+          var t = corregirDictadoOffline(it.val);
+          if(t) dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + t;
+        }
+        continue;
+      }
+      if(it.tipo==="terminar"){ mhDetener(true); return; }
+      if(it.tipo==="guardar"){
+        if(mhEstado!=="dictando"){ mhSonido("error"); mhHablar("No hay nada que guardar"); continue; }
+        actualizarCuadroDictado("");
+        if(!$("#txtDictado").value.trim()){ mhSonido("error"); mhHablar("No hay nada que guardar. Dicta primero."); continue; }
+        var num = mhNumeroColmenaActual();
+        guardarRevisionActual();
+        mhEstado = "ordenes";
+        mhSonido("ok"); mhPintar();
+        mhHablar("Guardada la colmena "+num);
+        continue;
+      }
+      if(it.tipo==="cancelar"){
+        if(mhEstado==="dictando"){ mostrarSelectorColmenas(); mhEstado = "ordenes"; mhPintar(); mhSonido("error"); mhHablar("Dictado cancelado"); }
+        continue;
+      }
+      if(it.tipo==="abrir"){
+        if(mhEstado==="dictando"){
+          // Dentro de un dictado, «colmena 5» solo cuenta como orden si se dijo «revisar», si fue
+          // lo único que se dijo, o si viene justo después de «guardar dictado»; si no, es parte del texto.
+          var utilItems = items.filter(function(x){ return !mhEsRelleno(x); });
+          var soloEsto = utilItems.length===1;
+          if(!(it.revisar || soloEsto)){
+            dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + it.orig;
+            continue;
+          }
+          if($("#txtDictado").value.trim()){
+            mhSonido("error");
+            mhHablar("Tienes un dictado sin guardar. Di guardar dictado, o cancelar dictado.");
+            continue;
+          }
+        }
+        mhAbrirColmena(it.n);
+      }
+    }
+    if(mhEstado==="dictando") actualizarCuadroDictado("");
+  }
+
+  /* ---- Micrófono continuo ---- */
+  async function mhPedirPantalla(){
+    try{
+      if(navigator.wakeLock && manosLibresActivo && !mhWake){
+        mhWake = await navigator.wakeLock.request("screen");
+        mhWake.addEventListener("release", function(){ mhWake = null; });
+      }
+    }catch(e){ mhWake = null; }
+  }
+  document.addEventListener("visibilitychange", function(){
+    if(manosLibresActivo && !document.hidden) mhPedirPantalla();
+  });
+
+  function mhLimpiar(){
+    if(mhNodo){ try{ mhNodo.disconnect(); }catch(e){} mhNodo.onaudioprocess = null; mhNodo = null; }
+    if(mhRec){ try{ mhRec.remove(); }catch(e){} mhRec = null; }
+    if(mhMic){ mhMic.getTracks().forEach(function(t){ t.stop(); }); mhMic = null; }
+    if(mhCtx){ try{ mhCtx.close(); }catch(e){} mhCtx = null; }
+    if(mhWake){ try{ mhWake.release(); }catch(e){} mhWake = null; }
+  }
+  function mhDetener(conAviso){
+    var estabaActivo = manosLibresActivo;
+    manosLibresActivo = false;
+    mhLimpiar();
+    $("#mhActivo").hidden = true;
+    $("#btnManosLibres").hidden = false;
+    $("#mhAyuda").hidden = false;
+    if(estabaActivo && conAviso){ try{ speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance("Manos libres terminado"); u.lang = "es-MX"; speechSynthesis.speak(u); }catch(e){} }
+  }
+
+  async function mhIniciar(){
+    if(!manosLibresPermitido()){ toast("El modo manos libres es de los planes de pago. Toca 💳 para ver los planes."); return; }
+    if(!voskListo){ toast("Primero se necesita el dictado sin señal (se descarga una vez, con internet)."); return; }
+    if(!apiarioActivo){ toast("Entra primero a un apiario"); return; }
+    if(escuchando) detenerDictadoSiEscuchando();
+    var btn = $("#btnManosLibres"); btn.disabled = true;
+    try{
+      var modelo = await asegurarVoskCargado();
+      if(!modelo) throw new Error("modelo no disponible");
+      mhMic = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, channelCount:1}});
+      mhCtx = new (window.AudioContext||window.webkitAudioContext)();
+      var source = mhCtx.createMediaStreamSource(mhMic);
+      mhRec = new modelo.KaldiRecognizer(mhCtx.sampleRate);
+      mhRec.on("partialresult", function(msg){
+        var p = (msg && msg.result && msg.result.partial) ? msg.result.partial : "";
+        if(mhHablando) return;
+        $("#mhOido").textContent = p ? "Oigo: "+p : "";
+        if(mhEstado==="dictando" && p){
+          var soloTexto = mhAnalizar(p).filter(function(x){ return x.tipo==="texto"; }).map(function(x){ return x.val; }).join(" ");
+          actualizarCuadroDictado(corregirDictadoOffline(soloTexto));
+        }
+      });
+      mhRec.on("result", function(msg){
+        var texto = (msg && msg.result && msg.result.text) ? msg.result.text.trim() : "";
+        if(!texto || mhHablando) return;
+        $("#mhOido").textContent = "Oí: "+texto;
+        mhProcesar(mhAnalizar(texto));
+      });
+      mhNodo = mhCtx.createScriptProcessor(4096,1,1);
+      mhNodo.onaudioprocess = function(ev){ if(mhRec && !mhHablando) mhRec.acceptWaveform(ev.inputBuffer); };
+      var silencio = mhCtx.createGain(); silencio.gain.value = 0;
+      source.connect(mhNodo); mhNodo.connect(silencio); silencio.connect(mhCtx.destination);
+      mhMic.getTracks().forEach(function(t){
+        t.addEventListener("ended", function(){
+          if(!manosLibresActivo) return;
+          mhDetener(false);
+          toast("Se soltó el micrófono (pantalla apagada u otra app lo tomó). Vuelve a activar manos libres.");
+        });
+      });
+      mhCtx.onstatechange = function(){ if(manosLibresActivo && mhCtx && mhCtx.state==="suspended") mhCtx.resume().catch(function(){}); };
+
+      manosLibresActivo = true;
+      if(tabActualNombre!=="revisar") cambiarTab("revisar");
+      if(colmenaEnRevision){ mhEstado = "dictando"; dictadoBase = $("#txtDictado").value; dictadoAcumulado = ""; alActualizarDictado = actualizarCuadroDictado; }
+      else { mhEstado = "ordenes"; }
+      detenerCamaraInline();
+      $("#btnManosLibres").hidden = true; $("#mhAyuda").hidden = true; $("#mhActivo").hidden = false;
+      $("#mhOido").textContent = "";
+      mhPintar();
+      mhPedirPantalla();
+      mhSonido("listo");
+      mhHablar("Manos libres activado. Di revisar colmena y el número.");
+    }catch(e){
+      console.error(e);
+      mhLimpiar(); manosLibresActivo = false;
+      toast("No se pudo activar el micrófono. Revisa el permiso del micrófono.");
+    }
+    btn.disabled = false;
+  }
+  $("#btnManosLibres").addEventListener("click", mhIniciar);
+  $("#btnMhTerminar").addEventListener("click", function(){ mhDetener(true); });
 
   /* ---- Escanear QR con la cámara ----
      Motor único para la cámara incrustada (pestaña Revisar) y para el
@@ -6601,6 +6894,7 @@
   // Al entrar a Revisar sin colmena elegida, la cámara se enciende sola si
   // ya diste permiso (no vuelve a preguntar).
   function autoIniciarCamaraInline(){
+    if(manosLibresActivo) return; // en manos libres no se enciende la cámara (ahorra batería)
     if(colmenaEnRevision || camaraInlineEncendida()) return;
     if($("#cardSeleccionColmena").style.display==="none") return;
     var cerradaAMano = false;
@@ -8332,6 +8626,10 @@
       // segundo micrófono al mismo tiempo: los dos compiten por el mismo audio,
       // y por eso este comando terminaba mandando a otra pantalla y cortando el
       // dictado que ya estaba en curso. En ese caso mejor no hacer nada y avisar.
+      if(typeof manosLibresActivo !== "undefined" && manosLibresActivo){
+        toast("Estás en modo manos libres — di «terminar manos libres» antes de usar este botón");
+        return;
+      }
       if(typeof escuchando !== "undefined" && escuchando){
         toast("Estás dictando la revisión — toca el micrófono grande para detenerlo antes de usar el comando de voz");
         return;
@@ -8395,7 +8693,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.9";
+  var VERSION_APP = "4.0";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
