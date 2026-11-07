@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.0</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.1</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -945,9 +945,14 @@
       <div id="mhActivo" hidden>
         <p id="mhEstadoTxt" style="font-size:19px; font-weight:700; margin:0 0 6px;"></p>
         <p id="mhOido" style="font-size:12.5px; color:var(--muted); margin:0 0 10px; min-height:18px;"></p>
-        <button class="btn btn-line btn-block" id="btnMhTerminar" type="button">⏹ Terminar manos libres</button>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+          <button class="btn btn-primary" id="btnMhGuardar" type="button">💾 Guardar</button>
+          <button class="btn btn-line" id="btnMhPausa" type="button">⏸ Pausar</button>
+          <button class="btn btn-line" id="btnMhCancelar" type="button">🗑 Descartar</button>
+          <button class="btn btn-line" id="btnMhTerminar" type="button">⏹ Terminar</button>
+        </div>
       </div>
-      <p id="mhAyuda" style="font-size:12px; color:var(--muted); margin:8px 0 0;">Di: «revisar colmena 4» · «guardar dictado» · «cancelar dictado» · «terminar manos libres»</p>
+      <p id="mhAyuda" style="font-size:12px; color:var(--muted); margin:8px 0 0;">Di: «revisar colmena 4» · «guardar dictado» · «pausar dictado» · «continuar dictado» · «cancelar dictado» · «terminar manos libres»</p>
     </div>
 
     <div class="card" id="cardSeleccionColmena">
@@ -6511,27 +6516,49 @@
   }
   function mhNorm(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9ñ ]/g," ").trim(); }
 
-  // Convierte lo que se oyó en una lista de órdenes y de texto dictado.
+  function mhLev(a,b){
+    var d=[],i,j; for(i=0;i<=a.length;i++){ d[i]=[i]; } for(j=1;j<=b.length;j++) d[0][j]=j;
+    for(i=1;i<=a.length;i++) for(j=1;j<=b.length;j++) d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    return d[a.length][b.length];
+  }
+  function mhEsGuardar(w){ return /^(guardar|guarda|guardo|guardado|guardalo|guardarlo|guardan|guardad)$/.test(w) || (w.length>=6 && mhLev(w,"guardar")<=1); }
+  function mhEsDictado(w){ return !!w && w.length>=5 && (w==="dictado" || mhLev(w,"dictado")<=2); }
+  function mhEsCancelar(w){ return /^(cancelar|cancela|borrar|borra|descartar|descarta|descarte)$/.test(w); }
+  function mhEsPausar(w){ return /^(pausar|pausa|parar|para|detener|deten|detenga|frenar|callar)$/.test(w); }
+  function mhEsContinuar(w){ return /^(continuar|continua|seguir|sigue|reanudar|reanuda|retomar)$/.test(w); }
+  function mhEsRevisar(w){ return w==="revisar" || w==="revisa" || w==="revisemos" || w==="revision"; }
+  function mhEsColmena(w){ return w==="colmena" || w==="colmenas" || (w && w.length>=6 && mhLev(w,"colmena")<=1); }
+
+  // Convierte lo que se oyó en órdenes y texto. Cada orden trae «fin» = cuántas palabras del texto ya quedaron consumidas.
   function mhAnalizar(texto){
     var orig = String(texto||"").trim().split(/\s+/).filter(Boolean);
     var nt = orig.map(mhNorm);
     var items = [], buf = [], i = 0;
     function vaciar(){ if(buf.length){ items.push({tipo:"texto", val:buf.join(" ")}); buf = []; } }
+    function artic(k){ return (nt[k]==="el"||nt[k]==="la"||nt[k]==="este"||nt[k]==="esta"||nt[k]==="mi") ? k+1 : k; }
+    function esObjeto(k){ k = artic(k); return mhEsDictado(nt[k]) || nt[k]==="revision" ? k+1 : -1; }
     while(i<nt.length){
       var w = nt[i];
-      var dictadoDespues = function(k){ return nt[k]==="dictado" ? 1 : ((nt[k]==="el" && nt[k+1]==="dictado") ? 2 : 0); };
-      if((w==="guardar" || w==="guarda") && dictadoDespues(i+1)){ vaciar(); items.push({tipo:"guardar"}); i += 1+dictadoDespues(i+1); continue; }
-      if((w==="cancelar" || w==="borrar" || w==="descartar") && dictadoDespues(i+1)){ vaciar(); items.push({tipo:"cancelar"}); i += 1+dictadoDespues(i+1); continue; }
-      if((w==="terminar" || w==="salir") && (nt[i+1]==="manos" || (nt[i+1]==="de" && nt[i+2]==="manos"))){ vaciar(); items.push({tipo:"terminar"}); break; }
+      if(mhEsGuardar(w)){
+        var o = esObjeto(i+1);
+        // «guardar» solo también vale si es lo último, o si sigue otra orden («guardar, colmena 5»)
+        if(o>0 || i===nt.length-1 || mhEsColmena(nt[i+1]) || mhEsRevisar(nt[i+1])){
+          vaciar(); items.push({tipo:"guardar", fin:(o>0?o:i+1)}); i = (o>0?o:i+1); continue;
+        }
+      }
+      if(mhEsCancelar(w)){ var oc = esObjeto(i+1); if(oc>0){ vaciar(); items.push({tipo:"cancelar", fin:oc}); i = oc; continue; } }
+      if(mhEsPausar(w)){ var op = esObjeto(i+1); if(op>0 || (w==="pausar"||w==="pausa") && i===nt.length-1){ vaciar(); var f = op>0?op:i+1; items.push({tipo:"pausar", fin:f}); i = f; continue; } }
+      if(mhEsContinuar(w)){ var oq = esObjeto(i+1); if(oq>0 || i===nt.length-1){ vaciar(); var f2 = oq>0?oq:i+1; items.push({tipo:"continuar", fin:f2}); i = f2; continue; } }
+      if((w==="terminar"||w==="salir"||w==="finalizar"||w==="apagar"||w==="cerrar") && (nt[i+1]==="manos" || (nt[i+1]==="de" && nt[i+2]==="manos") || (nt[i+1]==="el" && nt[i+2]==="modo"))){ vaciar(); items.push({tipo:"terminar", fin:nt.length}); break; }
       var k = i, revisar = false;
-      if(w==="revisar" || w==="revisa"){ revisar = true; k = i+1; }
-      if(nt[k]==="colmena"){
+      if(mhEsRevisar(w)){ revisar = true; k = i+1; }
+      if(mhEsColmena(nt[k])){
         var m = k+1;
-        if(nt[m]==="numero" || nt[m]==="n") m++;
+        if(nt[m]==="numero" || nt[m]==="n" || nt[m]==="no") m++;
         var num = mhNumero(nt, m);
         if(num){
           vaciar();
-          items.push({tipo:"abrir", n:num.n, revisar:revisar, orig:orig.slice(i, m+num.usados).join(" ")});
+          items.push({tipo:"abrir", n:num.n, revisar:revisar, orig:orig.slice(i, m+num.usados).join(" "), fin:m+num.usados});
           i = m + num.usados; continue;
         }
       }
@@ -6576,9 +6603,14 @@
   }
   function mhPintar(){
     var e = $("#mhEstadoTxt"); if(!e) return;
+    var bp = $("#btnMhPausa");
+    if(bp) bp.textContent = mhEstado==="pausa" ? "▶ Continuar" : "⏸ Pausar";
     if(mhEstado==="dictando"){
       var c = store.colmenas.find(function(x){ return x.id===colmenaEnRevision; });
       e.textContent = "🎙 Dictando colmena "+(c?c.numero:"")+" — di «guardar dictado»";
+    }else if(mhEstado==="pausa"){
+      var c2 = store.colmenas.find(function(x){ return x.id===colmenaEnRevision; });
+      e.textContent = "⏸ En pausa (colmena "+(c2?c2.numero:"")+") — di «continuar dictado» o «guardar dictado»";
     }else{
       e.textContent = "🎧 Esperando orden — di «revisar colmena» y el número";
     }
@@ -6601,42 +6633,49 @@
     mhHablar("Colmena "+n+". Dicta.");
   }
 
+  function mhGuardarAhora(){
+    if(mhEstado!=="dictando" && mhEstado!=="pausa"){ mhSonido("error"); mhHablar("No hay nada que guardar"); return; }
+    actualizarCuadroDictado("");
+    if(!$("#txtDictado").value.trim()){ mhSonido("error"); mhHablar("No hay nada que guardar. Dicta primero."); return; }
+    var num = mhNumeroColmenaActual();
+    guardarRevisionActual();
+    mhEstado = "ordenes";
+    mhSonido("ok"); mhPintar();
+    mhHablar("Guardada "+num);
+  }
+  function mhPausarAhora(){
+    if(mhEstado==="dictando"){ mhEstado = "pausa"; mhSonido("listo"); mhPintar(); }
+    else if(mhEstado==="pausa" && colmenaEnRevision){ mhEstado = "dictando"; mhSonido("listo"); mhPintar(); }
+  }
+  function mhCancelarAhora(){
+    if(mhEstado==="dictando" || mhEstado==="pausa"){ mostrarSelectorColmenas(); mhEstado = "ordenes"; mhPintar(); mhSonido("error"); mhHablar("Dictado cancelado"); }
+  }
+
   function mhProcesar(items){
     for(var idx=0; idx<items.length; idx++){
       var it = items[idx];
+      var capturando = mhEstado==="dictando";
       if(it.tipo==="texto"){
-        if(mhEstado==="dictando"){
+        if(capturando){
           var t = corregirDictadoOffline(it.val);
           if(t) dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + t;
         }
         continue;
       }
       if(it.tipo==="terminar"){ mhDetener(true); return; }
-      if(it.tipo==="guardar"){
-        if(mhEstado!=="dictando"){ mhSonido("error"); mhHablar("No hay nada que guardar"); continue; }
-        actualizarCuadroDictado("");
-        if(!$("#txtDictado").value.trim()){ mhSonido("error"); mhHablar("No hay nada que guardar. Dicta primero."); continue; }
-        var num = mhNumeroColmenaActual();
-        guardarRevisionActual();
-        mhEstado = "ordenes";
-        mhSonido("ok"); mhPintar();
-        mhHablar("Guardada la colmena "+num);
-        continue;
-      }
-      if(it.tipo==="cancelar"){
-        if(mhEstado==="dictando"){ mostrarSelectorColmenas(); mhEstado = "ordenes"; mhPintar(); mhSonido("error"); mhHablar("Dictado cancelado"); }
-        continue;
-      }
+      if(it.tipo==="guardar"){ mhGuardarAhora(); continue; }
+      if(it.tipo==="cancelar"){ mhCancelarAhora(); continue; }
+      if(it.tipo==="pausar"){ if(mhEstado==="dictando") mhPausarAhora(); continue; }
+      if(it.tipo==="continuar"){ if(mhEstado==="pausa") mhPausarAhora(); else if(mhEstado==="ordenes" && colmenaEnRevision){ mhEstado = "dictando"; mhSonido("listo"); mhPintar(); } continue; }
       if(it.tipo==="abrir"){
-        if(mhEstado==="dictando"){
-          // Dentro de un dictado, «colmena 5» solo cuenta como orden si se dijo «revisar», si fue
-          // lo único que se dijo, o si viene justo después de «guardar dictado»; si no, es parte del texto.
+        if(mhEstado==="dictando" || mhEstado==="pausa"){
           var utilItems = items.filter(function(x){ return !mhEsRelleno(x); });
           var soloEsto = utilItems.length===1;
-          if(!(it.revisar || soloEsto)){
+          if(mhEstado==="dictando" && !(it.revisar || soloEsto)){
             dictadoAcumulado = (dictadoAcumulado ? dictadoAcumulado+" " : "") + it.orig;
             continue;
           }
+          if(mhEstado==="pausa" && !(it.revisar || soloEsto)) continue;
           if($("#txtDictado").value.trim()){
             mhSonido("error");
             mhHablar("Tienes un dictado sin guardar. Di guardar dictado, o cancelar dictado.");
@@ -6692,20 +6731,42 @@
       mhCtx = new (window.AudioContext||window.webkitAudioContext)();
       var source = mhCtx.createMediaStreamSource(mhMic);
       mhRec = new modelo.KaldiRecognizer(mhCtx.sampleRate);
+      var mhConsumido = 0;   // palabras de la frase actual que ya se ejecutaron al oírlas (sin esperar el silencio)
       mhRec.on("partialresult", function(msg){
-        var p = (msg && msg.result && msg.result.partial) ? msg.result.partial : "";
-        if(mhHablando) return;
-        $("#mhOido").textContent = p ? "Oigo: "+p : "";
-        if(mhEstado==="dictando" && p){
-          var soloTexto = mhAnalizar(p).filter(function(x){ return x.tipo==="texto"; }).map(function(x){ return x.val; }).join(" ");
+        var p = (msg && msg.result && msg.result.partial) ? msg.result.partial.trim() : "";
+        if(mhHablando || !p) return;
+        $("#mhOido").textContent = "Oigo: "+p;
+        var pal = p.split(/\s+/);
+        var resto = pal.slice(mhConsumido).join(" ");
+        if(!resto) return;
+        var its = mhAnalizar(resto);
+        // Las órdenes de acción se ejecutan en cuanto se oyen; así no hace falta hacer pausa al hablar.
+        var ult = -1;
+        var nUlt = mhNorm(pal[pal.length-1]), nPal = pal.length-mhConsumido;
+        its.forEach(function(x,ix){
+          if(!/^(guardar|cancelar|pausar|continuar|terminar)$/.test(x.tipo)) return;
+          // una orden suelta al final («guardar» sin «dictado») espera al resultado final para no actuar a media frase
+          if(x.tipo!=="terminar" && x.fin===nPal && !(mhEsDictado(nUlt) || nUlt==="revision")) return;
+          ult = ix;
+        });
+        if(ult>=0){
+          var hasta = its.slice(0,ult+1);
+          mhConsumido += hasta[hasta.length-1].fin;
+          mhProcesar(hasta);
+          return;
+        }
+        if(mhEstado==="dictando"){
+          var soloTexto = its.filter(function(x){ return x.tipo==="texto"; }).map(function(x){ return x.val; }).join(" ");
           actualizarCuadroDictado(corregirDictadoOffline(soloTexto));
         }
       });
       mhRec.on("result", function(msg){
         var texto = (msg && msg.result && msg.result.text) ? msg.result.text.trim() : "";
+        var yaVistas = mhConsumido; mhConsumido = 0;
         if(!texto || mhHablando) return;
         $("#mhOido").textContent = "Oí: "+texto;
-        mhProcesar(mhAnalizar(texto));
+        var resto = texto.split(/\s+/).slice(yaVistas).join(" ");
+        if(resto) mhProcesar(mhAnalizar(resto));
       });
       mhNodo = mhCtx.createScriptProcessor(4096,1,1);
       mhNodo.onaudioprocess = function(ev){ if(mhRec && !mhHablando) mhRec.acceptWaveform(ev.inputBuffer); };
@@ -6740,6 +6801,9 @@
   }
   $("#btnManosLibres").addEventListener("click", mhIniciar);
   $("#btnMhTerminar").addEventListener("click", function(){ mhDetener(true); });
+  $("#btnMhGuardar").addEventListener("click", mhGuardarAhora);
+  $("#btnMhPausa").addEventListener("click", mhPausarAhora);
+  $("#btnMhCancelar").addEventListener("click", mhCancelarAhora);
 
   /* ---- Escanear QR con la cámara ----
      Motor único para la cámara incrustada (pestaña Revisar) y para el
@@ -8693,7 +8757,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "4.0";
+  var VERSION_APP = "4.1";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
