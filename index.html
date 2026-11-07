@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.8</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.9</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -3814,6 +3814,7 @@
     renderApiarios();
     abrirApiario(ap.id, "colmenas");
     toast("Apiario agregado");
+    setTimeout(prepararSinSenalParaApiario, 1800);
   });
 
   /* ---- Turnos de gira (transporte por sociedad) ---- */
@@ -6385,6 +6386,34 @@
      usuario se acuerde de tocar el botón antes de perder señal en el campo.
      Si abre sin señal, no se intenta — sigue disponible el botón manual
      como respaldo para cuando él quiera activarlo. */
+  // Descarga automática solo si NO es con datos móviles (son 34 MB) y como
+  // máximo una vez cada 2 horas: antes, si el teléfono borraba el modelo,
+  // se bajaba otra vez en cada apertura de la app.
+  function intentarDescargaVozAuto(){
+    if(voskListo || voskDescargando || navigator.onLine===false) return;
+    var c = navigator.connection;
+    var conDatos = !!(c && (c.type==="cellular" || c.saveData));
+    var ultimo = 0; try{ ultimo = parseInt(localStorage.getItem(CLAVE_VOZ_INTENTO)||"0",10)||0; }catch(e){}
+    var reciente = (Date.now()-ultimo) < 2*3600*1000;
+    if(conDatos || reciente) return;
+    try{ localStorage.setItem(CLAVE_VOZ_INTENTO, String(Date.now())); }catch(e){}
+    descargarModeloVozAutomatico();
+  }
+  // Si la app estaba abierta sin señal y vuelve el internet, se intenta sola.
+  window.addEventListener("online", function(){ setTimeout(intentarDescargaVozAuto, 1500); });
+
+  // Al crear un apiario nuevo (con internet) se deja todo listo para el campo
+  // sin que haya que acordarse: el dictado sin señal y el mapa de la zona.
+  function prepararSinSenalParaApiario(){
+    if(navigator.onLine===false) return; // al volver la señal lo hace solo (arriba)
+    if(!voskListo && !voskDescargando){
+      toast("Descargando el dictado sin señal (34 MB) para que lo tengas en el apiario");
+      try{ localStorage.setItem(CLAVE_VOZ_INTENTO, String(Date.now())); }catch(e){}
+      descargarModeloVozAutomatico();
+    }
+    try{ descargarZonaMapaAutomatica(); }catch(e){}
+  }
+
   document.addEventListener("DOMContentLoaded", function(){
     hayModeloVozEnCache().then(function(listo){
       voskListo = listo;
@@ -6393,17 +6422,7 @@
       // Si ya estaba descargado de antes, reforzamos el pedido de espacio
       // protegido cada vez que se abre la app (no cuesta nada repetirlo).
       if(listo){ pedirAlmacenamientoPersistente(); return; }
-      if(navigator.onLine===false) return;
-      // Descarga automática solo si NO es con datos móviles (son 34 MB) y como
-      // máximo una vez cada 6 horas: antes, si el teléfono borraba el modelo,
-      // se bajaba otra vez en cada apertura de la app.
-      var c = navigator.connection;
-      var conDatos = !!(c && (c.type==="cellular" || c.saveData));
-      var ultimo = 0; try{ ultimo = parseInt(localStorage.getItem(CLAVE_VOZ_INTENTO)||"0",10)||0; }catch(e){}
-      var reciente = (Date.now()-ultimo) < 2*3600*1000;
-      if(conDatos || reciente) return;
-      try{ localStorage.setItem(CLAVE_VOZ_INTENTO, String(Date.now())); }catch(e){}
-      descargarModeloVozAutomatico();
+      intentarDescargaVozAuto();
     });
     if(!SpeechRecognitionCtor){
       var hint = $("#micHint");
@@ -8376,7 +8395,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.8";
+  var VERSION_APP = "3.9";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
