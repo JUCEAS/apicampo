@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.4</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.5</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -2750,7 +2750,7 @@
      ============================================================ */
   var planInfo = null; // {plan, vence}
   var NOMBRES_PLAN = {prueba:"Prueba gratis", basico:"Básico", estandar:"Productor", pro:"Pro Sociedades", admin:"Administrador"};
-  var LIMITE_COLMENAS = {basico:20, estandar:60};
+  var LIMITE_COLMENAS = {prueba:20, basico:20, estandar:60};
   var MAX_SOCIOS_PRO = 5;
   var DIA_MS_APP = 86400000;
   // Datos de pago que se muestran si el administrador no ha puesto otros en el panel (⚙).
@@ -2786,7 +2786,7 @@
     var lim = planInfo && LIMITE_COLMENAS[planInfo.plan];
     if(!lim) return true;
     if(colmenasPropias()+n > lim){
-      toast("Tu plan "+NOMBRES_PLAN[planInfo.plan]+" permite hasta "+lim+" colmenas. Toca 💳 para pasar al siguiente plan.");
+      toast((planInfo.plan==="prueba" ? "La prueba gratis permite hasta " : "Tu plan "+NOMBRES_PLAN[planInfo.plan]+" permite hasta ")+lim+" colmenas. Toca 💳 para ver los planes.");
       return false;
     }
     return true;
@@ -2960,16 +2960,19 @@
         fila.appendChild(el("div",{html:"<b></b>"}));
         fila.firstChild.firstChild.textContent = p.correo || p.uid;
         var linea = el("div",{style:"font-size:13px; color:var(--muted); margin-top:2px;"});
-        linea.textContent = (NOMBRES_PLAN[p.plan]||p.plan)+" · "+(d>0 ? "vence "+fechaCorta(p.vence)+" ("+d+" d)" : "VENCIDA");
+        linea.textContent = (NOMBRES_PLAN[p.plan]||p.plan)+" · "+(d>0 ? "✅ ACTIVO · vence "+fechaCorta(p.vence)+" ("+d+" d)" : "⛔ DESACTIVADO / vencido");
         fila.appendChild(linea);
         var acc = el("div",{"class":"acc"});
         function btn(texto, fn){ var b = el("button",{type:"button","class":"btn btn-line"}); b.textContent = texto; b.onclick = fn; acc.appendChild(b); }
-        btn("+1 mes", function(){ accionPlan(p.uid,{vence:Math.max(Date.now(),p.vence||0)+30*DIA_MS_APP}); });
+        if(d>0){
+          btn("⛔ Desactivar", function(){ confirmarApp("¿Desactivar a "+(p.correo||p.uid)+"? No podrá guardar cambios hasta que lo actives.").then(function(ok){ if(ok) accionPlan(p.uid,{vence:Date.now()-1000}); }); });
+        }else{
+          btn("✅ Activar 30 días", function(){ accionPlan(p.uid,{vence:Date.now()+30*DIA_MS_APP}); });
+        }
         btn("+1 año", function(){ accionPlan(p.uid,{vence:Math.max(Date.now(),p.vence||0)+365*DIA_MS_APP}); });
         btn("Básico", function(){ accionPlan(p.uid,{plan:"basico"}); });
         btn("Productor", function(){ accionPlan(p.uid,{plan:"estandar"}); });
         btn("Pro", function(){ accionPlan(p.uid,{plan:"pro"}); });
-        btn("Bloquear", function(){ accionPlan(p.uid,{vence:Date.now()-1000}); });
         fila.appendChild(acc);
         cont.appendChild(fila);
       });
@@ -8322,7 +8325,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.4";
+  var VERSION_APP = "3.5";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
