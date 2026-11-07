@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.3</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.4</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -2791,12 +2791,12 @@
     }
     return true;
   }
-  // ¿Puede usar sociedades e invitar socios? Solo Pro Sociedades o la prueba gratis.
+  // ¿Puede usar sociedades e invitar socios? Solo con el plan Pro Sociedades (la prueba gratis no lo incluye).
   function puedeSociedades(){
     if(!planInfo) return true; // sin datos del plan (sin señal): no se bloquea
     if(planInfo.plan==="admin") return true;
     if(membresiaVencida()) return false;
-    return planInfo.plan==="pro" || planInfo.plan==="prueba";
+    return planInfo.plan==="pro";
   }
   function avisarSoloPro(){
     toast("Las sociedades y los socios son del plan Pro Sociedades. Toca 💳 para verlo.");
@@ -8322,7 +8322,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.3";
+  var VERSION_APP = "3.4";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
