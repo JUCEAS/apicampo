@@ -868,7 +868,7 @@
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.2</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.3</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -997,20 +997,6 @@
         </div>
       </div>
 
-      <div>
-        <div class="row between" style="margin-bottom:8px;">
-          <p class="section-title" style="margin:0;">Marcos — <span id="marcosTituloTipo" class="mono"></span></p>
-        </div>
-        <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Toca un marco o díctalo: "marco 3 cría".</p>
-        <div class="frame-legend" style="margin-bottom:8px;">
-          <span><span class="sw" style="background:var(--f-vacio);"></span>Vacío</span>
-          <span><span class="sw" style="background:var(--f-cria);"></span>Cría</span>
-          <span><span class="sw" style="background:var(--f-miel);"></span>Miel / reservas</span>
-          <span><span class="sw" style="background:var(--f-polen);"></span>Pan de abeja</span>
-        </div>
-        <div class="frame-grid" id="marcosGrid"></div>
-        <div class="frame-summary" id="marcosResumen" style="margin-top:8px;"></div>
-      </div>
 
       <button class="btn btn-primary btn-block" id="btnGuardarRevision">Guardar revisión</button>
       <div class="row" id="filaInformeUltimaRevision" hidden style="gap:8px; margin-top:8px;">
@@ -1083,12 +1069,7 @@
   <!-- ===================== TAB: PRODUCCIÓN ===================== -->
   <main id="tab-produccion" hidden>
     <div class="card">
-      <p class="section-title" style="margin-bottom:8px;">Supuestos de cálculo</p>
-      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">Proyección según los marcos de miel de la última revisión.</p>
-      <div class="field">
-        <label for="inKgMarco">Kg de miel por marco lleno</label>
-        <input type="text" id="inKgMarco" inputmode="decimal">
-      </div>
+      <p class="section-title" style="margin-bottom:8px;">Botella y precio</p>
       <div class="field">
         <label>Tamaño de botella que usas para envasar</label>
         <div class="toggle-row" id="botellaTamanoToggle">
@@ -1096,25 +1077,16 @@
           <button type="button" data-v="750">750 ml</button>
         </div>
       </div>
-      <div class="field">
+      <div class="field" style="margin-bottom:0;">
         <label for="inPrecioBotella">Precio por botella (L)</label>
         <input type="text" id="inPrecioBotella" inputmode="decimal">
       </div>
+      <input type="hidden" id="inKgMarco">
     </div>
 
-    <div class="prod-tiles" id="prodTotales"></div>
-
-    <div class="wrap-chips" id="chipsApiarioProduccion"></div>
-    <div class="card" style="padding:4px 14px;">
-      <div id="listaProduccion"></div>
-      <div class="empty" id="prodEmpty" hidden>Ninguna colmena de este apiario tiene marcos de miel registrados todavía.</div>
-    </div>
-
-    <p class="map-caption">Referencia Honduras: 17 kg por colmena al año (25–30 kg con buen manejo).</p>
-
-    <div class="card" style="margin-top:14px;">
-      <p class="section-title" style="margin-bottom:8px;">Registrar cosecha real</p>
-      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">Lo que de verdad envasaste. En sociedad se reparte entre los socios.</p>
+    <div class="card">
+      <p class="section-title" style="margin-bottom:8px;">Registrar cosecha</p>
+      <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:0 0 12px;">Botellas envasadas. En sociedad se reparte entre los socios.</p>
       <div class="field" id="campoCosechaApiario">
         <label for="selCosechaApiario">Apiario</label>
         <select id="selCosechaApiario" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--line); font-size:14px;"></select>
@@ -4344,28 +4316,6 @@
       });
     }
 
-    if(ult && ult.marcos){
-      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Marcos en la última revisión ("+fechaCorta(ult.fecha)+")"}));
-      if(ult.marcos.length !== c.marcosTotales){
-        var notaAlza = el("p",{style:"font-size:12px; color:var(--muted); margin:0 0 4px;"});
-        notaAlza.textContent = "Esa revisión se hizo con "+ult.marcos.length+" marcos, antes del cambio de alza. La colmena ahora tiene "+c.marcosTotales+" — la próxima revisión ya los va a mostrar.";
-        body.appendChild(notaAlza);
-      }
-      var miniGrid = el("div",{class:"frame-grid"});
-      renderFrameGridInto(miniGrid, ult.marcos, true);
-      body.appendChild(miniGrid);
-      var miniResumen = el("div",{class:"frame-summary", style:"margin-top:6px;"});
-      miniResumen.innerHTML = resumenMarcosHtml(ult.marcos);
-      body.appendChild(miniResumen);
-
-      var p = proyeccionColmena(c);
-      if(p && p.marcosMiel>0){
-        var proyLine = el("p",{style:"font-size:12.5px; color:var(--good); font-weight:700; margin:2px 0 0;"});
-        proyLine.textContent = "Proyección: ≈"+fmtNum(p.botellas,1)+" botella"+(Math.round(p.botellas*10)===10?"":"s")+" ("+store.config.botellaMl+" ml) · "+fmtL(p.ingreso);
-        body.appendChild(proyLine);
-      }
-    }
-
     var goBtn = el("button",{class:"btn btn-primary btn-block", text:"Iniciar revisión por dictado"});
     goBtn.addEventListener("click", function(){
       $("#modalDetalle").hidden = true;
@@ -4976,8 +4926,6 @@
     if(campos.varroaPorcentaje!=null) partes.push("Varroa: "+campos.varroaPorcentaje+"%");
     if(campos.enfermedades && campos.enfermedades.length) partes.push(campos.enfermedades.join(", "));
     if(campos.sanaExplicito && (!campos.enfermedades || !campos.enfermedades.length)) partes.push("Sana");
-    var rm = resumenMarcosTexto(marcos);
-    if(rm) partes.push(rm);
     return partes.join(" · ")||"sin detalles";
   }
 
@@ -5103,7 +5051,7 @@
     marcosActuales = [];
     for(var i=0;i<total;i++) marcosActuales.push("vacio");
     var etiquetaTipo = c.tipo==="sencilla"?"sencilla, ":(c.tipo==="nucleo"?"núcleo, ":"doble, ");
-    $("#marcosTituloTipo").textContent = etiquetaTipo+total+" marcos";
+    if($("#marcosTituloTipo")) $("#marcosTituloTipo").textContent = etiquetaTipo+total+" marcos";
     renderParsedGrid();
     renderDiseaseChips();
     renderMarcosGrid();
@@ -5115,6 +5063,7 @@
 
   function renderMarcosGrid(){
     var grid = $("#marcosGrid");
+    if(!grid) return;
     renderFrameGridInto(grid, marcosActuales, false, function(i){
       var idx = ESTADOS_MARCO.indexOf(marcosActuales[i]);
       marcosActuales[i] = ESTADOS_MARCO[(idx+1) % ESTADOS_MARCO.length];
@@ -5421,7 +5370,7 @@
     var texto = $("#txtDictado").value.trim();
     if(!texto){ toast("Dicta o escribe algo antes de guardar"); return; }
     var cRev = store.colmenas.find(function(x){ return x.id===colmenaEnRevision; });
-    var r = {id:uid("r"), colmenaId:colmenaEnRevision, apiarioId:cRev?cRev.apiarioId:apiarioActivo, fecha:Date.now(), revisadoPor:store.usuarioActual, texto:texto, campos:camposActuales, marcos:marcosActuales.slice()};
+    var r = {id:uid("r"), colmenaId:colmenaEnRevision, apiarioId:cRev?cRev.apiarioId:apiarioActivo, fecha:Date.now(), revisadoPor:store.usuarioActual, texto:texto, campos:camposActuales};
     store.revisiones.push(r);
     store.esDemo = false;
     guardar();
@@ -6981,22 +6930,6 @@
       y += lineasEnf.length*5.5;
     }
 
-    var resumenMarcos = resumenMarcosTexto(r.marcos);
-    if(resumenMarcos){
-      y += 4;
-      nuevaPaginaSiHaceFalta(10);
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(11);
-      doc.text("Marcos", margin, y);
-      y += 6;
-      doc.setFont("helvetica","normal");
-      doc.setFontSize(10);
-      var lineasMarcos = doc.splitTextToSize(resumenMarcos, anchoTexto);
-      nuevaPaginaSiHaceFalta(lineasMarcos.length*5.5);
-      doc.text(lineasMarcos, margin, y);
-      y += lineasMarcos.length*5.5;
-    }
-
     if(r.texto){
       y += 4;
       nuevaPaginaSiHaceFalta(10);
@@ -7084,16 +7017,6 @@
       body.appendChild(dwrap);
     }
 
-    if(r.marcos && r.marcos.length){
-      body.appendChild(el("p",{class:"section-title", style:"margin:6px 0 0;", text:"Marcos"}));
-      var fgrid = el("div",{class:"frame-grid"});
-      renderFrameGridInto(fgrid, r.marcos, true);
-      body.appendChild(fgrid);
-      var fsum = el("div",{class:"frame-summary", style:"margin-top:6px;"});
-      fsum.innerHTML = resumenMarcosHtml(r.marcos) || '<span>No se registraron marcos</span>';
-      body.appendChild(fsum);
-    }
-
     var filaInforme = el("div",{class:"row", style:"gap:8px; margin-top:6px;"});
     var btnCompartirInforme = el("button",{class:"btn btn-primary", style:"flex:1;", text:"📄 Compartir informe"});
     btnCompartirInforme.addEventListener("click", function(){ compartirInformeRevisionPDF(r); });
@@ -7147,64 +7070,10 @@
     });
   });
 
+  // La pestaña Miel registra la cosecha real (ya no proyecta miel por marcos).
   function renderProduccion(){
-    $("#inKgMarco").value = store.config.kgPorMarco;
     $("#inPrecioBotella").value = store.config.precioPorBotella;
     pintarBotellaTamanoToggle();
-
-    var wrap = $("#chipsApiarioProduccion");
-    wrap.innerHTML = "";
-    var chipTodos = el("button",{class:"chip"+(prodApiarioFiltro==="todos"?" active":""), text:"Todos los apiarios"});
-    chipTodos.addEventListener("click", function(){ prodApiarioFiltro="todos"; renderProduccion(); });
-    wrap.appendChild(chipTodos);
-    store.apiarios.forEach(function(ap){
-      var chip = el("button",{class:"chip"+(prodApiarioFiltro===ap.id?" active":""), text:ap.nombre});
-      chip.addEventListener("click", function(){ prodApiarioFiltro=ap.id; renderProduccion(); });
-      wrap.appendChild(chip);
-    });
-
-    var colmenas = prodApiarioFiltro==="todos" ? store.colmenas : colmenasDe(prodApiarioFiltro);
-    colmenas = colmenas.slice().sort(function(a,b){
-      if(a.apiarioId!==b.apiarioId) return apiarioNombre(a.apiarioId)<apiarioNombre(b.apiarioId)?-1:1;
-      return a.numero-b.numero;
-    });
-
-    var totalMarcos=0, totalBotellas=0, totalIngreso=0, colmenasConDatos=0;
-    var lista = $("#listaProduccion");
-    lista.innerHTML = "";
-    var hayFilas = false;
-
-    colmenas.forEach(function(c){
-      var p = proyeccionColmena(c);
-      var row = el("div",{class:"prod-row"});
-      var izq = el("div");
-      izq.innerHTML = '<div class="who">#'+c.numero+'</div><div class="apiario-name">'+escaparHtml(apiarioNombre(c.apiarioId))+(c.tipo==="nucleo"?" · núcleo":"")+'</div>';
-      row.appendChild(izq);
-      if(p && p.marcosMiel>0){
-        hayFilas = true;
-        colmenasConDatos++;
-        totalMarcos += p.marcosMiel;
-        totalBotellas += p.botellas;
-        totalIngreso += p.ingreso;
-        var der = el("div",{class:"right"});
-        der.innerHTML = '<div class="kg">'+p.marcosMiel+' marco'+(p.marcosMiel===1?"":"s")+' · '+fmtNum(p.botellas,1)+' botella'+(Math.round(p.botellas*10)===10?"":"s")+'</div><div class="ingreso">≈ '+fmtL(p.ingreso)+'</div>';
-        row.appendChild(der);
-      } else {
-        var der2 = el("div",{class:"right"});
-        der2.innerHTML = '<span class="sindato">'+(p?"sin marcos de miel":"sin revisión")+'</span>';
-        row.appendChild(der2);
-      }
-      lista.appendChild(row);
-    });
-    $("#prodEmpty").hidden = colmenas.length>0;
-
-    var tamanoTexto = store.config.botellaMl+" ml";
-    var tilesWrap = $("#prodTotales");
-    tilesWrap.innerHTML =
-      '<div class="prod-tile"><span class="v">'+colmenasConDatos+'</span><span class="k">colmenas con miel</span></div>'+
-      '<div class="prod-tile"><span class="v">'+fmtNum(totalBotellas,1)+'</span><span class="k">botellas de '+tamanoTexto+' estimadas</span></div>'+
-      '<div class="prod-tile accent"><span class="v">'+fmtL(totalIngreso)+'</span><span class="k">ingreso estimado</span></div>';
-
     inicializarFormCosecha();
     renderCosecha();
   }
@@ -8084,7 +7953,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "2.2";
+  var VERSION_APP = "2.3";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
