@@ -868,7 +868,7 @@
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.3</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.4</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -2469,82 +2469,15 @@
     });
   });
 
-  function marcosDemo(total, especif){
-    var arr = [];
-    for(var i=1;i<=total;i++) arr.push((especif&&especif[i])||"vacio");
-    return arr;
-  }
-
+  // Datos iniciales: vacíos (ya no se crean apiarios de ejemplo).
   function seed(){
-    var ap1 = "ap_zapote", ap2 = "ap_ceiba";
-    var colmenasAp1 = [1,2,3,4,5,6].map(function(n){
-      var tipo = (n%3===0) ? "sencilla" : "doble";
-      return {id:"c_"+ap1+"_"+n, apiarioId:ap1, numero:n, tipo:tipo, marcosTotales: tipo==="doble"?19:10, historialMovimientos:[]};
-    });
-    colmenasAp1.push({id:"c_"+ap1+"_7", apiarioId:ap1, numero:7, tipo:"nucleo", marcosTotales:4, historialMovimientos:[]});
-    var colmenasAp2 = [1,2,3].map(function(n){
-      return {id:"c_"+ap2+"_"+n, apiarioId:ap2, numero:n, tipo:"doble", marcosTotales:19, historialMovimientos:[]};
-    });
-    var hoy = Date.now();
-    var dia = 86400000;
-    var revisiones = [
-      {id:"r1", colmenaId:"c_"+ap1+"_1", apiarioId:ap1, fecha:hoy-2*dia, revisadoPor:"JUCEAS", texto:"reina presente, postura de dos días, cría operculada abundante, sin enfermedades, colmena mansa",
-       campos:parseInspeccion("reina presente, postura de dos días, cría operculada abundante, sin enfermedades, colmena mansa"),
-       marcos:marcosDemo(19,{1:"miel",2:"miel",3:"polen",4:"cria",5:"cria",6:"cria",7:"cria",8:"cria",9:"cria",10:"cria",11:"cria",12:"cria",13:"polen",14:"miel",15:"miel",16:"miel",17:"miel"})},
-      {id:"r2", colmenaId:"c_"+ap1+"_2", apiarioId:ap1, fecha:hoy-4*dia, revisadoPor:"JUCEAS", texto:"reina activa, cría operculada, poca miel, algunos zánganos",
-       campos:parseInspeccion("reina activa, cría operculada, poca miel, algunos zánganos"),
-       marcos:marcosDemo(19,{1:"miel",2:"polen",3:"cria",4:"cria",5:"cria",6:"cria",7:"cria",8:"cria",9:"polen",10:"miel"})},
-      {id:"r3", colmenaId:"c_"+ap1+"_3", apiarioId:ap1, fecha:hoy-9*dia, revisadoPor:"JUCEAS", texto:"se observa varroa, cría operculada escasa, reina presente",
-       campos:parseInspeccion("se observa varroa, cría operculada escasa, reina presente"),
-       marcos:marcosDemo(10,{2:"cria",3:"cria",5:"polen",8:"miel"})},
-      {id:"r4", colmenaId:"c_"+ap2+"_1", apiarioId:ap2, fecha:hoy-1*dia, revisadoPor:"JUCEAS", texto:"colmena sana, reina presente, mucha miel y mucho polen, cría operculada abundante",
-       campos:parseInspeccion("colmena sana, reina presente, mucha miel y mucho polen, cría operculada abundante"),
-       marcos:marcosDemo(19,{1:"miel",2:"miel",3:"miel",4:"polen",5:"polen",6:"cria",7:"cria",8:"cria",9:"cria",10:"cria",11:"cria",12:"cria",13:"cria",14:"polen",15:"miel",16:"miel",17:"miel",18:"miel"})},
-      {id:"r5", colmenaId:"c_"+ap2+"_2", apiarioId:ap2, fecha:hoy-20*dia, revisadoPor:"JUCEAS", texto:"no se vio la reina, poca postura, revisar de nuevo pronto",
-       campos:parseInspeccion("no se vio la reina, poca postura, revisar de nuevo pronto"),
-       marcos:marcosDemo(19,{1:"miel",6:"cria",7:"cria"})}
-    ];
-    var tratamientos = [
-      {id:"tx1", colmenaId:"c_"+ap1+"_3", apiarioId:ap1, fecha:hoy-9*dia, enfermedad:"Varroa", producto:"Ácido oxálico (goteo)", dosis:"5 ml por calle", frecuenciaDias:21, notas:""}
-    ];
-    var alimentaciones = [
-      {id:"al1", colmenaId:"c_"+ap2+"_2", apiarioId:ap2, fecha:hoy-6*dia, motivo:"Falta de floración", proporcion:"1:1 (ligero)", limon:true, litros:1, costoL:35, frecuenciaDias:7, notas:""}
-    ];
     return {
-      apiarios:[
-        {id:ap1, nombre:"Apiario El Zapote", lat:14.0818, lng:-87.2068, creado:hoy-60*dia, modoPropiedad:"individual", socios:[], giras:[]},
-        {id:ap2, nombre:"Apiario La Ceiba", lat:14.1450, lng:-87.1500, creado:hoy-40*dia, modoPropiedad:"sociedad", socios:[
-          {id:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)", telefono:"9999-0001"},
-          {id:"soc_ceiba_2", nombre:"Socio 2 (ejemplo)", telefono:"9999-0002"}
-        ], giras:[
-          {id:"gira1", fecha:hoy-6*dia, socioId:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)"}
-        ]}
-      ],
-      colmenas: colmenasAp1.concat(colmenasAp2),
-      revisiones: revisiones,
-      tratamientos: tratamientos,
-      alimentaciones: alimentaciones,
-      trabajos: [],
-      inversiones: [
-        {id:"invd1", categoria:"Cera", detalle:"", cantidad:4, precioUnitario:85, total:340,
-         apiarioId:ap1, fecha:hoy-15*dia, registradoPor:"JUCEAS",
-         confirmada:true, fechaCompra:hoy-14*dia, fechaUso:hoy-10*dia, reparto:null,
-         usos:[{id:"usod1", fecha:hoy-10*dia, cantidad:4, apiarioId:ap1, registradoPor:"JUCEAS"}]},
-        {id:"invd2", categoria:"Medicamento", detalle:"Ácido oxálico", cantidad:2, precioUnitario:180, total:360,
-         apiarioId:ap2, fecha:hoy-2*dia, registradoPor:"JUCEAS",
-         confirmada:false, fechaCompra:null, fechaUso:null,
-         reparto:[{socioId:"soc_ceiba_1", nombre:"Socio 1 (ejemplo)", monto:180}, {socioId:"soc_ceiba_2", nombre:"Socio 2 (ejemplo)", monto:180}],
-         usos:[]},
-        {id:"invd3", categoria:"Marcos", detalle:"", cantidad:50, precioUnitario:35, total:1750,
-         apiarioId:ap1, fecha:hoy-20*dia, registradoPor:"JUCEAS",
-         confirmada:true, fechaCompra:hoy-19*dia, fechaUso:hoy-5*dia, reparto:null,
-         usos:[{id:"usod2", fecha:hoy-5*dia, cantidad:10, apiarioId:ap1, registradoPor:"JUCEAS"}]}
-      ],
-      cosechas: [],
+      apiarios: [], colmenas: [], revisiones: [], tratamientos: [],
+      alimentaciones: [], trabajos: [], inversiones: [], cosechas: [], notas: [],
       config: {kgPorMarco:2.5, botellaMl:750, precioPorBotella:120},
       usuarios: ["JUCEAS"],
       usuarioActual: "JUCEAS",
-      esDemo:true
+      esDemo:false
     };
   }
 
@@ -2629,7 +2562,7 @@
   var IDS_DEMO_SEED = ["ap_zapote","ap_ceiba"];
   var COLECCIONES_HIJAS = ["colmenas","revisiones","tratamientos","alimentaciones","trabajos","inversiones","cosechas","notas"];
   function limpiarDatosDemoResiduales(datos){
-    if(!datos || datos.esDemo) return datos;
+    if(!datos) return datos;
     var teniaApiarios = datos.apiarios && datos.apiarios.length;
     if(teniaApiarios){
       datos.apiarios = datos.apiarios.filter(function(a){ return IDS_DEMO_SEED.indexOf(a.id)===-1; });
@@ -7953,7 +7886,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "2.3";
+  var VERSION_APP = "2.4";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
@@ -8100,6 +8033,7 @@
         sync.jalarInicial(store).then(function(resultado){
           sincronizacionActiva = true;
           actualizarAvisoSincronizacion();
+          limpiarDatosDemoResiduales(store); // por si los de ejemplo quedaron en la nube
           guardar();
           arrancarConDatosLocales();
           sync.escucharCambios(store, function(){
