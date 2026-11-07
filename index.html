@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.1</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.2</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -2549,10 +2549,18 @@
        estado), casi siempre seguido de "hay que cambiarlo/a" (esa parte no
        hace falta reconocerla, con el adjetivo ya alcanza). No se confunde
        con "marco 3 con cría" porque ese patrón siempre lleva un número. */
-    if(/\bmarcos?\s+(malo(s)?|mala(s)?|da[nñ]ado(s)?|da[nñ]ada(s)?|quebrado(s)?|quebrada(s)?|roto(s)?|rota(s)?|en mal estado)\b/.test(t)) r.marcosMalos = true;
-    if(/\bcaja\s+(mala|da[nñ]ada|quebrada|rota|en mal estado)\b/.test(t)) r.cajaMala = true;
-    if(/\btecho\s+(malo|da[nñ]ado|quebrado|roto|en mal estado)\b/.test(t)) r.techoMalo = true;
-    if(/\bbase\s+(mala|da[nñ]ada|quebrada|rota|en mal estado)\b/.test(t)) r.baseMala = true;
+    // «la base está mala», «las cajas están dañadas», «hay que cambiar el techo», «cambiar los marcos»…
+    var ADJ_MAL = "(?:malo|mala|malos|malas|da[nñ]ad[oa]s?|quebrad[oa]s?|rot[oa]s?|podrid[oa]s?|deteriorad[oa]s?|carcomid[oa]s?|rajad[oa]s?|desgastad[oa]s?|viej[oa]s?|apolillad[oa]s?|comid[oa]s?|en mal estado|mal estado|en p[eé]simo estado)";
+    var VERBO_CAMBIAR = "(?:cambiar|cambiarl[oa]s?|cambio|cambiemos|reemplazar|remplazar|sustituir|reparar|arreglar|renovar|reponer|hay que cambiar)";
+    function equipoMal(noun){
+      var ya = new RegExp("\\b"+noun+"\\s+(?:[^\\s,.;\\d]+\\s+){0,2}?"+ADJ_MAL+"(?![a-zñáéíóú])").test(t);
+      var cambiar = new RegExp("\\b"+VERBO_CAMBIAR+"\\s+(?:(?:el|la|los|las|un|una|unos|unas|de|del|toda|todo|todas|todos|esa|ese|esas|esos|nuevo|nueva)\\s+){0,3}"+noun+"\\b").test(t);
+      return ya || cambiar;
+    }
+    if(equipoMal("(?:marcos?|cuadros?)")) r.marcosMalos = true;
+    if(equipoMal("(?:cajas?|alzas?|cuerpos?)")) r.cajaMala = true;
+    if(equipoMal("(?:techos?|tapas?|cubiertas?)")) r.techoMalo = true;
+    if(equipoMal("(?:bases?|pisos?|fondos?)")) r.baseMala = true;
 
     return r;
   }
@@ -6549,7 +6557,13 @@
       if(mhEsCancelar(w)){ var oc = esObjeto(i+1); if(oc>0){ vaciar(); items.push({tipo:"cancelar", fin:oc}); i = oc; continue; } }
       if(mhEsPausar(w)){ var op = esObjeto(i+1); if(op>0 || (w==="pausar"||w==="pausa") && i===nt.length-1){ vaciar(); var f = op>0?op:i+1; items.push({tipo:"pausar", fin:f}); i = f; continue; } }
       if(mhEsContinuar(w)){ var oq = esObjeto(i+1); if(oq>0 || i===nt.length-1){ vaciar(); var f2 = oq>0?oq:i+1; items.push({tipo:"continuar", fin:f2}); i = f2; continue; } }
-      if((w==="terminar"||w==="salir"||w==="finalizar"||w==="apagar"||w==="cerrar") && (nt[i+1]==="manos" || (nt[i+1]==="de" && nt[i+2]==="manos") || (nt[i+1]==="el" && nt[i+2]==="modo"))){ vaciar(); items.push({tipo:"terminar", fin:nt.length}); break; }
+      if(/^(terminar|termina|termine|terminado|salir|sal|finalizar|finaliza|apagar|apaga|cerrar|cierra|desactivar|desactiva|detener|deten)$/.test(w)){
+        var cerca = nt.slice(i+1,i+4);
+        var esModo = cerca.some(function(x){ return x==="manos" || x==="mano" || x==="libres" || x==="libre" || x==="modo" || x==="manoslibres"; });
+        if(esModo){ vaciar(); items.push({tipo:"terminar", fin:nt.length}); break; }
+        // «terminar» / «salir» dicho solo, como única palabra
+        if(nt.length===1 && /^(terminar|termina|finalizar|salir)$/.test(w)){ vaciar(); items.push({tipo:"terminar", fin:1, suelto:true}); break; }
+      }
       var k = i, revisar = false;
       if(mhEsRevisar(w)){ revisar = true; k = i+1; }
       if(mhEsColmena(nt[k])){
@@ -6746,6 +6760,7 @@
         its.forEach(function(x,ix){
           if(!/^(guardar|cancelar|pausar|continuar|terminar)$/.test(x.tipo)) return;
           // una orden suelta al final («guardar» sin «dictado») espera al resultado final para no actuar a media frase
+          if(x.suelto) return;
           if(x.tipo!=="terminar" && x.fin===nPal && !(mhEsDictado(nUlt) || nUlt==="revision")) return;
           ult = ix;
         });
@@ -8757,7 +8772,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "4.1";
+  var VERSION_APP = "4.2";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
