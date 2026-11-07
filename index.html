@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.5</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.6</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -6722,21 +6722,26 @@
   var ZOOM_MIN_DESCARGA = 12, ZOOM_MAX_DESCARGA = 16; // suficiente detalle sin bajar miles de imágenes
 
   var descargandoZonaMapa = false;
+  var verProgresoZona = false;   // true si la persona tocó el botón mientras la descarga automática ya corría
+  var repintarZona = null;
   // "silencioso": para la descarga automática de fondo (ver
   // descargarZonaMapaAutomatica más abajo) — sin barra de progreso ni toast,
   // para no interrumpir mientras se navega la app normal. La descarga manual
   // (el botón) sigue mostrando todo como antes.
   async function descargarZonaMapa(ap, tiles, silencioso){
     descargandoZonaMapa = true;
-    var estado = silencioso ? null : $("#descargaZonaEstado");
+    verProgresoZona = !silencioso;
+    function dameEstado(){ return (!silencioso || verProgresoZona) ? $("#descargaZonaEstado") : null; }
     var hechos = 0, fallidos = 0;
     function pintar(){
+      var estado = dameEstado();
       if(!estado) return;
       estado.innerHTML =
         '<div class="vosk-btn" style="cursor:default;">Descargando mapa de "'+escaparHtml(ap.nombre)+'"… '+hechos+'/'+tiles.length+'</div>'+
         '<div class="vosk-bar-wrap"><div class="vosk-bar" style="width:'+Math.round(hechos/tiles.length*100)+'%;"></div></div>'+
         '<div style="font-size:11px; color:var(--muted); text-align:center; margin-top:4px;">No cierres la app mientras descarga.</div>';
     }
+    repintarZona = pintar;
     pintar();
     try{
       var cache = await caches.open(NOMBRE_CACHE_TILES_MAPA);
@@ -6751,7 +6756,11 @@
             // mode:"no-cors" porque tile.openstreetmap.org no manda cabeceras
             // CORS — igual que como Leaflet las pide con <img>, la respuesta
             // llega "opaque" (no se puede leer, pero sí guardar en caché).
-            var res = await fetch(url, {mode:"no-cors"});
+            // Con tope de 12 s por imagen: si la señal es mala, la descarga no se queda colgada para siempre.
+            var ctl = new AbortController();
+            var corte = setTimeout(function(){ ctl.abort(); }, 12000);
+            var res;
+            try{ res = await fetch(url, {mode:"no-cors", signal:ctl.signal}); } finally { clearTimeout(corte); }
             if(res && (res.ok || res.type==="opaque")) await cache.put(url, res);
           }
         }catch(e){ fallidos++; }
@@ -6763,6 +6772,7 @@
       for(var i=0;i<6;i++) corredores.push(siguiente());
       await Promise.all(corredores);
       descargandoZonaMapa = false;
+      var estado = dameEstado();
       if(estado){
         estado.innerHTML = '<div class="vosk-ready">✓ Mapa de "'+escaparHtml(ap.nombre)+'" guardado — ya se puede ver sin señal'+(fallidos?(" ("+fallidos+" imágenes no se pudieron guardar; puedes volver a intentar con mejor señal)"):"")+'</div>';
         toast("Listo — ya puedes ver esta zona sin señal");
@@ -6770,6 +6780,7 @@
     }catch(e){
       console.error(e);
       descargandoZonaMapa = false;
+      var estado = dameEstado();
       if(estado){
         estado.innerHTML = "";
         toast("No se pudo descargar el mapa de esta zona. Intenta de nuevo con mejor señal.");
@@ -6795,7 +6806,13 @@
   }
 
   $("#btnDescargarZonaMapa").addEventListener("click", function(){
-    if(descargandoZonaMapa) return;
+    if(descargandoZonaMapa){
+      // Antes esto no hacía nada y parecía que el botón no funcionaba: la descarga automática ya estaba corriendo.
+      verProgresoZona = true;
+      if(repintarZona) repintarZona();
+      toast("Ya se está descargando el mapa de esta zona. Espera a que termine.");
+      return;
+    }
     if(mapaModo==="todos"){
       toast("Primero elige arriba un apiario específico (no \"Todos\"), para saber qué zona descargar");
       return;
@@ -8325,7 +8342,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.5";
+  var VERSION_APP = "3.6";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
