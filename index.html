@@ -813,6 +813,11 @@
   .acceso-estado.ok{ display:block; background:var(--good-soft); color:var(--good); }
   .acceso-estado.error{ display:block; background:var(--critical-soft); color:var(--critical); }
   .acceso-estado.info{ display:block; background:var(--accent-soft); color:var(--accent); }
+  .aviso-membresia{ display:block; width:100%; text-align:left; border:1px solid var(--line); background:var(--accent-soft); color:var(--accent-soft-ink); border-radius:12px; padding:12px 14px; font:inherit; font-size:14px; line-height:1.4; cursor:pointer; }
+  .aviso-membresia.rojo{ background:var(--critical); color:#fff; border-color:var(--critical); }
+  .plan-fila{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; background:var(--surface); }
+  .plan-fila .acc{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .plan-fila .acc button{ padding:7px 10px; font-size:13px; }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -866,9 +871,11 @@
     </div>
     <button class="apiario-activo-pill" id="topbarApiarioActivo" hidden title="Cambiar el apiario en el que estás trabajando"></button>
     <button class="voz-global-btn" id="btnVozGlobal" title="Comando de voz: por ejemplo, 'selecciona la colmena 2 del apiario Zapote'" aria-label="Comando de voz">🎙</button>
+    <button class="voz-global-btn" id="btnMembresia" hidden title="Mi membresía" aria-label="Mi membresía">💳</button>
+    <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v2.4</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.0</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -881,6 +888,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       Escanear QR de una colmena
     </button>
+    <button type="button" id="avisoMembresia" hidden class="aviso-membresia"></button>
     <p class="section-title" style="margin:4px 0 -6px;">Tus apiarios</p>
     <div id="listaApiarios" style="display:flex; flex-direction:column; gap:8px;"></div>
 
@@ -1657,6 +1665,35 @@
 </div>
 
 <!-- Modal: confirmar (reemplaza confirm() nativo, que no funciona instalada como app) -->
+
+<!-- Modal: mi membresía -->
+<div class="modal-backdrop" id="modalMembresia" hidden>
+  <div class="modal">
+    <h2>Mi membresía</h2>
+    <div id="membresiaEstado" style="margin-bottom:12px;"></div>
+    <p class="section-title" style="margin:0 0 6px;">Planes</p>
+    <div class="plan-fila"><b>Básico</b> · hasta 20 colmenas<br>L 100 al mes · L 1,000 al año</div>
+    <div class="plan-fila"><b>Pro</b> · colmenas ilimitadas<br>L 200 al mes · L 2,000 al año</div>
+    <p class="section-title" style="margin:12px 0 6px;">Cómo pagar</p>
+    <div id="membresiaPago" style="font-size:14px; line-height:1.5; white-space:pre-line;"></div>
+    <button class="btn btn-primary btn-block" id="btnPagarWhatsApp" style="margin-top:10px;" hidden>Avisar mi pago por WhatsApp</button>
+    <button class="btn btn-line btn-block" id="btnCerrarMembresia" style="margin-top:8px;">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal: administrar usuarios -->
+<div class="modal-backdrop" id="modalAdmin" hidden>
+  <div class="modal">
+    <h2>Usuarios</h2>
+    <div id="adminLista" style="max-height:55vh; overflow-y:auto;"></div>
+    <p class="section-title" style="margin:12px 0 6px;">Datos de pago (los ven tus usuarios)</p>
+    <div class="field"><label for="inPagoWa">Tu WhatsApp (solo números, con 504)</label><input type="text" id="inPagoWa" inputmode="numeric" placeholder="50499999999"></div>
+    <div class="field"><label for="inPagoTexto">Cómo pagar</label><textarea id="inPagoTexto" rows="4" placeholder="Banco, cuenta, nombre, PayPal..."></textarea></div>
+    <button class="btn btn-primary btn-block" id="btnGuardarPagos">Guardar datos de pago</button>
+    <button class="btn btn-line btn-block" id="btnCerrarAdmin" style="margin-top:8px;">Cerrar</button>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="modalConfirm" hidden>
   <div class="modal">
     <h2>Confirmar</h2>
@@ -1709,7 +1746,7 @@
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, collection, doc, writeBatch, getDocs, onSnapshot, enableIndexedDbPersistence,
-    query, where, updateDoc, deleteDoc, setDoc, arrayUnion
+    query, where, updateDoc, deleteDoc, setDoc, getDoc, arrayUnion
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   var firebaseConfig = {
@@ -2180,7 +2217,46 @@
     });
   }
 
+  /* ---- MEMBRESÍA ---- */
+  var ADMIN_EMAIL = "juceas19@gmail.com";
+  function esAdminActual(){
+    var u = auth.currentUser;
+    return !!(u && u.email && u.email.toLowerCase()===ADMIN_EMAIL);
+  }
+  var DIA_MS = 86400000;
+  // Lee el plan de la persona; si no tiene, crea su prueba gratis de 30 días.
+  function asegurarPlan(){
+    var u = auth.currentUser;
+    if(!u) return Promise.resolve(null);
+    if(esAdminActual()) return Promise.resolve({plan:"admin", vence:Date.now()+3650*DIA_MS});
+    var ref = doc(db,"planes",u.uid);
+    return getDoc(ref).then(function(snap){
+      if(snap.exists()) return snap.data();
+      var nuevo = {plan:"prueba", vence:Date.now()+30*DIA_MS, creado:Date.now(), correo:(u.email||"")};
+      return setDoc(ref, nuevo).then(function(){ return nuevo; });
+    });
+  }
+  function leerPagos(){
+    return getDoc(doc(db,"config","pagos")).then(function(s){ return s.exists()? s.data() : {}; }).catch(function(){ return {}; });
+  }
+  function guardarPagos(datos){ return setDoc(doc(db,"config","pagos"), datos); }
+  function listarPlanes(){
+    return getDocs(collection(db,"planes")).then(function(snap){
+      var l=[]; snap.forEach(function(d){ l.push(Object.assign({uid:d.id}, d.data())); });
+      return l;
+    });
+  }
+  function guardarPlan(uidUsuario, datos){
+    return setDoc(doc(db,"planes",uidUsuario), datos, {merge:true});
+  }
+
   window.ApiCampoSync = {
+    asegurarPlan: asegurarPlan,
+    esAdmin: esAdminActual,
+    leerPagos: leerPagos,
+    guardarPagos: guardarPagos,
+    listarPlanes: listarPlanes,
+    guardarPlan: guardarPlan,
     iniciarSesion: iniciarSesion,
     crearCuenta: crearCuenta,
     recuperarContrasena: recuperarContrasena,
@@ -2611,11 +2687,160 @@
     // Empuja los cambios a Firestore solo si ya hay sesión y ya se hizo la
     // primera sincronización, y nunca mientras los datos sean los de demo
     // (así nunca se sube "Apiario El Zapote" de ejemplo a la nube de nadie).
-    if(sincronizacionActiva && window.ApiCampoSync && !store.esDemo){
+    if(sincronizacionActiva && window.ApiCampoSync && !store.esDemo && !membresiaVencida()){
       window.ApiCampoSync.sincronizar(store);
     }
   }
   store = cargar();
+
+  /* ============================================================
+     MEMBRESÍA
+     ============================================================ */
+  var planInfo = null; // {plan, vence}
+  var NOMBRES_PLAN = {prueba:"Prueba gratis", basico:"Básico", pro:"Pro", admin:"Administrador"};
+  var LIMITE_COLMENAS = {basico:20};
+  var DIA_MS_APP = 86400000;
+  var pagosInfo = {};
+  function clavePlan(){ var u = window.ApiCampoSync && window.ApiCampoSync.obtenerUsuario(); return u ? "apicampo:plan:"+u.uid : null; }
+  function ponerPlan(p){
+    planInfo = p;
+    try{ var k = clavePlan(); if(k && p) localStorage.setItem(k, JSON.stringify(p)); }catch(e){}
+    pintarMembresia();
+  }
+  function plandeCache(){
+    try{ var k = clavePlan(); var r = k && localStorage.getItem(k); return r ? JSON.parse(r) : null; }catch(e){ return null; }
+  }
+  function membresiaVencida(){
+    return !!(planInfo && planInfo.plan!=="admin" && planInfo.vence <= Date.now());
+  }
+  function diasDePlan(){ return planInfo ? Math.ceil((planInfo.vence - Date.now())/DIA_MS_APP) : null; }
+  function colmenasPropias(){
+    var yo = uidUsuarioNube();
+    var propios = {};
+    store.apiarios.forEach(function(a){ if(!a.propietarioId || a.propietarioId===yo) propios[a.id]=true; });
+    return store.colmenas.filter(function(c){ return propios[c.apiarioId]; }).length;
+  }
+  // true si se pueden agregar "n" colmenas más con el plan actual
+  function cabenColmenas(n){
+    var lim = planInfo && LIMITE_COLMENAS[planInfo.plan];
+    if(!lim) return true;
+    if(colmenasPropias()+n > lim){
+      toast("Tu plan Básico permite hasta "+lim+" colmenas. Pasa a Pro para tener más.");
+      return false;
+    }
+    return true;
+  }
+  function pintarMembresia(){
+    var av = $("#avisoMembresia"), bm = $("#btnMembresia"), ba = $("#btnAdmin");
+    var sync = window.ApiCampoSync;
+    var logeado = sync && sync.obtenerUsuario();
+    var admin = logeado && sync.esAdmin();
+    if(bm) bm.hidden = !logeado || admin;
+    if(ba) ba.hidden = !admin;
+    if(!av) return;
+    var d = diasDePlan();
+    av.classList.remove("rojo");
+    if(!planInfo || admin){ av.hidden = true; return; }
+    if(membresiaVencida()){
+      av.hidden = false; av.classList.add("rojo");
+      av.textContent = "⚠ Tu membresía venció. Sigues viendo todo, pero los cambios solo se guardan en este teléfono. Toca para renovar.";
+    }else if(planInfo.plan==="prueba"){
+      av.hidden = false;
+      av.textContent = "Prueba gratis: te quedan "+d+" día"+(d===1?"":"s")+". Toca para ver los planes.";
+    }else if(d<=7){
+      av.hidden = false;
+      av.textContent = "Tu membresía vence en "+d+" día"+(d===1?"":"s")+". Toca para renovar.";
+    }else{
+      av.hidden = true;
+    }
+  }
+  function refrescarPlan(){
+    var sync = window.ApiCampoSync;
+    if(!sync || !sync.obtenerUsuario()) return Promise.resolve();
+    var estabaVencida = membresiaVencida();
+    return sync.asegurarPlan().then(function(p){
+      if(p) ponerPlan(p);
+      if(estabaVencida && !membresiaVencida() && sincronizacionActiva){
+        toast("Membresía activa: sincronizando tus cambios");
+        guardar();
+      }
+    }).catch(function(){ if(!planInfo){ var c = plandeCache(); if(c) ponerPlan(c); } });
+  }
+  function abrirMembresia(){
+    $("#modalMembresia").hidden = false;
+    pintarEstadoMembresia();
+    refrescarPlan().then(pintarEstadoMembresia);
+    window.ApiCampoSync.leerPagos().then(function(p){ pagosInfo = p||{}; pintarEstadoMembresia(); });
+  }
+  function pintarEstadoMembresia(){
+    var e = $("#membresiaEstado");
+    if(!planInfo){ e.textContent = "Revisando tu plan..."; }
+    else{
+      var d = diasDePlan();
+      var txt = "Plan actual: "+(NOMBRES_PLAN[planInfo.plan]||planInfo.plan)+"\n";
+      txt += membresiaVencida() ? "Venció el "+fechaCorta(planInfo.vence) : "Vence el "+fechaCorta(planInfo.vence)+" ("+d+" día"+(d===1?"":"s")+")";
+      e.style.cssText = "background:var(--surface-2); border-radius:10px; padding:10px 12px; white-space:pre-line; font-size:14px;";
+      e.textContent = txt;
+    }
+    $("#membresiaPago").textContent = pagosInfo.texto || "Escríbele a tu proveedor de ApiCampo para pagar.";
+    var wa = $("#btnPagarWhatsApp");
+    wa.hidden = !pagosInfo.whatsapp;
+  }
+  $("#btnPagarWhatsApp").addEventListener("click", function(){
+    var u = window.ApiCampoSync.obtenerUsuario();
+    var msg = "Hola, ya hice el pago de mi membresía de ApiCampo. Mi correo es "+(u?u.email:"")+".";
+    window.open("https://wa.me/"+String(pagosInfo.whatsapp).replace(/\D/g,"")+"?text="+encodeURIComponent(msg), "_blank");
+  });
+  $("#btnMembresia").addEventListener("click", abrirMembresia);
+  $("#avisoMembresia").addEventListener("click", abrirMembresia);
+  $("#btnCerrarMembresia").addEventListener("click", function(){ $("#modalMembresia").hidden = true; });
+
+  /* ---- Panel del administrador ---- */
+  function accionPlan(uidU, datos){
+    window.ApiCampoSync.guardarPlan(uidU, datos).then(function(){ toast("Guardado"); pintarAdmin(); })
+      .catch(function(e){ toast("No se pudo guardar: "+(e&&e.code||e)); });
+  }
+  function pintarAdmin(){
+    var cont = $("#adminLista");
+    cont.textContent = "Cargando...";
+    window.ApiCampoSync.listarPlanes().then(function(lista){
+      lista.sort(function(a,b){ return (a.vence||0)-(b.vence||0); });
+      cont.textContent = "";
+      if(!lista.length){ cont.textContent = "Todavía no hay usuarios."; return; }
+      lista.forEach(function(p){
+        var d = Math.ceil((p.vence-Date.now())/DIA_MS_APP);
+        var fila = el("div",{"class":"plan-fila"});
+        fila.appendChild(el("div",{html:"<b></b>"}));
+        fila.firstChild.firstChild.textContent = p.correo || p.uid;
+        var linea = el("div",{style:"font-size:13px; color:var(--muted); margin-top:2px;"});
+        linea.textContent = (NOMBRES_PLAN[p.plan]||p.plan)+" · "+(d>0 ? "vence "+fechaCorta(p.vence)+" ("+d+" d)" : "VENCIDA");
+        fila.appendChild(linea);
+        var acc = el("div",{"class":"acc"});
+        function btn(texto, fn){ var b = el("button",{type:"button","class":"btn btn-line"}); b.textContent = texto; b.onclick = fn; acc.appendChild(b); }
+        btn("+1 mes", function(){ accionPlan(p.uid,{vence:Math.max(Date.now(),p.vence||0)+30*DIA_MS_APP}); });
+        btn("+1 año", function(){ accionPlan(p.uid,{vence:Math.max(Date.now(),p.vence||0)+365*DIA_MS_APP}); });
+        btn("Básico", function(){ accionPlan(p.uid,{plan:"basico"}); });
+        btn("Pro", function(){ accionPlan(p.uid,{plan:"pro"}); });
+        btn("Bloquear", function(){ accionPlan(p.uid,{vence:Date.now()-1000}); });
+        fila.appendChild(acc);
+        cont.appendChild(fila);
+      });
+    }).catch(function(e){ cont.textContent = "No se pudo cargar ("+(e&&e.code||e)+"). ¿Ya publicaste las reglas nuevas?"; });
+  }
+  $("#btnAdmin").addEventListener("click", function(){
+    $("#modalAdmin").hidden = false;
+    pintarAdmin();
+    window.ApiCampoSync.leerPagos().then(function(p){
+      $("#inPagoWa").value = (p&&p.whatsapp)||"";
+      $("#inPagoTexto").value = (p&&p.texto)||"";
+    });
+  });
+  $("#btnCerrarAdmin").addEventListener("click", function(){ $("#modalAdmin").hidden = true; });
+  $("#btnGuardarPagos").addEventListener("click", function(){
+    window.ApiCampoSync.guardarPagos({whatsapp:$("#inPagoWa").value.trim(), texto:$("#inPagoTexto").value.trim()})
+      .then(function(){ toast("Datos de pago guardados"); })
+      .catch(function(e){ toast("No se pudo guardar: "+(e&&e.code||e)); });
+  });
 
   function uid(pref){ return pref+"_"+Math.random().toString(36).slice(2,9); }
 
@@ -3888,6 +4113,8 @@
       colmenasDe(apiarioActivo).forEach(function(c){ existentesSet[c.numero]=true; });
       var creadas = [];
       var omitidas = [];
+      var nuevasN = 0; for(var q=desde;q<=hasta;q++){ if(!existentesSet[q]) nuevasN++; }
+      if(!cabenColmenas(nuevasN)) return;
       for(var n=desde; n<=hasta; n++){
         if(existentesSet[n]){ omitidas.push(n); continue; }
         var cc = {id:uid("c"), apiarioId:apiarioActivo, numero:n, tipo:tipoColmenaSeleccionado, marcosTotales:marcos, historialMovimientos:[]};
@@ -3909,6 +4136,7 @@
     if(!numero || numero<1){ toast("Escribe un número válido"); return; }
     var yaExiste = colmenasDe(apiarioActivo).some(function(c){ return c.numero===numero; });
     if(yaExiste){ toast("Ya existe la colmena #"+numero+" en este apiario"); return; }
+    if(!cabenColmenas(1)) return;
     var c = {id:uid("c"), apiarioId:apiarioActivo, numero:numero, tipo:tipoColmenaSeleccionado, marcosTotales:marcos, historialMovimientos:[]};
     store.colmenas.push(c);
     store.esDemo = false;
@@ -7886,7 +8114,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "2.4";
+  var VERSION_APP = "3.0";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
@@ -8030,7 +8258,8 @@
       if(usuario){
         ocultarAcceso();
         if(btnCerrarSesionApp) btnCerrarSesionApp.hidden = false;
-        sync.jalarInicial(store).then(function(resultado){
+        (function(){ var c = plandeCache(); if(c) ponerPlan(c); })();
+        sync.asegurarPlan().then(ponerPlan).catch(function(){}).then(function(){ return sync.jalarInicial(store); }).then(function(resultado){
           sincronizacionActiva = true;
           actualizarAvisoSincronizacion();
           limpiarDatosDemoResiduales(store); // por si los de ejemplo quedaron en la nube

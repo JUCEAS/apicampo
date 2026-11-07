@@ -6,6 +6,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ---- MEMBRESÍA ----
+    // El administrador (dueño de ApiCampo). Nadie más puede abrir una cuenta
+    // con este correo porque Firebase no permite correos repetidos.
+    function esAdmin() {
+      return estaAutenticado() && request.auth.token.email == 'juceas19@gmail.com';
+    }
+    // Puede escribir (crear/editar) quien es admin o tiene plan vigente.
+    // Leer y borrar no se bloquea nunca: con la membresía vencida la persona
+    // sigue viendo y descargando sus datos.
+    function membresiaVigente() {
+      return esAdmin() ||
+        (estaAutenticado() &&
+         exists(/databases/$(database)/documents/planes/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.vence > request.time.toMillis());
+    }
+
     function esDuenoOColaboradorDe(apiario) {
       return apiario != null && estaAutenticado() &&
         (request.auth.uid == apiario.propietarioId ||
@@ -52,21 +68,38 @@ service cloud.firestore {
         .hasAny(['propietarioId', 'colaboradoresUids', 'colaboradoresInfo']);
     }
 
+    match /planes/{uid} {
+      allow read: if estaAutenticado() && (request.auth.uid == uid || esAdmin());
+      // La prueba gratis la crea la propia persona una sola vez (máx. 31 días).
+      allow create: if estaAutenticado() && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['plan','vence','creado','correo']) &&
+        request.resource.data.plan == 'prueba' &&
+        request.resource.data.vence <= request.time.toMillis() + 31 * 86400000;
+      allow update, delete: if esAdmin();
+      allow create: if esAdmin();
+    }
+
+    // Datos de pago (WhatsApp, cuenta) que ve cada usuario; solo el admin los cambia.
+    match /config/{docId} {
+      allow read: if estaAutenticado();
+      allow write: if esAdmin();
+    }
+
     match /apiarios/{apiarioId} {
       allow read: if esDuenoOColaboradorDe(resource.data);
-      allow create: if estaAutenticado() && request.resource.data.propietarioId == request.auth.uid;
-      allow update: if
+      allow create: if membresiaVigente() && request.resource.data.propietarioId == request.auth.uid;
+      allow update: if membresiaVigente() && (
         (esDuenoDe(resource.data) && noCambiaDueno()) ||
         (esDuenoOColaboradorDe(resource.data) && cambiosPermitidosAColaborador()) ||
         (invitacionValidaPara(apiarioId) &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['colaboradoresUids','colaboradoresInfo']) &&
-         soloSeAgregaASiMismo(resource.data, request.resource.data));
+         soloSeAgregaASiMismo(resource.data, request.resource.data)));
       allow delete: if request.auth.uid == resource.data.propietarioId;
     }
 
     match /invitaciones/{invId} {
       // CORRECCIÓN 2: solo el dueño real del apiario puede invitar a alguien.
-      allow create: if estaAutenticado() && request.resource.data.propietarioId == request.auth.uid &&
+      allow create: if membresiaVigente() && request.resource.data.propietarioId == request.auth.uid &&
         invId == request.resource.data.apiarioId + '_' + request.resource.data.correoInvitado &&
         esDuenoDe(apiarioDe(request.resource.data.apiarioId));
       allow read, delete: if estaAutenticado() &&
@@ -86,33 +119,33 @@ service cloud.firestore {
     // propio o compartido (antes se podía pasar un registro a un apiario ajeno).
     match /colmenas/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /revisiones/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /tratamientos/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /alimentaciones/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /trabajos/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /cosechas/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if estaAutenticado() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
 
     function documentoGeneralPropio(d) {
@@ -131,14 +164,14 @@ service cloud.firestore {
 
     match /inversiones/{docId} {
       allow read, delete: if puedeLeerGeneralOHijo(resource.data);
-      allow update: if puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
-      allow create: if puedeEscribirGeneralOHijo(request.resource.data);
+      allow update: if membresiaVigente() && puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
+      allow create: if membresiaVigente() && puedeEscribirGeneralOHijo(request.resource.data);
     }
 
     match /notas/{docId} {
       allow read, delete: if puedeLeerGeneralOHijo(resource.data);
-      allow update: if puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
-      allow create: if puedeEscribirGeneralOHijo(request.resource.data);
+      allow update: if membresiaVigente() && puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
+      allow create: if membresiaVigente() && puedeEscribirGeneralOHijo(request.resource.data);
     }
   }
 }
