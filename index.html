@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.6</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.7</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -1535,6 +1535,10 @@
     <p class="section-title" style="margin:0 0 6px;">Personas con acceso ahora</p>
     <div id="colabLista" style="margin-bottom:6px;"></div>
     <div class="empty" id="colabEmpty" hidden>Todavía nadie ha aceptado — cuando alguien acepte una invitación, va a aparecer aquí arriba, con su botón para quitarle el acceso.</div>
+    <div id="colabSoloPro" hidden style="background:var(--accent-soft); color:var(--accent-soft-ink); border-radius:10px; padding:12px; margin-bottom:10px; font-size:14px; line-height:1.45;">
+      🔒 Invitar colaboradores es del plan <b>Pro Sociedades</b>. Toca 💳 arriba para ver los planes.
+    </div>
+    <div id="colabFormInvitar">
     <div style="background:var(--surface-2); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
       <p style="font-size:12.5px; color:var(--muted); margin:0 0 6px; font-weight:700;">Esto no manda un correo automático — la app no tiene esa función. Son 3 pasos:</p>
       <p style="font-size:12.5px; color:var(--muted); margin:0 0 3px;">1. Escribe abajo el correo de esa persona (uno que ya tenga, real).</p>
@@ -1546,6 +1550,7 @@
       <input type="text" id="inColabCorreo" inputmode="email" placeholder="correo@ejemplo.com">
     </div>
     <button type="button" class="btn btn-primary btn-block" id="btnInvitarColaborador" style="margin-top:2px;">+ Crear invitación y avisar por WhatsApp</button>
+    </div>
     <p class="section-title" style="margin:14px 0 6px;">Invitaciones pendientes (todavía sin aceptar)</p>
     <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">La ✕ cancela la invitación; no quita acceso a quien ya aceptó.</p>
     <div id="colabInvitacionesLista"></div>
@@ -2793,7 +2798,7 @@
   }
   // ¿Puede usar sociedades e invitar socios? Solo con el plan Pro Sociedades (la prueba gratis no lo incluye).
   function puedeSociedades(){
-    if(!planInfo) return true; // sin datos del plan (sin señal): no se bloquea
+    if(!planInfo) return false; // sin plan conocido: bloqueado (solo Pro lo puede usar)
     if(planInfo.plan==="admin") return true;
     if(membresiaVencida()) return false;
     return planInfo.plan==="pro";
@@ -4050,6 +4055,9 @@
     $("#colabTitulo").textContent = "Colaboradores — "+ap.nombre;
     $("#inColabCorreo").value = "";
     renderColaboradoresModal();
+    var pro = puedeSociedades();
+    $("#colabFormInvitar").hidden = !pro;
+    $("#colabSoloPro").hidden = pro;
     $("#modalColaboradores").hidden = false;
   }
   $("#btnCerrarColaboradores").addEventListener("click", function(){ $("#modalColaboradores").hidden = true; colabApiarioActual = null; });
@@ -8342,7 +8350,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.6";
+  var VERSION_APP = "3.7";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
