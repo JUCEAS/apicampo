@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.2</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v3.3</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -1672,17 +1672,16 @@
     <h2>Mi membresía</h2>
     <div id="membresiaEstado" style="margin-bottom:12px;"></div>
     <p class="section-title" style="margin:0 0 6px;">Planes</p>
-    <div class="plan-fila"><b>Básico</b> · hasta 20 colmenas<br>L 100 al mes · L 1,000 al año</div>
-    <div class="plan-fila"><b>Pro</b> · colmenas ilimitadas<br>L 200 al mes · L 2,000 al año</div>
+    <div class="plan-fila"><b>Básico</b> · hasta 20 colmenas · 1 persona<br>L 1,000 al año</div>
+    <div class="plan-fila"><b>Productor</b> · hasta 60 colmenas · 1 persona<br>L 1,800 al año</div>
+    <div class="plan-fila"><b>Pro Sociedades</b> · colmenas ilimitadas · apiarios en sociedad e invitar hasta 5 socios<br>L 3,000 al año</div>
     <p class="section-title" style="margin:12px 0 6px;">Cómo pagar</p>
     <div id="membresiaPago" style="font-size:14px; line-height:1.5; white-space:pre-line;"></div>
     <div id="membresiaUltimoPago" style="margin-top:10px; font-size:13.5px;"></div>
     <div style="background:var(--surface-2); border-radius:10px; padding:10px 12px; margin-top:12px;">
       <p class="section-title" style="margin:0 0 8px;">Ya pagué: enviar comprobante</p>
       <div class="field"><label for="selPagoPlan">Plan</label>
-        <select id="selPagoPlan"><option value="basico">Básico (hasta 20 colmenas)</option><option value="pro">Pro (ilimitadas)</option></select></div>
-      <div class="field"><label for="selPagoPeriodo">Tiempo</label>
-        <select id="selPagoPeriodo"><option value="mes">1 mes</option><option value="anio">1 año</option></select></div>
+        <select id="selPagoPlan"><option value="basico">Básico — L 1,000</option><option value="estandar">Productor — L 1,800</option><option value="pro">Pro Sociedades — L 3,000</option></select></div>
       <p id="pagoMonto" style="margin:4px 0 8px; font-weight:600;"></p>
       <input type="file" id="inPagoFoto" accept="image/*" style="width:100%; margin-bottom:8px;">
       <button class="btn btn-primary btn-block" id="btnEnviarPago">Enviar comprobante</button>
@@ -2750,8 +2749,9 @@
      MEMBRESÍA
      ============================================================ */
   var planInfo = null; // {plan, vence}
-  var NOMBRES_PLAN = {prueba:"Prueba gratis", basico:"Básico", pro:"Pro", admin:"Administrador"};
-  var LIMITE_COLMENAS = {basico:20};
+  var NOMBRES_PLAN = {prueba:"Prueba gratis", basico:"Básico", estandar:"Productor", pro:"Pro Sociedades", admin:"Administrador"};
+  var LIMITE_COLMENAS = {basico:20, estandar:60};
+  var MAX_SOCIOS_PRO = 5;
   var DIA_MS_APP = 86400000;
   // Datos de pago que se muestran si el administrador no ha puesto otros en el panel (⚙).
   var PAGOS_POR_DEFECTO = {
@@ -2774,7 +2774,7 @@
     return !!(planInfo && planInfo.plan!=="admin" && venceEfectivo() <= Date.now());
   }
   function diasDePlan(){ return planInfo ? Math.ceil((planInfo.vence - Date.now())/DIA_MS_APP) : null; }
-  var PRECIOS = {basico:{mes:100, anio:1000}, pro:{mes:200, anio:2000}};
+  var PRECIOS = {basico:{anio:1000}, estandar:{anio:1800}, pro:{anio:3000}};
   function colmenasPropias(){
     var yo = uidUsuarioNube();
     var propios = {};
@@ -2786,10 +2786,38 @@
     var lim = planInfo && LIMITE_COLMENAS[planInfo.plan];
     if(!lim) return true;
     if(colmenasPropias()+n > lim){
-      toast("Tu plan Básico permite hasta "+lim+" colmenas. Pasa a Pro para tener más.");
+      toast("Tu plan "+NOMBRES_PLAN[planInfo.plan]+" permite hasta "+lim+" colmenas. Toca 💳 para pasar al siguiente plan.");
       return false;
     }
     return true;
+  }
+  // ¿Puede usar sociedades e invitar socios? Solo Pro Sociedades o la prueba gratis.
+  function puedeSociedades(){
+    if(!planInfo) return true; // sin datos del plan (sin señal): no se bloquea
+    if(planInfo.plan==="admin") return true;
+    if(membresiaVencida()) return false;
+    return planInfo.plan==="pro" || planInfo.plan==="prueba";
+  }
+  function avisarSoloPro(){
+    toast("Las sociedades y los socios son del plan Pro Sociedades. Toca 💳 para verlo.");
+  }
+  // Máximo 5 personas distintas invitadas (aceptadas o pendientes) en el plan Pro.
+  function verificarCupoSocios(correo){
+    if(planInfo && planInfo.plan==="admin") return Promise.resolve(true);
+    var mail = String(correo||"").toLowerCase();
+    var conjunto = {};
+    misApiariosPropios().forEach(function(ap){
+      (ap.colaboradoresInfo||[]).forEach(function(c){ if(c.correo) conjunto[c.correo.toLowerCase()] = true; });
+    });
+    return window.ApiCampoSync.invitacionesEnviadas().catch(function(){ return []; }).then(function(inv){
+      inv.forEach(function(i){ if(i.correoInvitado) conjunto[String(i.correoInvitado).toLowerCase()] = true; });
+      if(conjunto[mail] || Object.keys(conjunto).length < MAX_SOCIOS_PRO) return true;
+      confirmarApp("Tu plan Pro Sociedades permite hasta "+MAX_SOCIOS_PRO+" socios. Si necesitas más, avísame por WhatsApp para ampliarlo. ¿Abrir WhatsApp?").then(function(ok){
+        var wa = String(pagosInfo.whatsapp||"").replace(/\D/g,"");
+        if(ok && wa) window.open("https://wa.me/"+wa+"?text="+encodeURIComponent("Hola, necesito más de "+MAX_SOCIOS_PRO+" socios en mi plan Pro de ApiCampo."), "_blank");
+      });
+      return false;
+    });
   }
   function pintarMembresia(){
     var av = $("#avisoMembresia"), bm = $("#btnMembresia"), ba = $("#btnAdmin");
@@ -2847,11 +2875,10 @@
     }).catch(function(){});
   }
   function pintarMontoPago(){
-    var plan = $("#selPagoPlan").value, per = $("#selPagoPeriodo").value;
+    var plan = $("#selPagoPlan").value, per = "anio";
     $("#pagoMonto").textContent = "Debes pagar: L "+PRECIOS[plan][per].toLocaleString("es-HN");
   }
   $("#selPagoPlan").addEventListener("change", pintarMontoPago);
-  $("#selPagoPeriodo").addEventListener("change", pintarMontoPago);
   // Reduce la foto a ~100 KB para guardarla dentro del documento de Firebase.
   function reducirFoto(archivo){
     return new Promise(function(resolve, reject){
@@ -2873,7 +2900,7 @@
   $("#btnEnviarPago").addEventListener("click", function(){
     var f = $("#inPagoFoto").files[0];
     if(!f){ toast("Toma o elige la foto del comprobante"); return; }
-    var plan = $("#selPagoPlan").value, per = $("#selPagoPeriodo").value;
+    var plan = $("#selPagoPlan").value, per = "anio";
     var btn = $("#btnEnviarPago"); btn.disabled = true; btn.textContent = "Enviando...";
     reducirFoto(f).then(function(foto){
       return window.ApiCampoSync.enviarPago({plan:plan, periodo:per, monto:PRECIOS[plan][per], foto:foto});
@@ -2883,7 +2910,7 @@
       if(r.provHasta && planInfo){ planInfo.provHasta = r.provHasta; ponerPlan(planInfo); }
       if(sincronizacionActiva) guardar();
       var u = window.ApiCampoSync.obtenerUsuario();
-      var msg = "Hola, ya envié mi comprobante de ApiCampo desde la app. Plan "+NOMBRES_PLAN[plan]+", "+(per==="mes"?"1 mes":"1 año")+", L "+PRECIOS[plan][per]+". Mi correo: "+(u?u.email:"")+". Por favor revísalo.";
+      var msg = "Hola, ya envié mi comprobante de ApiCampo desde la app. Plan "+NOMBRES_PLAN[plan]+", "+"1 año, L "+PRECIOS[plan][per]+". Mi correo: "+(u?u.email:"")+". Por favor revísalo.";
       var wa = String(pagosInfo.whatsapp||"").replace(/\D/g,"");
       if(wa) window.open("https://wa.me/"+wa+"?text="+encodeURIComponent(msg), "_blank");
       abrirMembresia();
@@ -2940,6 +2967,7 @@
         btn("+1 mes", function(){ accionPlan(p.uid,{vence:Math.max(Date.now(),p.vence||0)+30*DIA_MS_APP}); });
         btn("+1 año", function(){ accionPlan(p.uid,{vence:Math.max(Date.now(),p.vence||0)+365*DIA_MS_APP}); });
         btn("Básico", function(){ accionPlan(p.uid,{plan:"basico"}); });
+        btn("Productor", function(){ accionPlan(p.uid,{plan:"estandar"}); });
         btn("Pro", function(){ accionPlan(p.uid,{plan:"pro"}); });
         btn("Bloquear", function(){ accionPlan(p.uid,{vence:Date.now()-1000}); });
         fila.appendChild(acc);
@@ -3629,6 +3657,7 @@
   }
   $all("#modoPropiedadToggle button").forEach(function(b){
     b.addEventListener("click", function(){
+      if(b.dataset.modo==="sociedad" && !puedeSociedades() && !(apiarioEditando && apiarioEditando.modoPropiedad==="sociedad")){ avisarSoloPro(); return; }
       modoPropiedadSel = b.dataset.modo;
       if(modoPropiedadSel==="sociedad" && sociosForm.length<2){
         while(sociosForm.length<2) sociosForm.push(nuevoSocioVacio());
@@ -4029,11 +4058,15 @@
     if(!correo || correo.indexOf("@")<0){ toast("Escribe un correo válido"); return; }
     var yaEsColaborador = (ap.colaboradoresInfo||[]).some(function(c){ return (c.correo||"").toLowerCase()===correo.toLowerCase(); });
     if(yaEsColaborador){ toast("Esa persona ya tiene acceso a este apiario"); return; }
-    window.ApiCampoSync.crearInvitacion(ap.id, ap.nombre, correo).then(function(){
+    if(!puedeSociedades()){ avisarSoloPro(); return; }
+    verificarCupoSocios(correo).then(function(ok){
+      if(!ok) return;
+      return window.ApiCampoSync.crearInvitacion(ap.id, ap.nombre, correo).then(function(){
       toast("Invitación creada — ahora mándale el mensaje que se va a abrir");
       $("#inColabCorreo").value = "";
       renderColaboradoresModal();
       compartirTextoWhatsApp(mensajeInvitacion(ap, correo));
+      });
     }).catch(function(e){
       console.error(e);
       toast("No se pudo crear la invitación. Revisa tu conexión e intenta de nuevo.");
@@ -4130,6 +4163,7 @@
       toast("Necesitas iniciar sesión (sincronizado) para administrar socios");
       return;
     }
+    if(!puedeSociedades()){ avisarSoloPro(); return; }
     $("#inSocioCorreo").value = "";
     renderSociosModal();
     $("#modalSocios").hidden = false;
@@ -4156,8 +4190,14 @@
       return;
     }
 
+    if(!puedeSociedades()){ avisarSoloPro(); return; }
     var btn = $("#btnInvitarSocioVarios");
     btn.disabled = true;
+    verificarCupoSocios(correo).then(function(ok){
+      if(!ok){ btn.disabled = false; return; }
+      enviarInvitaciones();
+    });
+    function enviarInvitaciones(){
     var creadas = [];
     var fallas = 0;
     var restantes = porInvitar.length;
@@ -4185,6 +4225,7 @@
       if(fallas){
         toast(fallas+" invitación(es) no se pudieron crear. Revisa tu conexión e intenta de nuevo.");
       }
+    }
     }
   });
 
@@ -8281,7 +8322,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "3.2";
+  var VERSION_APP = "3.3";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){

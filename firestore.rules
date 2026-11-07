@@ -24,6 +24,25 @@ service cloud.firestore {
            get(/databases/$(database)/documents/provisional/$(request.auth.uid)).data.hasta > request.time.toMillis())));
     }
 
+    // El plan vigente de OTRA persona (el dueño de un apiario compartido):
+    // los socios invitados trabajan dentro del plan del dueño.
+    function planVigenteDeUid(u) {
+      return u != null &&
+        exists(/databases/$(database)/documents/planes/$(u)) &&
+        get(/databases/$(database)/documents/planes/$(u)).data.vence > request.time.toMillis();
+    }
+    function duenoVigente(apiarioId) {
+      return planVigenteDeUid(apiarioDespuesDe(apiarioId).propietarioId);
+    }
+    // Invitar socios: solo plan Pro Sociedades (o la prueba gratis) vigente.
+    function puedeInvitar() {
+      return esAdmin() ||
+        (estaAutenticado() &&
+         exists(/databases/$(database)/documents/planes/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.vence > request.time.toMillis() &&
+         get(/databases/$(database)/documents/planes/$(request.auth.uid)).data.plan in ['pro','prueba']);
+    }
+
     function esDuenoOColaboradorDe(apiario) {
       return apiario != null && estaAutenticado() &&
         (request.auth.uid == apiario.propietarioId ||
@@ -98,7 +117,7 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['uid','correo','plan','periodo','monto','foto','estado','creado']) &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.estado == 'pendiente' &&
-        request.resource.data.plan in ['basico','pro'] &&
+        request.resource.data.plan in ['basico','estandar','pro'] &&
         request.resource.data.periodo in ['mes','anio'] &&
         request.resource.data.foto is string && request.resource.data.foto.size() < 600000;
       allow update, delete: if esAdmin();
@@ -113,7 +132,7 @@ service cloud.firestore {
     match /apiarios/{apiarioId} {
       allow read: if esDuenoOColaboradorDe(resource.data);
       allow create: if membresiaVigente() && request.resource.data.propietarioId == request.auth.uid;
-      allow update: if membresiaVigente() && (
+      allow update: if (membresiaVigente() || planVigenteDeUid(resource.data.propietarioId)) && (
         (esDuenoDe(resource.data) && noCambiaDueno()) ||
         (esDuenoOColaboradorDe(resource.data) && cambiosPermitidosAColaborador()) ||
         (invitacionValidaPara(apiarioId) &&
@@ -124,7 +143,7 @@ service cloud.firestore {
 
     match /invitaciones/{invId} {
       // CORRECCIÓN 2: solo el dueño real del apiario puede invitar a alguien.
-      allow create: if membresiaVigente() && request.resource.data.propietarioId == request.auth.uid &&
+      allow create: if puedeInvitar() && request.resource.data.propietarioId == request.auth.uid &&
         invId == request.resource.data.apiarioId + '_' + request.resource.data.correoInvitado &&
         esDuenoDe(apiarioDe(request.resource.data.apiarioId));
       allow read, delete: if estaAutenticado() &&
@@ -144,33 +163,33 @@ service cloud.firestore {
     // propio o compartido (antes se podía pasar un registro a un apiario ajeno).
     match /colmenas/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /revisiones/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /tratamientos/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /alimentaciones/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /trabajos/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
     match /cosechas/{docId} {
       allow read, delete: if coleccionHija(resource.data.apiarioId);
-      allow update: if membresiaVigente() && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
-      allow create: if membresiaVigente() && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow update: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHija(resource.data.apiarioId) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
+      allow create: if (membresiaVigente() || duenoVigente(request.resource.data.apiarioId)) && coleccionHijaAlEscribir(request.resource.data.apiarioId);
     }
 
     function documentoGeneralPropio(d) {
@@ -181,6 +200,10 @@ service cloud.firestore {
     function puedeLeerGeneralOHijo(d) {
       return d.get('apiarioId', null) == null ? documentoGeneralPropio(d) : coleccionHija(d.apiarioId);
     }
+    function escrituraPermitida(d) {
+      return membresiaVigente() ||
+        (d.get('apiarioId', null) != null && duenoVigente(d.apiarioId));
+    }
     function puedeEscribirGeneralOHijo(d) {
       return d.get('apiarioId', null) == null
         ? documentoGeneralPropio(d)
@@ -189,14 +212,14 @@ service cloud.firestore {
 
     match /inversiones/{docId} {
       allow read, delete: if puedeLeerGeneralOHijo(resource.data);
-      allow update: if membresiaVigente() && puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
-      allow create: if membresiaVigente() && puedeEscribirGeneralOHijo(request.resource.data);
+      allow update: if escrituraPermitida(request.resource.data) && puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
+      allow create: if escrituraPermitida(request.resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
     }
 
     match /notas/{docId} {
       allow read, delete: if puedeLeerGeneralOHijo(resource.data);
-      allow update: if membresiaVigente() && puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
-      allow create: if membresiaVigente() && puedeEscribirGeneralOHijo(request.resource.data);
+      allow update: if escrituraPermitida(request.resource.data) && puedeLeerGeneralOHijo(resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
+      allow create: if escrituraPermitida(request.resource.data) && puedeEscribirGeneralOHijo(request.resource.data);
     }
   }
 }
