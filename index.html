@@ -875,7 +875,7 @@
     <button class="voz-global-btn" id="btnAdmin" hidden title="Administrar usuarios" aria-label="Administrar usuarios">⚙</button>
     <button class="voz-global-btn" id="btnCerrarSesionApp" hidden title="Cerrar sesión" aria-label="Cerrar sesión">🚪</button>
     <button class="apiario-activo-pill" id="btnAvisoSinSincronizar" hidden style="background:var(--critical); color:#fff; border-color:var(--critical);" title="No has iniciado sesión — esto que ves es solo la copia local de este teléfono, no tus datos de la nube. Toca para intentar iniciar sesión.">⚠ Sin sincronizar</button>
-    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.2</button>
+    <button type="button" class="demo-pill" id="btnVersionApp" title="Toca para buscar actualización" style="border:none; cursor:pointer; font-family:inherit;">v4.3</button>
   </header>
 
   <!-- ===================== TAB: APIARIOS ===================== -->
@@ -4321,8 +4321,10 @@
     });
   });
 
-  $("#btnImprimirQR").addEventListener("click", function(){ imprimirTodosLosQR(); });
-  $("#btnDescargarQR").addEventListener("click", function(){ descargarQRComoPDF(); });
+  // Estos botones están dentro del apiario que se está viendo: imprimen/descargan
+  // solo los QR de ESE apiario (antes salían las colmenas de todos los apiarios mezcladas).
+  $("#btnImprimirQR").addEventListener("click", function(){ imprimirTodosLosQR(apiarioActivo); });
+  $("#btnDescargarQR").addEventListener("click", function(){ descargarQRComoPDF(apiarioActivo); });
 
   $("#btnNuevaColmena").addEventListener("click", function(){
     if(!apiarioActivo){ toast("Primero crea un apiario"); return; }
@@ -4421,13 +4423,14 @@
      del código: el nombre del apiario arriba, y "COLMENA" + el número bien
      grande abajo — para que sirva sola una vez recortada, sin depender del
      encabezado del grupo. */
-  function imprimirTodosLosQR(){
-    if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
+  function imprimirTodosLosQR(soloApiarioId){
+    if(!(soloApiarioId ? colmenasDe(soloApiarioId).length : store.colmenas.length)){ toast("Este apiario todavía no tiene colmenas"); return; }
     var page = $("#printQRPage");
     page.innerHTML = "";
     page.appendChild(el("h1",{style:"font-family:Inter,sans-serif;font-size:18px;margin:0 0 4px;", text:"ApiCampo — Códigos QR"}));
 
     store.apiarios.forEach(function(a){
+      if(soloApiarioId && a.id!==soloApiarioId) return;
       var cs = colmenasDe(a.id).slice().sort(function(x,y){ return x.numero-y.numero; });
       if(!cs.length) return;
       page.appendChild(el("h2",{style:"font-family:Inter,sans-serif;font-size:14px;margin:14px 0 8px;", text:a.nombre}));
@@ -4506,8 +4509,8 @@
     }
   }
 
-  function descargarQRComoPDF(){
-    if(!store.colmenas.length){ toast("Todavía no hay colmenas registradas"); return; }
+  function descargarQRComoPDF(soloApiarioId){
+    if(!(soloApiarioId ? colmenasDe(soloApiarioId).length : store.colmenas.length)){ toast("Este apiario todavía no tiene colmenas"); return; }
     if(!(window.jspdf && window.jspdf.jsPDF)){
       toast("No se pudo cargar el generador de PDF. Revisa tu conexión e intenta de nuevo.");
       return;
@@ -4523,6 +4526,7 @@
 
     var items = [];
     store.apiarios.forEach(function(a){
+      if(soloApiarioId && a.id!==soloApiarioId) return;
       var cs = colmenasDe(a.id).slice().sort(function(x,y){ return x.numero-y.numero; });
       cs.forEach(function(c){
         var box = el("div");
@@ -8772,7 +8776,7 @@
   /* Actualizar la app a la fuerza: borra la copia guardada de la app (no tus
      datos, ni el dictado sin señal, ni los mapas descargados) y la vuelve a
      bajar de internet. */
-  var VERSION_APP = "4.2";
+  var VERSION_APP = "4.3";
   $("#btnVersionApp").addEventListener("click", function(){
     if(navigator.onLine===false){ toast("Necesitas internet para actualizar"); return; }
     confirmarApp("Versión instalada: "+VERSION_APP+". ¿Buscar y cargar la versión más reciente? Tus datos no se borran.").then(function(ok){
